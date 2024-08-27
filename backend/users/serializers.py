@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser, Profile
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class RegisterSerializer(serializers.ModelSerializer):
     is_recruiter = serializers.BooleanField(write_only=True)
@@ -20,3 +21,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         if is_recruiter:
             Profile.objects.create(user=user)
         return user
+
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add custom claims if needed
+        token['email'] = user.email
+        return token

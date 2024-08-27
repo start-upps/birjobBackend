@@ -2,23 +2,19 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import JobPost, JobApplication
 from .serializers import JobPostSerializer, JobApplicationSerializer
+from rest_framework import generics
 
-class JobPostViewSet(viewsets.ModelViewSet):
+class JobPostCreateView(generics.CreateAPIView):
     queryset = JobPost.objects.all()
     serializer_class = JobPostSerializer
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'destroy']:
-            self.permission_classes = [IsAuthenticated]
-        else:
-            self.permission_classes = [AllowAny]
-        return super(JobPostViewSet, self).get_permissions()
+    permission_classes = [IsAuthenticated]
 
 
-class JobApplicationViewSet(viewsets.ModelViewSet):
-    queryset = JobApplication.objects.all()
+class JobApplicationCreateView(generics.CreateAPIView):
     serializer_class = JobApplicationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        serializer.save()
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['job'] = JobPost.objects.get(id=self.kwargs['job_id'])
+        return context
