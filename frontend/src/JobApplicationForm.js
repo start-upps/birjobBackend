@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import api from './api';
+import { submitJobApplication } from './api';
 
 function JobApplicationForm() {
     const { id } = useParams();
@@ -37,17 +37,18 @@ function JobApplicationForm() {
         data.append('cover_letter', formData.cover_letter);
         data.append('resume', formData.resume);
 
-        api.post('job-applications/', data, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        })
-        .then(response => {
-            alert('Application submitted successfully!');
-        })
-        .catch(error => {
-            console.error('Error submitting application:', error);
-        });
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+            submitJobApplication(data, token)
+                .then(response => {
+                    alert('Application submitted successfully!');
+                })
+                .catch(error => {
+                    console.error('Error submitting application:', error);
+                });
+        } else {
+            console.error('No access token found');
+        }
     };
 
     return (

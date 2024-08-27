@@ -1,0 +1,46 @@
+curl -X POST http://127.0.0.1:8000/api/auth/register/ \
+-H "Content-Type: application/json" \
+-d '{
+      "email": "your-email@example.com",
+      "password": "your-password",
+      "first_name": "John",
+      "last_name": "Doe",
+      "is_recruiter": true
+    }'
+
+
+
+
+curl -X POST http://127.0.0.1:8000/api/auth/login/ \
+-H "Content-Type: application/json" \
+-d '{
+      "email": "your-email@example.com",
+      "password": "your-password"
+    }'
+
+
+
+curl -X POST http://127.0.0.1:8000/api/jobs/ \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzI0NzMzOTYxLCJpYXQiOjE3MjQ3MzM2NjEsImp0aSI6IjgwNGNlZWIxMWVkNzQ2ZDFiMTIyYjk1Nzk5MjZjN2NjIiwidXNlcl9pZCI6MiwiZW1haWwiOiJ5b3VyLWVtYWlsQGV4YW1wbGUuY29tIn0.LSC4icG1ylRGmqaXMzUqAJ7AK5Tg2R-rZT1pZ6MUvP4" \
+-H "Content-Type: application/json" \
+-d '{
+      "title": "Senior Software Engineer",
+      "description": "We are looking for a Senior Software Engineer with experience in Django and React.",
+      "company": "Tech Innovators Inc.",
+      "location": "San Francisco, CA",
+      "function": "Engineering",
+      "schedule": "Full-time",
+      "deadline": "2024-12-31",
+      "responsibilities": "Develop, test, and maintain web applications.",
+      "requirements": "5+ years of experience in software development, proficiency in Django and React.",
+      "is_premium": true,
+      "premium_days": 30,
+      "priority_level": 2,
+      "apply_link": "https://techinnovators.com/careers/apply"
+    }'
+
+
+
+
+curl -X GET http://127.0.0.1:8000/api/jobs/ \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTcyNDgyMTA3MSwiaWF0IjoxNzI0NzM0NjcxLCJqdGkiOiI2N2FhZDdjY2U0YTE0YWE0YmM1NzMzZTBiNWFmNDJjYyIsInVzZXJfaWQiOjIsImVtYWlsIjoieW91ci1lbWFpbEBleGFtcGxlLmNvbSJ9.RutXTlNzaL-T1wyVWrw-zYbUKHvkU68Mwib9_f0xU94"

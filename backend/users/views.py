@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .serializers import RegisterSerializer, CustomTokenObtainPairSerializer
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]

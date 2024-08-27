@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import api from './api';
+import { fetchJobDetail } from './api'; // Import the named export
 
 function JobDetail() {
     const { id } = useParams();
     const [job, setJob] = useState(null);
 
     useEffect(() => {
-        api.get(`job-posts/${id}/`)
+        const token = 'your-access-token';  // Replace with actual token
+        fetchJobDetail(id, token)
             .then(response => {
                 setJob(response.data);
             })

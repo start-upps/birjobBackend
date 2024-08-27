@@ -1,13 +1,19 @@
+# jobs/views.py
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import JobPost, JobApplication
 from .serializers import JobPostSerializer, JobApplicationSerializer
 from rest_framework import generics
+from django.http import HttpResponse
 
-class JobPostCreateView(generics.CreateAPIView):
+def welcome(request):
+    return HttpResponse("Welcome to the Job Platform!")
+
+class JobPostCreateView(generics.ListCreateAPIView):
     queryset = JobPost.objects.all()
     serializer_class = JobPostSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete']
 
 
 class JobApplicationCreateView(generics.CreateAPIView):
@@ -18,3 +24,9 @@ class JobApplicationCreateView(generics.CreateAPIView):
         context = super().get_serializer_context()
         context['job'] = JobPost.objects.get(id=self.kwargs['job_id'])
         return context
+
+
+class JobListView(generics.ListAPIView):
+    queryset = JobPost.objects.all()
+    serializer_class = JobPostSerializer
+    
