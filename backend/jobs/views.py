@@ -1,6 +1,5 @@
-# jobs/views.py
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from .models import JobPost, JobApplication
 from .serializers import JobPostSerializer, JobApplicationSerializer
 from rest_framework import generics
@@ -12,9 +11,8 @@ def welcome(request):
 class JobPostCreateView(generics.ListCreateAPIView):
     queryset = JobPost.objects.all()
     serializer_class = JobPostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     http_method_names = ['get', 'post', 'put', 'patch', 'delete']
-
 
 class JobApplicationCreateView(generics.CreateAPIView):
     serializer_class = JobApplicationSerializer
@@ -25,8 +23,8 @@ class JobApplicationCreateView(generics.CreateAPIView):
         context['job'] = JobPost.objects.get(id=self.kwargs['job_id'])
         return context
 
-
 class JobListView(generics.ListAPIView):
     queryset = JobPost.objects.all()
     serializer_class = JobPostSerializer
-    
+    permission_classes = [AllowAny]  # Allow non-authenticated users to view jobs
+

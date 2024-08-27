@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { submitJobApplication } from './api';
+import { applyToJob } from '../api/api';
 
-function JobApplicationForm() {
+const JobApplicationForm = () => {
     const { id } = useParams();
     const [formData, setFormData] = useState({
         full_name: '',
@@ -29,6 +29,7 @@ function JobApplicationForm() {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        const token = localStorage.getItem('accessToken');
         const data = new FormData();
         data.append('job', id);
         data.append('full_name', formData.full_name);
@@ -37,18 +38,13 @@ function JobApplicationForm() {
         data.append('cover_letter', formData.cover_letter);
         data.append('resume', formData.resume);
 
-        const token = localStorage.getItem('accessToken');
-        if (token) {
-            submitJobApplication(data, token)
-                .then(response => {
-                    alert('Application submitted successfully!');
-                })
-                .catch(error => {
-                    console.error('Error submitting application:', error);
-                });
-        } else {
-            console.error('No access token found');
-        }
+        applyToJob(id, data, token)
+            .then(response => {
+                alert('Application submitted successfully!');
+            })
+            .catch(error => {
+                console.error('Error submitting application:', error);
+            });
     };
 
     return (
@@ -79,6 +75,6 @@ function JobApplicationForm() {
             </form>
         </div>
     );
-}
+};
 
 export default JobApplicationForm;

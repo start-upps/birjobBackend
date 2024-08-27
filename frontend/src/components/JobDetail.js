@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchJobDetail } from './api'; // Import the named export
+import { fetchJobDetail } from '../api/api';
 
-function JobDetail() {
+const JobDetail = () => {
     const { id } = useParams();
     const [job, setJob] = useState(null);
 
     useEffect(() => {
-        const token = 'your-access-token';  // Replace with actual token
+        const token = localStorage.getItem('accessToken');
         fetchJobDetail(id, token)
             .then(response => {
                 setJob(response.data);
@@ -28,6 +28,6 @@ function JobDetail() {
             <a href={`/apply/${job.id}`}>Apply Now</a>
         </div>
     );
-}
+};
 
 export default JobDetail;
