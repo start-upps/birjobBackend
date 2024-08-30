@@ -1,0 +1,21 @@
+.job-list {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.job-item {
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.job-item h2 {
+    margin-bottom: 10px;
+}
+
+.job-item p {
+    margin: 5px 0;
+}

@@ -52,7 +52,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
 }
+
 
 # JWT settings
 SIMPLE_JWT = {
@@ -61,10 +65,10 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # React dev server
-#     "http://127.0.0.1:3000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React dev server
+    "http://127.0.0.1:3000",
+]
 
 CORS_ALLOW_ALL_ORIGINS = True
 

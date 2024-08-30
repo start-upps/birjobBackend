@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { loginUser } from '../api/api';
 
 const Login = () => {
     const [credentials, setCredentials] = useState({ email: '', password: '' });
+    const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
         setCredentials({
             ...credentials,
-            [name]: value,
+            [e.target.name]: e.target.value,
         });
     };
 
@@ -16,12 +18,12 @@ const Login = () => {
         e.preventDefault();
         loginUser(credentials)
             .then(response => {
-                localStorage.setItem('accessToken', response.data.access);
-                localStorage.setItem('refreshToken', response.data.refresh);
-                // Redirect or show success message
+                localStorage.setItem('access_token', response.data.access);
+                localStorage.setItem('refresh_token', response.data.refresh);
+                navigate('/post-job');  // Redirect to the job posting page
             })
             .catch(error => {
-                console.error('Login failed:', error);
+                setError('Login failed. Please check your credentials.');
             });
     };
 
@@ -37,6 +39,7 @@ const Login = () => {
                     <label>Password</label>
                     <input type="password" name="password" value={credentials.password} onChange={handleChange} required />
                 </div>
+                {error && <p>{error}</p>}
                 <button type="submit">Login</button>
             </form>
         </div>

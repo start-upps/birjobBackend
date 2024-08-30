@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchJobs } from '../api/api';
+import './JobList.css'; // Make sure to create and include this CSS file
 
 const JobList = () => {
     const [jobs, setJobs] = useState([]);
@@ -25,11 +26,11 @@ const JobList = () => {
     }
 
     return (
-        <div>
+        <div className="job-list">
             <h1>Job Listings</h1>
             <ul>
                 {jobs.map(job => (
-                    <li key={job.id}>
+                    <li key={job.id} className="job-item">
                         <h2>{job.title}</h2>
                         <p><strong>Company:</strong> {job.company}</p>
                         <p><strong>Location:</strong> {job.location}</p>
