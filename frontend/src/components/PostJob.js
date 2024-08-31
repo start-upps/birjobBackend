@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { postJob } from '../api/api';
 
-const PostJob = () => {
+const PostJob = ({ token }) => {
     const [job, setJob] = useState({
         title: '',
         description: '',
@@ -22,16 +22,17 @@ const PostJob = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const token = localStorage.getItem('access_token');
+
         if (!token) {
             setError('You must be logged in to post a job.');
             return;
         }
+
         postJob(job, token)
             .then(() => {
                 navigate('/jobs');  // Redirect to job listings after posting
             })
-            .catch(error => {
+            .catch(() => {
                 setError('Failed to post the job. Please try again.');
             });
     };

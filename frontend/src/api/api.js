@@ -34,7 +34,7 @@ export const registerUser = async (userData) => {
 
 // Post a job (for recruiters only)
 export const postJob = async (jobData, token) => {
-    return await axios.post(`${API_URL}/jobs/`, jobData, {
+    return await axios.post(`${API_URL}/jobs/create/`, jobData, {
         headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

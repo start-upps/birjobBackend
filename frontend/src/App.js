@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import JobList from './components/JobList';
 import JobDetail from './components/JobDetail';
@@ -9,8 +9,21 @@ import PostJob from './components/PostJob';
 function App() {
     const [token, setToken] = useState(null);
 
+    useEffect(() => {
+        const savedToken = localStorage.getItem('access_token');
+        if (savedToken) {
+            setToken(savedToken);
+        }
+    }, []);
+
     const handleLogin = (accessToken) => {
         setToken(accessToken);
+        localStorage.setItem('access_token', accessToken);
+    };
+
+    const handleLogout = () => {
+        setToken(null);
+        localStorage.removeItem('access_token');
     };
 
     return (
@@ -21,7 +34,7 @@ function App() {
                     {token ? (
                         <>
                             <Link to="/post-job">Post Job</Link>
-                            <button onClick={() => setToken(null)}>Logout</button>
+                            <button onClick={handleLogout}>Logout</button>
                         </>
                     ) : (
                         <Link to="/login">Login</Link>
