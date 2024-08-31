@@ -6,6 +6,7 @@ import JobApplicationForm from './components/JobApplicationForm';
 import Login from './components/Login';
 import PostJob from './components/PostJob';
 import EditJob from './components/EditJob';
+import ApplicantsList from './components/ApplicantsList';  // Import the new component
 
 function App() {
     const [token, setToken] = useState(null);
@@ -48,6 +49,7 @@ function App() {
                     <Route path="/login" element={<Login onLogin={handleLogin} />} />
                     <Route path="/post-job" element={token ? <PostJob token={token} /> : <Navigate to="/login" />} />
                     <Route path="/edit-job/:id" element={token ? <EditJob token={token} /> : <Navigate to="/login" />} />
+                    <Route path="/jobs/:jobId/applicants" element={token ? <ApplicantsList token={token} /> : <Navigate to="/login" />} />  {/* Route to view applicants */}
                 </Routes>
             </div>
         </Router>

@@ -17,14 +17,14 @@ export const fetchJobDetail = async (id, token) => {
 };
 
 // Apply to a job
-export const applyToJob = async (jobId, formData, token) => {
+export const applyToJob = async (jobId, formData) => {  // No token required
     return await axios.post(`${API_URL}/jobs/${jobId}/apply/`, formData, {
         headers: {
-            Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',
         },
     });
 };
+
 
 // Login a user
 export const loginUser = async (credentials) => {

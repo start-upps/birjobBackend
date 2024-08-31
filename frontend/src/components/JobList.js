@@ -66,6 +66,7 @@ const JobList = ({ token }) => {
                                 <>
                                     <button onClick={() => navigate(`/edit-job/${job.id}`)}>Edit</button>
                                     <button onClick={() => handleDelete(job.id)}>Delete</button>
+                                    <button onClick={() => navigate(`/jobs/${job.id}/applicants`)}>View Applicants</button> {/* New Button */}
                                 </>
                             )}
                         </li>

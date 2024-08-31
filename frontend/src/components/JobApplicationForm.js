@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { applyToJob } from '../api/api';
 
 const JobApplicationForm = () => {
@@ -11,6 +11,8 @@ const JobApplicationForm = () => {
         cover_letter: '',
         resume: null,
     });
+    const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -29,7 +31,6 @@ const JobApplicationForm = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const token = localStorage.getItem('accessToken');
         const data = new FormData();
         data.append('job', id);
         data.append('full_name', formData.full_name);
@@ -38,18 +39,20 @@ const JobApplicationForm = () => {
         data.append('cover_letter', formData.cover_letter);
         data.append('resume', formData.resume);
 
-        applyToJob(id, data, token)
-            .then(response => {
+        applyToJob(id, data)
+            .then(() => {
                 alert('Application submitted successfully!');
+                navigate('/');
             })
             .catch(error => {
-                console.error('Error submitting application:', error);
+                setError('Failed to submit application.');
             });
     };
 
     return (
         <div>
             <h1>Apply for Job</h1>
+            {error && <p>{error}</p>}
             <form onSubmit={handleSubmit}>
                 <div>
                     <label>Full Name</label>
