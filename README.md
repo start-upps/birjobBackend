@@ -29,11 +29,23 @@ This repository contains a Django-based job posting application with a React fro
     ```bash
     pip install -r requirements.txt
     ```
-5. Run migrations:
+5. Create a `.env` file in the backend directory and add the following environment variables:
+    ```
+    DB_HOST=your_db_host
+    DB_NAME=your_db_name
+    DB_USER=your_db_user
+    DB_PASSWORD=your_db_password
+    DB_PORT=your_db_port
+    SECRET_KEY=your_secret_key
+    DEBUG=True
+    ```
+   Replace the placeholder values (`your_db_host`, `your_db_name`, etc.) with your actual database and environment settings.
+
+6. Run migrations:
     ```bash
     python manage.py migrate
     ```
-6. Start the Django development server:
+7. Start the Django development server:
     ```bash
     python manage.py runserver
     ```
