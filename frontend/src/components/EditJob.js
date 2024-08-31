@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { postJob } from '../api/api';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { fetchJobDetail, updateJob } from '../api/api';
 
-const PostJob = ({ token }) => {
+const EditJob = ({ token }) => {
+    const { id } = useParams();
     const [job, setJob] = useState({
         title: '',
         description: '',
@@ -13,6 +14,20 @@ const PostJob = ({ token }) => {
     const [error, setError] = useState(null);
     const navigate = useNavigate();
 
+    useEffect(() => {
+        if (token) {
+            fetchJobDetail(id, token)
+                .then(response => {
+                    setJob(response.data);
+                })
+                .catch(error => {
+                    setError('Failed to fetch job details');
+                });
+        } else {
+            setError('You must be logged in to edit a job');
+        }
+    }, [id, token]);
+
     const handleChange = (e) => {
         setJob({
             ...job,
@@ -22,24 +37,19 @@ const PostJob = ({ token }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
-        if (!token) {
-            setError('You must be logged in to post a job.');
-            return;
-        }
-
-        postJob(job, token)
+        updateJob(id, job, token)
             .then(() => {
-                navigate('/jobs/jobs/');  // Redirect to job listings after posting
+                navigate('/jobs');
             })
-            .catch(() => {
-                setError('Failed to post the job. Please try again.');
+            .catch(error => {
+                setError('Failed to update the job. Please try again.');
             });
     };
 
     return (
         <div>
-            <h1>Post a Job</h1>
+            <h1>Edit Job</h1>
+            {error && <p>{error}</p>}
             <form onSubmit={handleSubmit}>
                 <div>
                     <label>Title</label>
@@ -61,11 +71,10 @@ const PostJob = ({ token }) => {
                     <label>Requirements</label>
                     <textarea name="requirements" value={job.requirements} onChange={handleChange} required />
                 </div>
-                {error && <p>{error}</p>}
-                <button type="submit">Post Job</button>
+                <button type="submit">Update Job</button>
             </form>
         </div>
     );
 };
 
-export default PostJob;
+export default EditJob;

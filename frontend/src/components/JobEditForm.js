@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { postJob } from '../api/api';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { fetchJobDetail, updateJob, deleteJob } from '../api/api';
 
-const PostJob = ({ token }) => {
+const JobEditForm = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
     const [job, setJob] = useState({
         title: '',
         description: '',
@@ -11,7 +13,17 @@ const PostJob = ({ token }) => {
         requirements: '',
     });
     const [error, setError] = useState(null);
-    const navigate = useNavigate();
+
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        fetchJobDetail(id, token)
+            .then(response => {
+                setJob(response.data);
+            })
+            .catch(error => {
+                setError('Failed to load job details.');
+            });
+    }, [id]);
 
     const handleChange = (e) => {
         setJob({
@@ -22,24 +34,30 @@ const PostJob = ({ token }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
-        if (!token) {
-            setError('You must be logged in to post a job.');
-            return;
-        }
-
-        postJob(job, token)
+        const token = localStorage.getItem('access_token');
+        updateJob(id, job, token)
             .then(() => {
-                navigate('/jobs/jobs/');  // Redirect to job listings after posting
+                navigate('/jobs/');
             })
-            .catch(() => {
-                setError('Failed to post the job. Please try again.');
+            .catch(error => {
+                setError('Failed to update the job.');
+            });
+    };
+
+    const handleDelete = () => {
+        const token = localStorage.getItem('access_token');
+        deleteJob(id, token)
+            .then(() => {
+                navigate('/jobs/');
+            })
+            .catch(error => {
+                setError('Failed to delete the job.');
             });
     };
 
     return (
         <div>
-            <h1>Post a Job</h1>
+            <h1>Edit Job</h1>
             <form onSubmit={handleSubmit}>
                 <div>
                     <label>Title</label>
@@ -62,10 +80,11 @@ const PostJob = ({ token }) => {
                     <textarea name="requirements" value={job.requirements} onChange={handleChange} required />
                 </div>
                 {error && <p>{error}</p>}
-                <button type="submit">Post Job</button>
+                <button type="submit">Update Job</button>
+                <button type="button" onClick={handleDelete}>Delete Job</button>
             </form>
         </div>
     );
 };
 
-export default PostJob;
+export default JobEditForm;

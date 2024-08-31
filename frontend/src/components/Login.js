@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginUser } from '../api/api';
 
-const Login = () => {
+const Login = ({ onLogin }) => {
     const [credentials, setCredentials] = useState({ email: '', password: '' });
     const [error, setError] = useState(null);
     const navigate = useNavigate();
@@ -20,6 +20,7 @@ const Login = () => {
             .then(response => {
                 localStorage.setItem('access_token', response.data.access);
                 localStorage.setItem('refresh_token', response.data.refresh);
+                onLogin(response.data.access);  // Pass the token to the parent component
                 navigate('/post-job');  // Redirect to the job posting page
             })
             .catch(error => {

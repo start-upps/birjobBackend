@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Link, Navigate } from 'react-router-dom';
 import JobList from './components/JobList';
 import JobDetail from './components/JobDetail';
 import JobApplicationForm from './components/JobApplicationForm';
 import Login from './components/Login';
 import PostJob from './components/PostJob';
+import EditJob from './components/EditJob';
 
 function App() {
     const [token, setToken] = useState(null);
@@ -41,11 +42,12 @@ function App() {
                     )}
                 </nav>
                 <Routes>
-                    <Route path="/" element={<JobList />} />
+                    <Route path="/" element={<JobList token={token} />} />
                     <Route path="/jobs/:id" element={<JobDetail />} />
                     <Route path="/apply/:id" element={<JobApplicationForm />} />
                     <Route path="/login" element={<Login onLogin={handleLogin} />} />
-                    <Route path="/post-job" element={<PostJob token={token} />} />
+                    <Route path="/post-job" element={token ? <PostJob token={token} /> : <Navigate to="/login" />} />
+                    <Route path="/edit-job/:id" element={token ? <EditJob token={token} /> : <Navigate to="/login" />} />
                 </Routes>
             </div>
         </Router>
