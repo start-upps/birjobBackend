@@ -1,177 +1,126 @@
-# **BirJob Backend API**
+# 🚀 BirJob Mobile Backend API
 
-A comprehensive Node.js backend service for the BirJob mobile and web applications, featuring automated job scraping, real-time notifications, and advanced analytics.
+A comprehensive Node.js backend service for the BirJob iOS and Android mobile applications, featuring automated job notifications, real-time analytics, and advanced caching.
 
-## **🚀 Overview**
+![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)
+![Express](https://img.shields.io/badge/Express-4.x-blue.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15.x-blue.svg)
+![Redis](https://img.shields.io/badge/Redis-7.x-red.svg)
+![Prisma](https://img.shields.io/badge/Prisma-5.x-black.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)
 
-BirJob Backend is a scalable REST API that powers both web and mobile job search applications. It provides automated job scraping from multiple sources, intelligent job matching, push notifications, and comprehensive analytics.
+## 📋 Table of Contents
 
-### **Key Features**
-- 🤖 **Automated Job Scraping** - Multi-source job aggregation
-- 🔍 **Advanced Search & Filtering** - Intelligent job discovery
-- 🔔 **Smart Notifications** - Keyword-based job alerts
-- 📱 **Mobile-First API** - Optimized for iOS/Android apps
-- 📊 **Advanced Analytics** - Comprehensive user behavior tracking
-- 🎯 **Personalization** - User preferences and recommendations
-- 📈 **Real-time Insights** - Job market trends and statistics
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [API Documentation](#api-documentation)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [Development](#development)
+- [Monitoring](#monitoring)
+- [Contributing](#contributing)
 
-## **🏗️ Architecture Overview**
+## 🌟 Overview
+
+This backend API serves as the central hub for BirJob mobile applications, providing:
+
+- **Job Data Management**: Integration with existing job scraping system
+- **Push Notifications**: iOS (APNs) and Android (FCM) support  
+- **User Management**: Keywords, preferences, and notification settings
+- **Real-time Analytics**: User behavior and search tracking
+- **Caching Layer**: Redis-powered performance optimization
+- **Automated Tasks**: Daily job alerts and system maintenance
+
+## ✨ Features
+
+### 🔔 Smart Notifications
+- **Keyword-based Job Alerts**: Automated notifications for matching jobs
+- **Multi-platform Support**: iOS APNs and Android FCM
+- **Email Fallback**: Backup email notifications
+- **Batch Processing**: Efficient bulk notification handling
+
+### 📊 Advanced Analytics  
+- **Search Tracking**: Detailed search behavior analysis
+- **User Activity**: Visitor patterns and engagement metrics
+- **Device Fingerprinting**: Comprehensive device and location data
+- **Performance Monitoring**: API response times and system health
+
+### 🚀 High Performance
+- **Redis Caching**: Multi-layer caching strategy
+- **Database Optimization**: Indexed queries and connection pooling
+- **Rate Limiting**: API protection against abuse
+- **Async Processing**: Non-blocking operations
+
+### 📱 Mobile-First Design
+- **Optimized Responses**: Minimal data transfer
+- **Offline Support**: Cached data for poor connectivity
+- **Platform-specific Features**: iOS/Android tailored functionality
+- **App Configuration**: Dynamic feature flags and settings
+
+## 🏗️ Architecture
 
 ```mermaid
 graph TB
-    subgraph "Client Applications"
+    subgraph "Mobile Apps"
         A[iOS App] 
-        B[Web App]
-        C[Admin Dashboard]
+        B[Android App]
     end
     
     subgraph "API Layer"
-        D[Load Balancer]
-        E[Express.js API Server]
-        F[Authentication Middleware]
-        G[Rate Limiting]
+        C[Load Balancer]
+        D[Express.js API]
+        E[Rate Limiting]
+        F[Authentication]
     end
     
-    subgraph "Core Services"
-        H[Job Scraping Service]
-        I[Notification Service]
-        J[Analytics Service]
-        K[Search Service]
+    subgraph "Services"
+        G[Job Service]
+        H[Notification Service]  
+        I[Analytics Service]
+        J[User Service]
     end
     
     subgraph "Data Layer"
-        L[(PostgreSQL)]
-        M[(Redis Cache)]
-        N[File Storage]
+        K[(PostgreSQL)]
+        L[(Redis Cache)]
     end
     
     subgraph "External Services"
-        O[Push Notification Services]
-        P[Email Service]
-        Q[Job Sources]
+        M[Push Notifications]
+        N[Email Service]
+        O[Job Scraper]
     end
     
-    A --> D
-    B --> D
+    A --> C
+    B --> C
     C --> D
     D --> E
     E --> F
-    E --> G
-    E --> H
-    E --> I
-    E --> J
-    E --> K
+    F --> G
+    F --> H
+    F --> I
+    F --> J
+    G --> K
     H --> L
     I --> L
-    J --> L
-    K --> L
-    E --> M
-    I --> O
-    I --> P
-    H --> Q
+    J --> K
+    H --> M
+    H --> N
+    O --> K
 ```
 
-## **📊 Database Schema**
+## 🚀 Quick Start
 
-```mermaid
-erDiagram
-    users ||--o{ keywords : has
-    users ||--o{ notifications : receives
-    users ||--o{ sourcePreferences : configures
-    users ||--o{ search_logs : generates
-    
-    jobs_jobpost ||--o{ notifications : triggers
-    
-    users {
-        int id PK
-        string email UK
-        datetime createdAt
-        datetime updatedAt
-        datetime lastNotifiedAt
-    }
-    
-    jobs_jobpost {
-        int id PK
-        string title
-        string company
-        string apply_link
-        string source
-        datetime created_at
-    }
-    
-    keywords {
-        int id PK
-        string keyword
-        int userId FK
-        datetime createdAt
-    }
-    
-    notifications {
-        int id PK
-        int userId FK
-        int jobId FK
-        datetime sentAt
-        string matchedKeyword
-        boolean isRead
-    }
-    
-    search_logs {
-        int id PK
-        string query
-        string searchType
-        int resultCount
-        string ip
-        string deviceType
-        string country
-        datetime timestamp
-    }
-    
-    visitor_logs {
-        int id PK
-        string ip
-        string visitorId
-        string deviceType
-        string country
-        string referrerSource
-        datetime timestamp
-    }
-```
+### Prerequisites
 
-## **⚙️ Setup & Installation**
+- **Node.js** 18.x or higher
+- **PostgreSQL** 15.x or higher  
+- **Redis** 7.x or higher (or Upstash account)
+- **npm** or **yarn**
 
-### **Prerequisites**
-- Node.js 18+ 
-- PostgreSQL 14+
-- Redis 6+
-- npm or yarn
-
-### **Environment Variables**
-Create a `.env` file in the root directory:
-
-```bash
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/birjob"
-REDIS_URL="redis://localhost:6379"
-
-# Authentication
-JWT_SECRET="your-super-secret-jwt-key"
-JWT_EXPIRES_IN="24h"
-
-# Push Notifications
-FIREBASE_PROJECT_ID="your-firebase-project"
-FIREBASE_PRIVATE_KEY="your-firebase-key"
-APPLE_TEAM_ID="your-apple-team-id"
-
-# External APIs
-EMAIL_API_KEY="your-email-service-key"
-
-# App Configuration
-NODE_ENV="development"
-PORT=3000
-API_VERSION="v1"
-```
-
-### **Installation Steps**
+### 1. Clone and Install
 
 ```bash
 # Clone the repository
@@ -181,432 +130,540 @@ cd birJobBackend
 # Install dependencies
 npm install
 
-# Generate Prisma Client
+# Generate Prisma client
 npx prisma generate
+```
 
-# Run database migrations (if needed)
+### 2. Environment Setup
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit configuration
+nano .env
+```
+
+**Required Environment Variables:**
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/birjob"
+
+# Redis (Upstash recommended)
+UPSTASH_REDIS_REST_URL="https://your-redis-url.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your-token"
+
+# Authentication
+JWT_SECRET="your-secret-key"
+
+# Push Notifications
+FIREBASE_PROJECT_ID="your-project-id"
+FIREBASE_PRIVATE_KEY="your-private-key"
+APPLE_TEAM_ID="your-team-id"
+APPLE_KEY_ID="your-key-id"
+APPLE_PRIVATE_KEY="your-private-key"
+
+# Email Service
+EMAIL_USER="your-email@gmail.com"
+EMAIL_PASSWORD="your-app-password"
+```
+
+### 3. Database Setup
+
+```bash
+# Push database schema
 npx prisma db push
 
-# Seed the database (optional)
+# (Optional) Seed with sample data
 npm run seed
+```
 
-# Start development server
+### 4. Start Development Server
+
+```bash
+# Development mode with hot reload
 npm run dev
+
+# Production mode
+npm start
 ```
 
-## **🔌 API Endpoints**
+The API will be available at `http://localhost:3000`
 
-### **Core Job APIs**
+### 5. Verify Installation
 
-#### **Job Listings**
+```bash
+# Health check
+curl http://localhost:3000/api/health
+
+# API documentation
+curl http://localhost:3000/api/v1/jobs
+```
+
+## 📚 API Documentation
+
+### Base URL
+```
+Production: https://api.birjob.az/api/v1
+Development: http://localhost:3000/api/v1
+```
+
+### Core Endpoints
+
+#### 🔍 Jobs API
 ```http
-GET /api/v1/jobs
-```
-**Query Parameters:**
-- `search` - Search term for job title/company
-- `source` - Filter by job source
-- `company` - Filter by specific company
-- `page` - Page number (default: 1)
-- `limit` - Results per page (default: 20)
+# Get job listings
+GET /jobs?search=developer&page=1&limit=20
 
-**Response:**
-```json
+# Get specific job
+GET /jobs/:id
+
+# Get job sources
+GET /jobs/meta/sources  
+
+# Get job trends
+GET /jobs/meta/trends
+```
+
+#### 👤 User Management
+```http
+# User registration
+POST /users/register
 {
-  "success": true,
-  "data": {
-    "jobs": [...],
-    "metadata": {
-      "totalJobs": 1250,
-      "currentPage": 1,
-      "totalPages": 63,
-      "sources": ["LinkedIn", "Indeed", "Glassdoor"],
-      "companies": ["Google", "Microsoft", "Apple"],
-      "latestScrapeDate": "2025-05-26T05:30:00Z"
-    }
-  }
+  "email": "user@example.com"
 }
-```
 
-#### **Job Trends**
-```http
-GET /api/v1/trends
-```
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "sourceData": [...],
-    "companyData": [...],
-    "totalJobs": 1250,
-    "totalSources": 15,
-    "totalCompanies": 245,
-    "lastUpdated": "2025-05-26T05:30:00Z"
-  }
-}
-```
+# User profile
+GET /users/profile?email=user@example.com
 
-### **User Management APIs**
-
-#### **User Keywords**
-```http
-GET    /api/v1/users/keywords?email={email}
-POST   /api/v1/users/keywords
-DELETE /api/v1/users/keywords
-```
-
-#### **Source Preferences**
-```http
-GET  /api/v1/users/sources?email={email}
-POST /api/v1/users/sources
-```
-
-### **Mobile-Specific APIs**
-
-#### **Device Registration**
-```http
-POST /api/v1/mobile/register-device
-```
-**Body:**
-```json
+# Manage keywords
+GET /users/keywords?email=user@example.com
+POST /users/keywords
 {
   "email": "user@example.com",
-  "deviceToken": "device-push-token",
-  "platform": "ios",
-  "appVersion": "1.0.0",
-  "deviceModel": "iPhone 14 Pro"
+  "keyword": "javascript"
+}
+DELETE /users/keywords
+{
+  "email": "user@example.com", 
+  "keyword": "javascript"
 }
 ```
 
-#### **Push Notifications**
+#### 🔔 Notifications
 ```http
-GET /api/v1/mobile/notifications?email={email}
-PUT /api/v1/mobile/notifications/{id}/read
+# Register device for push notifications
+POST /notifications/register-device
+{
+  "email": "user@example.com",
+  "deviceToken": "device-token",
+  "platform": "ios"
+}
+
+# Get user notifications
+GET /notifications?email=user@example.com
+
+# Mark as read
+PUT /notifications/:id/read
 ```
 
-### **Analytics APIs**
-
-#### **Search Analytics**
+#### 📊 Analytics
 ```http
-POST /api/v1/analytics/search
-```
-**Body:**
-```json
+# Log search activity
+POST /analytics/search
 {
   "query": "software engineer",
   "resultCount": 25,
-  "deviceType": "mobile",
-  "sessionId": "session-123",
-  "searchDuration": 250
+  "deviceType": "mobile"
 }
+
+# Get search statistics
+GET /analytics/search-stats?period=week
 ```
 
-#### **Visitor Tracking**
+#### 📱 Mobile-Specific
 ```http
-POST /api/v1/analytics/visitor
+# Get app configuration
+GET /mobile/config?platform=ios
+
+# Track app launch
+POST /mobile/app-launch
+{
+  "platform": "ios",
+  "appVersion": "1.0.0"
+}
+
+# Get featured jobs
+GET /mobile/jobs/featured?limit=10&userEmail=user@example.com
 ```
 
-## **🔄 Core Services**
-
-### **Job Scraping Service**
-
-```mermaid
-graph LR
-    A[Scheduler] --> B[Job Sources]
-    B --> C[Scraper Service]
-    C --> D[Data Validation]
-    D --> E[Database Storage]
-    E --> F[Notification Trigger]
-    F --> G[Push Notifications]
-    
-    subgraph "Job Sources"
-        B1[LinkedIn API]
-        B2[Indeed RSS]
-        B3[Company Sites]
-        B4[Job Boards]
-    end
-```
-
-**Features:**
-- Multi-source job aggregation
-- Duplicate detection and removal
-- Data validation and sanitization
-- Automatic scheduling with cron jobs
-- Error handling and retry logic
-
-### **Notification Service**
-
-```mermaid
-sequenceDiagram
-    participant Scraper as Job Scraper
-    participant NS as Notification Service
-    participant DB as Database
-    participant FCM as Push Service
-    participant User as Mobile App
-    
-    Scraper->>NS: New jobs found
-    NS->>DB: Query user keywords
-    DB->>NS: Matching users
-    NS->>DB: Create notifications
-    NS->>FCM: Send push notifications
-    FCM->>User: Job alert received
-    User->>NS: Mark as read
-    NS->>DB: Update notification status
-```
-
-**Features:**
-- Keyword-based job matching
-- Real-time push notifications
-- Email notifications
-- Notification preferences
-- Read/unread status tracking
-
-### **Analytics Service**
-
-**Tracked Metrics:**
-- Search queries and patterns
-- User engagement metrics
-- Device and browser analytics
-- Geographic distribution
-- Traffic sources and campaigns
-- Job application funnel
-
-## **📱 Mobile Integration**
-
-### **Push Notification Setup**
-
-#### **iOS (Apple Push Notification)**
-```javascript
-const apn = require('apn');
-
-const options = {
-  token: {
-    key: process.env.APPLE_PRIVATE_KEY,
-    keyId: process.env.APPLE_KEY_ID,
-    teamId: process.env.APPLE_TEAM_ID
-  },
-  production: process.env.NODE_ENV === 'production'
-};
-
-const apnProvider = new apn.Provider(options);
-```
-
-#### **Android (Firebase Cloud Messaging)**
-```javascript
-const admin = require('firebase-admin');
-
-const serviceAccount = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY,
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-};
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-```
-
-### **Mobile API Response Format**
+### Response Format
 ```json
 {
   "success": true,
-  "data": { ... },
-  "message": "Request successful",
-  "timestamp": "2025-05-26T05:42:32Z",
-  "version": "1.0.0",
-  "meta": {
-    "pagination": { ... },
-    "filters": { ... }
-  }
+  "data": {
+    // Response data
+  },
+  "cached": false,
+  "timestamp": "2025-05-27T10:30:00.000Z"
 }
 ```
 
-## **🔧 Configuration**
-
-### **Scraping Configuration**
-```javascript
-const SCRAPING_CONFIG = {
-  sources: [
-    {
-      name: 'LinkedIn',
-      url: 'https://linkedin.com/jobs',
-      interval: '*/15 * * * *', // Every 15 minutes
-      enabled: true
-    },
-    {
-      name: 'Indeed',
-      url: 'https://indeed.com/rss',
-      interval: '*/10 * * * *', // Every 10 minutes
-      enabled: true
-    }
-  ],
-  rateLimiting: {
-    requestsPerMinute: 30,
-    concurrentRequests: 5
-  }
-};
-```
-
-### **Notification Configuration**
-```javascript
-const NOTIFICATION_CONFIG = {
-  pushNotifications: {
-    batchSize: 1000,
-    retryAttempts: 3,
-    timeToLive: 86400 // 24 hours
-  },
-  emailNotifications: {
-    dailyDigestTime: '09:00',
-    weeklyDigestDay: 'monday'
-  }
-};
-```
-
-## **🚀 Deployment**
-
-### **Docker Setup**
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-COPY . .
-
-EXPOSE 3000
-
-CMD ["npm", "start"]
-```
-
-### **Docker Compose**
-```yaml
-version: '3.8'
-services:
-  api:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-    depends_on:
-      - postgres
-      - redis
-  
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: birjob
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-  
-  redis:
-    image: redis:6-alpine
-    ports:
-      - "6379:6379"
-
-volumes:
-  postgres_data:
-```
-
-### **Production Deployment**
-```bash
-# Build and deploy
-docker-compose -f docker-compose.prod.yml up -d
-
-# Health check
-curl http://localhost:3000/api/v1/health
-```
-
-## **📊 Monitoring & Analytics**
-
-### **Health Check Endpoint**
-```http
-GET /api/v1/health
-```
-
-**Response:**
+### Error Responses
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2025-05-26T05:42:32Z",
-  "uptime": 86400,
-  "version": "1.0.0",
-  "database": "connected",
-  "redis": "connected"
+  "success": false,
+  "error": {
+    "name": "ValidationError",
+    "message": "Invalid request parameters",
+    "statusCode": 400,
+    "timestamp": "2025-05-27T10:30:00.000Z"
+  }
 }
 ```
 
-### **Performance Metrics**
-- API response times
-- Database query performance
-- Scraping success rates
-- Notification delivery rates
-- Error rates and exceptions
+## ⚙️ Configuration
 
-## **🔒 Security**
+### Environment Variables
 
-### **Authentication & Authorization**
-- JWT-based authentication
-- API key validation
-- Rate limiting per endpoint
-- Request validation and sanitization
+The application uses environment variables for configuration. See `.env.example` for all available options.
 
-### **Data Protection**
-- Input validation with Joi
-- SQL injection prevention
-- XSS protection
-- CORS configuration
-- Environment variable security
+**Key Configuration Categories:**
 
-## **🧪 Testing**
+- **Database**: PostgreSQL connection and pool settings
+- **Cache**: Redis/Upstash configuration  
+- **Security**: JWT secrets, rate limiting, CORS
+- **Notifications**: Firebase, Apple Push, Email settings
+- **Features**: Enable/disable functionality
+- **Performance**: Cache TTL, query limits, timeouts
 
-```bash
-# Run all tests
-npm test
+### Caching Strategy
 
-# Run unit tests
-npm run test:unit
-
-# Run integration tests
-npm run test:integration
-
-# Run with coverage
-npm run test:coverage
+```javascript
+const CACHE_DURATIONS = {
+  JOBS_LIST: 5 * 60,        // 5 minutes
+  JOBS_SEARCH: 3 * 60,      // 3 minutes  
+  JOBS_METADATA: 15 * 60,   // 15 minutes
+  USER_DATA: 30 * 60,       // 30 minutes
+  ANALYTICS: 60 * 60,       // 1 hour
+  SOURCES: 24 * 60 * 60,    // 24 hours
+};
 ```
 
-## **📚 API Documentation**
+### Database Indexes
 
-Interactive API documentation is available at:
-- **Development:** http://localhost:3000/api-docs
-- **Production:** https://api.birjob.com/api-docs
+```sql
+-- Essential indexes for performance
+CREATE INDEX CONCURRENTLY idx_jobs_created_at ON jobs_jobpost(created_at DESC);
+CREATE INDEX CONCURRENTLY idx_jobs_company_lower ON jobs_jobpost(LOWER(company));
+CREATE INDEX CONCURRENTLY idx_jobs_title_gin ON jobs_jobpost USING gin(to_tsvector('english', title));
+```
 
-## **🤝 Contributing**
+## 🐳 Deployment
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Docker Deployment
 
-## **📄 License**
+```bash
+# Build production image
+docker build -t birjob-backend:latest .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Scale services
+docker-compose up -d --scale api=3
+```
+
+### Manual Deployment
+
+```bash
+# Build for production
+npm run build
+
+# Start with PM2
+pm2 start ecosystem.config.js
+
+# Monitor processes
+pm2 monit
+```
+
+### Railway Deployment
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and deploy
+railway login
+railway link
+railway up
+```
+
+### Vercel Deployment
+
+```bash
+# Install Vercel CLI
+npm install -g vercel
+
+# Deploy
+vercel --prod
+```
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+├── server.js              # Main application entry
+├── routes/                 # API route handlers
+│   ├── jobs.js            # Job-related endpoints
+│   ├── users.js           # User management
+│   ├── notifications.js   # Push notifications
+│   ├── analytics.js       # Analytics tracking
+│   ├── mobile.js          # Mobile-specific APIs
+│   └── health.js          # Health checks
+├── services/              # Business logic services
+│   ├── pushNotifications.js
+│   └── emailService.js
+├── middleware/            # Express middleware
+│   └── errorHandler.js
+├── utils/                 # Utility functions
+│   ├── database.js        # Prisma client
+│   ├── redis.js           # Redis cache
+│   ├── logger.js          # Winston logging
+│   └── cronJobs.js        # Scheduled tasks
+├── prisma/                # Database schema
+│   └── schema.prisma
+├── logs/                  # Application logs
+├── docker-compose.yml     # Docker orchestration
+└── Dockerfile            # Container configuration
+```
+
+### Development Commands
+
+```bash
+# Development server with hot reload
+npm run dev
+
+# Run tests (if configured)
+npm test
+
+# Database operations
+npx prisma studio          # Database GUI
+npx prisma db push         # Push schema changes
+npx prisma generate        # Regenerate client
+
+# Lint and format code
+npm run lint
+npm run prettier
+
+# View logs
+tail -f logs/combined.log
+```
+
+### Adding New Features
+
+1. **Create Route Handler**
+```javascript
+// routes/newFeature.js
+const express = require('express');
+const router = express.Router();
+
+router.get('/', async (req, res) => {
+  // Implementation
+});
+
+module.exports = router;
+```
+
+2. **Register Route**
+```javascript
+// server.js
+const newFeatureRoutes = require('./routes/newFeature');
+app.use('/api/v1/new-feature', newFeatureRoutes);
+```
+
+3. **Add Tests**
+```javascript
+// tests/newFeature.test.js
+describe('New Feature', () => {
+  test('should work correctly', async () => {
+    // Test implementation
+  });
+});
+```
+
+## 📊 Monitoring
+
+### Health Checks
+
+```bash
+# Basic health check
+curl http://localhost:3000/api/health
+
+# Detailed system status
+curl http://localhost:3000/api/health/detailed
+
+# Database health
+curl http://localhost:3000/api/health/database
+
+# Cache health  
+curl http://localhost:3000/api/health/redis
+```
+
+### Logging
+
+The application uses structured logging with Winston:
+
+```javascript
+// Log levels: error, warn, info, http, debug
+logger.info('User action', { userId, action: 'login' });
+logger.error('Database error', { error: error.message });
+
+// Context-specific logging
+logger.context.api('GET', '/jobs', 200, 150);
+logger.context.notification('push_sent', 'user@example.com', true);
+```
+
+### Performance Monitoring
+
+```javascript
+// Monitor memory usage
+logger.performance.logMemoryUsage();
+
+// Time operations
+const timer = logger.performance.startTimer('database_query');
+// ... operation
+timer.end(); // Logs duration
+```
+
+### Metrics Collection
+
+```bash
+# Get application metrics
+curl http://localhost:3000/api/health/metrics
+
+# Get cron job status
+curl http://localhost:3000/api/admin/cron-status
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Database Connection Issues**
+```bash
+# Check database connection
+npx prisma db pull
+
+# Reset database (development only)
+npx prisma migrate reset
+```
+
+**Redis Connection Problems**
+```bash
+# Test Redis connection
+redis-cli ping
+
+# Clear Redis cache
+redis-cli FLUSHALL
+```
+
+**Push Notification Issues**
+- Verify Firebase/Apple credentials in `.env`
+- Check device token validity
+- Ensure certificates are not expired
+
+**Email Delivery Problems**
+- Verify SMTP credentials
+- Check DNS records (SPF, DKIM)
+- Monitor bounce rates
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+DEBUG=* npm run dev
+
+# Database query debugging
+DEBUG_SQL_QUERIES=true npm run dev
+
+# Redis operation debugging  
+DEBUG_REDIS_OPERATIONS=true npm run dev
+```
+
+### Log Analysis
+
+```bash
+# View recent errors
+tail -n 100 logs/error.log
+
+# Search for specific issues
+grep -i "notification" logs/combined.log
+
+# Monitor real-time logs
+tail -f logs/combined.log | grep ERROR
+```
+
+## 🤝 Contributing
+
+### Development Setup
+
+1. **Fork the repository**
+2. **Create feature branch**
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+3. **Make changes and test**
+   ```bash
+   npm test
+   npm run lint
+   ```
+4. **Commit changes**
+   ```bash
+   git commit -m 'Add amazing feature'
+   ```
+5. **Push and create PR**
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+
+### Code Style
+
+- Use ESLint configuration
+- Follow existing patterns
+- Add JSDoc comments for functions
+- Write tests for new features
+- Update documentation
+
+### Pull Request Process
+
+1. Ensure all tests pass
+2. Update documentation
+3. Add changeset entry (if applicable)
+4. Request review from maintainers
+5. Address feedback and iterate
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## **📞 Support**
+## 🙏 Acknowledgments
 
-For support and questions:
-- **Email:** support@birjob.com
-- **GitHub Issues:** [Create an issue](https://github.com/Ismat-Samadov/birJobBackend/issues)
-- **Documentation:** [Wiki](https://github.com/Ismat-Samadov/birJobBackend/wiki)
+- **Express.js** for the robust web framework
+- **Prisma** for excellent database tooling  
+- **Redis** for high-performance caching
+- **Winston** for comprehensive logging
+- **Firebase** and **Apple** for push notification services
+
+## 📞 Support
+
+- **Email**: dev@birjob.az
+- **Issues**: [GitHub Issues](https://github.com/Ismat-Samadov/birJobBackend/issues)
+- **Documentation**: [Wiki](https://github.com/Ismat-Samadov/birJobBackend/wiki)
 
 ---
 
 **Built with ❤️ by the BirJob Team**
+
+🌐 [Website](https://birjob.az) • 📧 [Email](mailto:support@birjob.az) • 🐦 [Twitter](https://twitter.com/birjob_official)
