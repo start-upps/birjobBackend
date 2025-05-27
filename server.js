@@ -11,7 +11,7 @@ const rateLimit = require('express-rate-limit');
 // Import utilities and middleware
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
-const prisma = require('./utils/database');
+const { prisma } = require('./utils/database');
 const redis = require('./utils/redis');
 
 // Import routes
