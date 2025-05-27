@@ -1265,3 +1265,133 @@
   service: 'birjob-mobile-backend',
   timestamp: '2025-05-27 18:02:57'
 }
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:06:15'
+}
+{
+  error: TypeError: app.use() requires a middleware function
+      at Function.use (/Users/ismatsamadov/BirJobBackend/node_modules/express/lib/application.js:217:11)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:139:5)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)
+      at node:internal/main/run_main_module:28:49,
+  level: 'error',
+  message: 'uncaughtException: app.use() requires a middleware function\n' +
+    'TypeError: app.use() requires a middleware function\n' +
+    '    at Function.use (/Users/ismatsamadov/BirJobBackend/node_modules/express/lib/application.js:217:11)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:139:5)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)\n' +
+    '    at node:internal/main/run_main_module:28:49',
+  stack: 'TypeError: app.use() requires a middleware function\n' +
+    '    at Function.use (/Users/ismatsamadov/BirJobBackend/node_modules/express/lib/application.js:217:11)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:139:5)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)\n' +
+    '    at node:internal/main/run_main_module:28:49',
+  exception: true,
+  date: 'Tue May 27 2025 18:06:15 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 29562,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 259129344,
+      heapTotal: 72466432,
+      heapUsed: 22088360,
+      external: 148474777,
+      arrayBuffers: 146113203
+    }
+  },
+  os: {
+    loadavg: [ 2.2177734375, 3.5126953125, 3.48828125 ],
+    uptime: 737104
+  },
+  trace: [
+    {
+      column: 11,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/express/lib/application.js',
+      function: 'Function.use',
+      line: 217,
+      method: 'use',
+      native: false
+    },
+    {
+      column: 5,
+      file: '/Users/ismatsamadov/BirJobBackend/server.js',
+      function: null,
+      line: 139,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/run_main',
+      function: 'Function.executeUserEntryPoint [as runMain]',
+      line: 174,
+      method: 'executeUserEntryPoint [as runMain]',
+      native: false
+    },
+    {
+      column: 49,
+      file: 'node:internal/main/run_main_module',
+      function: null,
+      line: 28,
+      method: null,
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:06:15'
+}

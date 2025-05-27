@@ -12,9 +12,8 @@ const {
 const router = express.Router();
 
 // Import notification services
-const { sendPushNotification, sendBulkNotifications } = require('../services/pushNotifications');
-const { sendEmailNotification } = require('../services/emailService');
-
+const { sendPushNotification, sendBulkNotifications } = require('./pushNotifications');
+const { sendEmailNotification } = require('./emailService');
 // Validation middleware
 const validateEmail = [
   query('email')

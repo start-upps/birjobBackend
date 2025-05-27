@@ -58,3 +58,21 @@
   message: 'Failed to create Redis client:',
   timestamp: '2025-05-27 18:02:57'
 }
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:06:15'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:06:15'
+}
+{
+  message: '⚠️ Email service not configured - missing credentials',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:06:15'
+}
