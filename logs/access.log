@@ -76,3 +76,204 @@
   service: 'birjob-mobile-backend',
   timestamp: '2025-05-27 18:06:15'
 }
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:08:09'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:08:09'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:11:29'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:11:29'
+}
+{
+  message: '⚠️ Email service not configured - missing credentials',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:11:29'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:11:36'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:11:36'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:11:43'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:11:43'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:13:44'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 18:13:44'
+}
+{
+  message: '⚠️ No Redis configuration found - caching will be disabled',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:20:42'
+}
+{
+  message: 'To enable Redis, set REDIS_URL (e.g., redis://localhost:6379)',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:20:42'
+}
+{
+  message: '⚠️ No Redis configuration found - caching will be disabled',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:20:56'
+}
+{
+  message: 'To enable Redis, set REDIS_URL (e.g., redis://localhost:6379)',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:20:56'
+}
+{
+  message: '⚠️ No Redis configuration found - caching will be disabled',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:22'
+}
+{
+  message: 'To enable Redis, set REDIS_URL (e.g., redis://localhost:6379)',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:22'
+}
+{
+  message: '⚠️ Email service not configured - missing credentials',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:22'
+}
+{
+  message: 'Prisma Info: Starting a postgresql pool with 17 connections.',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:22'
+}
+{
+  message: '✅ Database connected successfully',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '⚠️ Redis not available, continuing without cache',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '🚀 BirJob Mobile Backend running on port 3000',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '📱 API Base URL: http://localhost:3000/api/v1',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '🔍 Health Check: http://localhost:3000/api/health',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '📊 Environment: development',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  message: '🕐 Timezone: Asia/Baku',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:22:23'
+}
+{
+  service: 'birjob-mobile-backend',
+  method: 'GET',
+  path: '/',
+  statusCode: 200,
+  responseTime: '4533.774125ms',
+  userId: null,
+  timestamp: '2025-05-27 18:22:59',
+  level: 'info',
+  message: 'API Request'
+}
+{
+  service: 'birjob-mobile-backend',
+  method: 'GET',
+  path: '/',
+  statusCode: 200,
+  responseTime: '4077.844ms',
+  userId: null,
+  timestamp: '2025-05-27 18:23:13',
+  level: 'info',
+  message: 'API Request'
+}
+{
+  service: 'birjob-mobile-backend',
+  method: 'GET',
+  path: '/favicon.ico',
+  statusCode: 404,
+  responseTime: '0ms',
+  userId: null,
+  timestamp: '2025-05-27 18:23:13',
+  level: 'info',
+  message: 'API Request'
+}
+{
+  message: 'Starting graceful shutdown...',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:23:47'
+}
+{
+  message: 'Database disconnected',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 18:23:47'
+}

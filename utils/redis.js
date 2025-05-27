@@ -1,57 +1,29 @@
-const { createClient } = require('redis');
 const logger = require('./logger');
 
-// Redis client configuration with better error handling
-let redisConfig = {};
+// Redis client configuration
 let redis = null;
 let isRedisAvailable = false;
 
-// Try to configure Redis based on available environment variables
-if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  // Upstash configuration
-  redisConfig = {
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    password: process.env.UPSTASH_REDIS_REST_TOKEN,
-  };
-  logger.info('Using Upstash Redis configuration');
-} else if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis://')) {
-  // Standard Redis URL
-  redisConfig = {
-    url: process.env.REDIS_URL,
-  };
-  logger.info('Using standard Redis configuration');
-} else if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('rediss://')) {
-  // Secure Redis URL
-  redisConfig = {
-    url: process.env.REDIS_URL,
-    socket: {
-      tls: true,
-    },
-  };
-  logger.info('Using secure Redis configuration');
-} else {
-  // No Redis configuration found
-  logger.warn('⚠️ No Redis configuration found - caching will be disabled');
-  logger.info('To enable Redis, set either:');
-  logger.info('  - UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN');
-  logger.info('  - REDIS_URL (e.g., redis://localhost:6379)');
-}
-
-// Create Redis client only if configuration is available
-if (Object.keys(redisConfig).length > 0) {
+// Try to configure Redis if available
+if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis')) {
   try {
+    const { createClient } = require('redis');
+    
     redis = createClient({
-      ...redisConfig,
+      url: process.env.REDIS_URL,
       socket: {
         connectTimeout: 10000,
         lazyConnect: true,
-        ...redisConfig.socket,
       },
       retry_unfulfilled_commands: true,
       retry_delay: (attempt) => Math.min(attempt * 50, 500),
     });
 
-    // Redis event handlers
+    redis.on('error', (error) => {
+      logger.error('❌ Redis error:', error.message);
+      isRedisAvailable = false;
+    });
+
     redis.on('connect', () => {
       logger.info('✅ Redis connecting...');
     });
@@ -61,24 +33,19 @@ if (Object.keys(redisConfig).length > 0) {
       isRedisAvailable = true;
     });
 
-    redis.on('error', (error) => {
-      logger.error('❌ Redis error:', error.message);
-      isRedisAvailable = false;
-    });
-
     redis.on('end', () => {
       logger.info('Redis connection ended');
       isRedisAvailable = false;
     });
 
-    redis.on('reconnecting', () => {
-      logger.info('Redis reconnecting...');
-    });
-
+    logger.info('Using standard Redis configuration');
   } catch (error) {
     logger.error('Failed to create Redis client:', error.message);
     redis = null;
   }
+} else {
+  logger.warn('⚠️ No Redis configuration found - caching will be disabled');
+  logger.info('To enable Redis, set REDIS_URL (e.g., redis://localhost:6379)');
 }
 
 // Cache duration constants (in seconds)
@@ -266,45 +233,17 @@ const keys = {
     return `jobs:${search || 'all'}:${source || 'all'}:${company || 'all'}:${page}:${limit}`;
   },
   
-  jobsMetadata: () => 'jobs:metadata',
-  
   sources: () => 'jobs:sources',
-  
   companies: () => 'jobs:companies',
-  
   trends: () => 'jobs:trends',
-  
   userKeywords: (email) => `user:${email}:keywords`,
-  
   userSources: (email) => `user:${email}:sources`,
-  
   userNotifications: (email) => `user:${email}:notifications`,
-  
   analytics: (type, period) => `analytics:${type}:${period}`,
-  
-  rateLimit: (ip, endpoint) => `ratelimit:${ip}:${endpoint}`,
-  
-  session: (sessionId) => `session:${sessionId}`,
-  
   deviceToken: (userId) => `device:${userId}:token`
 };
 
-// Cache warming functions
-const warmCache = {
-  jobs: async () => {
-    if (!isRedisAvailable) return;
-    logger.info('Warming jobs cache...');
-    // Implementation here
-  },
-
-  metadata: async () => {
-    if (!isRedisAvailable) return;
-    logger.info('Warming metadata cache...');
-    // Implementation here  
-  }
-};
-
-// Cache statistics
+// Get cache statistics
 const getStats = async () => {
   if (!redis || !isRedisAvailable) {
     return { 
@@ -314,19 +253,10 @@ const getStats = async () => {
   }
 
   try {
-    const info = await redis.info();
-    const dbSize = await redis.dbSize();
-    
+    const ping = await redis.ping();
     return {
-      connected: redis.isReady,
-      dbSize,
-      info: info.split('\r\n').reduce((acc, line) => {
-        if (line.includes(':')) {
-          const [key, value] = line.split(':');
-          acc[key] = value;
-        }
-        return acc;
-      }, {})
+      connected: ping === 'PONG',
+      status: 'active'
     };
   } catch (error) {
     logger.error('Error getting Redis stats:', error.message);
@@ -359,7 +289,6 @@ module.exports = {
   redis,
   cache,
   keys,
-  warmCache,
   CACHE_DURATIONS,
   getHealthStatus,
   getStats,

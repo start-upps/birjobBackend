@@ -10,9 +10,9 @@ const rateLimit = require('express-rate-limit');
 
 // Import utilities and middleware
 const logger = require('./utils/logger');
-const errorHandler = require('./middleware/errorHandler');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { prisma } = require('./utils/database');
-const redis = require('./utils/redis');
+const { redis, getHealthStatus: getRedisHealth } = require('./utils/redis');
 
 // Import routes
 const jobRoutes = require('./routes/jobs');
@@ -44,7 +44,7 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://birjob.az', 'https://www.birjob.az'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Device-ID']
@@ -119,21 +119,7 @@ app.get('/', (req, res) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found',
-    message: `Route ${req.method} ${req.originalUrl} not found`,
-    availableEndpoints: [
-      'GET /api/health',
-      `GET ${API_VERSION}/jobs`,
-      `GET ${API_VERSION}/users`,
-      `GET ${API_VERSION}/notifications`,
-      `POST ${API_VERSION}/analytics`,
-      `GET ${API_VERSION}/mobile`
-    ]
-  });
-});
+app.use('*', notFoundHandler);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
@@ -143,13 +129,10 @@ const gracefulShutdown = async () => {
   logger.info('Starting graceful shutdown...');
   
   try {
-    // Stop cron jobs first
-    stopCronJobs();
-    
     await prisma.$disconnect();
     logger.info('Database disconnected');
     
-    if (redis.isReady) {
+    if (redis && redis.quit) {
       await redis.quit();
       logger.info('Redis disconnected');
     }
@@ -165,25 +148,24 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// Import cron jobs
-const { initializeCronJobs, stopCronJobs, startupTasks } = require('./utils/cronJobs');
-
 // Start server
 const startServer = async () => {
   try {
     // Test database connection
     await prisma.$connect();
-    logger.info('Database connected successfully');
+    logger.info('✅ Database connected successfully');
     
-    // Test Redis connection
-    await redis.ping();
-    logger.info('Redis connected successfully');
-    
-    // Run startup tasks
-    await startupTasks();
-    
-    // Initialize cron jobs
-    initializeCronJobs();
+    // Test Redis connection (optional)
+    try {
+      const redisHealth = await getRedisHealth();
+      if (redisHealth.status === 'healthy') {
+        logger.info('✅ Redis connected successfully');
+      } else {
+        logger.warn('⚠️ Redis not available, continuing without cache');
+      }
+    } catch (error) {
+      logger.warn('⚠️ Redis connection failed, continuing without cache:', error.message);
+    }
     
     app.listen(PORT, () => {
       logger.info(`🚀 BirJob Mobile Backend running on port ${PORT}`);
