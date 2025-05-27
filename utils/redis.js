@@ -1,17 +1,85 @@
 const { createClient } = require('redis');
 const logger = require('./logger');
 
-// Redis client configuration
-const redis = createClient({
-  url: process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL,
-  password: process.env.UPSTASH_REDIS_REST_TOKEN,
-  socket: {
-    connectTimeout: 10000,
-    lazyConnect: true,
-  },
-  retry_unfulfilled_commands: true,
-  retry_delay: (attempt) => Math.min(attempt * 50, 500),
-});
+// Redis client configuration with better error handling
+let redisConfig = {};
+let redis = null;
+let isRedisAvailable = false;
+
+// Try to configure Redis based on available environment variables
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  // Upstash configuration
+  redisConfig = {
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    password: process.env.UPSTASH_REDIS_REST_TOKEN,
+  };
+  logger.info('Using Upstash Redis configuration');
+} else if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis://')) {
+  // Standard Redis URL
+  redisConfig = {
+    url: process.env.REDIS_URL,
+  };
+  logger.info('Using standard Redis configuration');
+} else if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('rediss://')) {
+  // Secure Redis URL
+  redisConfig = {
+    url: process.env.REDIS_URL,
+    socket: {
+      tls: true,
+    },
+  };
+  logger.info('Using secure Redis configuration');
+} else {
+  // No Redis configuration found
+  logger.warn('⚠️ No Redis configuration found - caching will be disabled');
+  logger.info('To enable Redis, set either:');
+  logger.info('  - UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN');
+  logger.info('  - REDIS_URL (e.g., redis://localhost:6379)');
+}
+
+// Create Redis client only if configuration is available
+if (Object.keys(redisConfig).length > 0) {
+  try {
+    redis = createClient({
+      ...redisConfig,
+      socket: {
+        connectTimeout: 10000,
+        lazyConnect: true,
+        ...redisConfig.socket,
+      },
+      retry_unfulfilled_commands: true,
+      retry_delay: (attempt) => Math.min(attempt * 50, 500),
+    });
+
+    // Redis event handlers
+    redis.on('connect', () => {
+      logger.info('✅ Redis connecting...');
+    });
+
+    redis.on('ready', () => {
+      logger.info('✅ Redis connected and ready');
+      isRedisAvailable = true;
+    });
+
+    redis.on('error', (error) => {
+      logger.error('❌ Redis error:', error.message);
+      isRedisAvailable = false;
+    });
+
+    redis.on('end', () => {
+      logger.info('Redis connection ended');
+      isRedisAvailable = false;
+    });
+
+    redis.on('reconnecting', () => {
+      logger.info('Redis reconnecting...');
+    });
+
+  } catch (error) {
+    logger.error('Failed to create Redis client:', error.message);
+    redis = null;
+  }
+}
 
 // Cache duration constants (in seconds)
 const CACHE_DURATIONS = {
@@ -25,43 +93,37 @@ const CACHE_DURATIONS = {
   TRENDS: 6 * 60 * 60,      // 6 hours
 };
 
-// Redis event handlers
-redis.on('connect', () => {
-  logger.info('✅ Redis connecting...');
-});
-
-redis.on('ready', () => {
-  logger.info('✅ Redis connected and ready');
-});
-
-redis.on('error', (error) => {
-  logger.error('❌ Redis error:', error);
-});
-
-redis.on('end', () => {
-  logger.info('Redis connection ended');
-});
-
-redis.on('reconnecting', () => {
-  logger.info('Redis reconnecting...');
-});
-
 // Connect to Redis
 const connectRedis = async () => {
+  if (!redis) {
+    logger.warn('Redis not configured - skipping connection');
+    return false;
+  }
+
   try {
     if (!redis.isOpen) {
       await redis.connect();
     }
     logger.info('Redis connection established');
+    isRedisAvailable = true;
     return true;
   } catch (error) {
-    logger.error('Failed to connect to Redis:', error);
-    throw error;
+    logger.error('Failed to connect to Redis:', error.message);
+    isRedisAvailable = false;
+    return false;
   }
 };
 
 // Redis health check
 const getHealthStatus = async () => {
+  if (!redis || !isRedisAvailable) {
+    return {
+      status: 'disabled',
+      message: 'Redis not configured or unavailable',
+      connection: 'not_configured'
+    };
+  }
+
   try {
     const start = Date.now();
     const pong = await redis.ping();
@@ -81,10 +143,15 @@ const getHealthStatus = async () => {
   }
 };
 
-// Cache operations
+// Cache operations with fallback when Redis is not available
 const cache = {
   // Get data from cache
   get: async (key) => {
+    if (!redis || !isRedisAvailable) {
+      logger.debug(`Cache SKIP (no Redis): ${key}`);
+      return null;
+    }
+
     try {
       const data = await redis.get(key);
       if (data) {
@@ -94,33 +161,46 @@ const cache = {
       logger.debug(`Cache MISS: ${key}`);
       return null;
     } catch (error) {
-      logger.error(`Cache GET error for key ${key}:`, error);
+      logger.error(`Cache GET error for key ${key}:`, error.message);
       return null;
     }
   },
 
   // Set data in cache
   set: async (key, data, ttl = CACHE_DURATIONS.JOBS_LIST) => {
+    if (!redis || !isRedisAvailable) {
+      logger.debug(`Cache SKIP (no Redis): ${key}`);
+      return;
+    }
+
     try {
       await redis.setEx(key, ttl, JSON.stringify(data));
       logger.debug(`Cache SET: ${key} (TTL: ${ttl}s)`);
     } catch (error) {
-      logger.error(`Cache SET error for key ${key}:`, error);
+      logger.error(`Cache SET error for key ${key}:`, error.message);
     }
   },
 
   // Delete from cache
   del: async (key) => {
+    if (!redis || !isRedisAvailable) {
+      return;
+    }
+
     try {
       await redis.del(key);
       logger.debug(`Cache DELETE: ${key}`);
     } catch (error) {
-      logger.error(`Cache DELETE error for key ${key}:`, error);
+      logger.error(`Cache DELETE error for key ${key}:`, error.message);
     }
   },
 
   // Delete multiple keys
   delPattern: async (pattern) => {
+    if (!redis || !isRedisAvailable) {
+      return;
+    }
+
     try {
       const keys = await redis.keys(pattern);
       if (keys.length > 0) {
@@ -128,32 +208,44 @@ const cache = {
         logger.debug(`Cache DELETE PATTERN: ${pattern} (${keys.length} keys)`);
       }
     } catch (error) {
-      logger.error(`Cache DELETE PATTERN error for ${pattern}:`, error);
+      logger.error(`Cache DELETE PATTERN error for ${pattern}:`, error.message);
     }
   },
 
   // Check if key exists
   exists: async (key) => {
+    if (!redis || !isRedisAvailable) {
+      return false;
+    }
+
     try {
       return await redis.exists(key);
     } catch (error) {
-      logger.error(`Cache EXISTS error for key ${key}:`, error);
+      logger.error(`Cache EXISTS error for key ${key}:`, error.message);
       return false;
     }
   },
 
   // Get TTL for a key
   ttl: async (key) => {
+    if (!redis || !isRedisAvailable) {
+      return -1;
+    }
+
     try {
       return await redis.ttl(key);
     } catch (error) {
-      logger.error(`Cache TTL error for key ${key}:`, error);
+      logger.error(`Cache TTL error for key ${key}:`, error.message);
       return -1;
     }
   },
 
   // Increment counter
   incr: async (key, ttl = 3600) => {
+    if (!redis || !isRedisAvailable) {
+      return 0;
+    }
+
     try {
       const multi = redis.multi();
       multi.incr(key);
@@ -161,7 +253,7 @@ const cache = {
       const results = await multi.exec();
       return results[0];
     } catch (error) {
-      logger.error(`Cache INCR error for key ${key}:`, error);
+      logger.error(`Cache INCR error for key ${key}:`, error.message);
       return 0;
     }
   }
@@ -199,31 +291,28 @@ const keys = {
 
 // Cache warming functions
 const warmCache = {
-  // Warm frequently accessed data
   jobs: async () => {
+    if (!isRedisAvailable) return;
     logger.info('Warming jobs cache...');
-    try {
-      // This would be called from your job routes
-      // when data is fetched from database
-      logger.info('Jobs cache warmed');
-    } catch (error) {
-      logger.error('Error warming jobs cache:', error);
-    }
+    // Implementation here
   },
 
   metadata: async () => {
+    if (!isRedisAvailable) return;
     logger.info('Warming metadata cache...');
-    try {
-      // Warm sources, companies, etc.
-      logger.info('Metadata cache warmed');
-    } catch (error) {
-      logger.error('Error warming metadata cache:', error);
-    }
+    // Implementation here  
   }
 };
 
 // Cache statistics
 const getStats = async () => {
+  if (!redis || !isRedisAvailable) {
+    return { 
+      connected: false, 
+      status: 'Redis not configured or unavailable' 
+    };
+  }
+
   try {
     const info = await redis.info();
     const dbSize = await redis.dbSize();
@@ -240,28 +329,31 @@ const getStats = async () => {
       }, {})
     };
   } catch (error) {
-    logger.error('Error getting Redis stats:', error);
+    logger.error('Error getting Redis stats:', error.message);
     return { error: error.message };
   }
 };
 
 // Graceful disconnect
 const disconnect = async () => {
+  if (!redis) return;
+  
   try {
     if (redis.isOpen) {
       await redis.quit();
       logger.info('Redis disconnected gracefully');
     }
   } catch (error) {
-    logger.error('Error disconnecting from Redis:', error);
-    throw error;
+    logger.error('Error disconnecting from Redis:', error.message);
   }
 };
 
-// Initialize Redis connection
-connectRedis().catch(error => {
-  logger.error('Failed to initialize Redis:', error);
-});
+// Initialize Redis connection (optional)
+if (redis) {
+  connectRedis().catch(error => {
+    logger.warn('Redis connection failed, continuing without cache:', error.message);
+  });
+}
 
 module.exports = {
   redis,
@@ -271,5 +363,6 @@ module.exports = {
   CACHE_DURATIONS,
   getHealthStatus,
   getStats,
-  disconnect
+  disconnect,
+  isRedisAvailable: () => isRedisAvailable
 };

@@ -1,0 +1,1097 @@
+{
+  error: Error: @prisma/client did not initialize yet. Please run "prisma generate" and try to import it again.
+      at new PrismaClient (/Users/ismatsamadov/BirJobBackend/node_modules/.prisma/client/default.js:43:11)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/database.js:5:16)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Module.require (node:internal/modules/cjs/loader:1311:19)
+      at require (node:internal/modules/helpers:179:18)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:14:16)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14),
+  level: 'error',
+  message: 'uncaughtException: @prisma/client did not initialize yet. Please run "prisma generate" and try to import it again.\n' +
+    'Error: @prisma/client did not initialize yet. Please run "prisma generate" and try to import it again.\n' +
+    '    at new PrismaClient (/Users/ismatsamadov/BirJobBackend/node_modules/.prisma/client/default.js:43:11)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/database.js:5:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:14:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)',
+  stack: 'Error: @prisma/client did not initialize yet. Please run "prisma generate" and try to import it again.\n' +
+    '    at new PrismaClient (/Users/ismatsamadov/BirJobBackend/node_modules/.prisma/client/default.js:43:11)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/database.js:5:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:14:16)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)',
+  exception: true,
+  date: 'Tue May 27 2025 12:49:03 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 25522,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 52969472,
+      heapTotal: 17350656,
+      heapUsed: 11559128,
+      external: 2035484,
+      arrayBuffers: 16835
+    }
+  },
+  os: {
+    loadavg: [ 3.4189453125, 4.576171875, 3.53515625 ],
+    uptime: 718072
+  },
+  trace: [
+    {
+      column: 11,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/.prisma/client/default.js',
+      function: 'new PrismaClient',
+      line: 43,
+      method: null,
+      native: false
+    },
+    {
+      column: 16,
+      file: '/Users/ismatsamadov/BirJobBackend/utils/database.js',
+      function: null,
+      line: 5,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    },
+    {
+      column: 18,
+      file: 'node:internal/modules/helpers',
+      function: 'require',
+      line: 179,
+      method: null,
+      native: false
+    },
+    {
+      column: 16,
+      file: '/Users/ismatsamadov/BirJobBackend/server.js',
+      function: null,
+      line: 14,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 12:49:03'
+}
+{
+  error: TypeError: Invalid protocol
+      at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)
+      at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)
+      at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)
+      at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)
+      at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)
+      at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32),
+  level: 'error',
+  message: 'uncaughtException: Invalid protocol\n' +
+    'TypeError: Invalid protocol\n' +
+    '    at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)\n' +
+    '    at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)\n' +
+    '    at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)\n' +
+    '    at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)\n' +
+    '    at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)\n' +
+    '    at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)',
+  stack: 'TypeError: Invalid protocol\n' +
+    '    at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)\n' +
+    '    at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)\n' +
+    '    at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)\n' +
+    '    at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)\n' +
+    '    at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)\n' +
+    '    at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)',
+  exception: true,
+  date: 'Tue May 27 2025 12:59:07 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 26571,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 92913664,
+      heapTotal: 54247424,
+      heapUsed: 25231456,
+      external: 2126308,
+      arrayBuffers: 16795
+    }
+  },
+  os: {
+    loadavg: [ 1.72900390625, 2.234375, 2.7119140625 ],
+    uptime: 718676
+  },
+  trace: [
+    {
+      column: 19,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'RedisClient.parseURL',
+      line: 60,
+      method: 'parseURL',
+      native: false
+    },
+    {
+      column: 27,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'Commander._RedisClient_initiateOptions',
+      line: 365,
+      method: '_RedisClient_initiateOptions',
+      native: false
+    },
+    {
+      column: 148,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'new RedisClient',
+      line: 168,
+      method: null,
+      native: false
+    },
+    {
+      column: 13,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js',
+      function: 'new Commander',
+      line: 44,
+      method: null,
+      native: false
+    },
+    {
+      column: 16,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'create',
+      line: 47,
+      method: null,
+      native: false
+    },
+    {
+      column: 38,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js',
+      function: 'createClient',
+      line: 38,
+      method: null,
+      native: false
+    },
+    {
+      column: 15,
+      file: '/Users/ismatsamadov/BirJobBackend/utils/redis.js',
+      function: null,
+      line: 5,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 12:59:07'
+}
+{
+  error: TypeError: Invalid protocol
+      at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)
+      at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)
+      at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)
+      at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)
+      at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)
+      at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32),
+  level: 'error',
+  message: 'uncaughtException: Invalid protocol\n' +
+    'TypeError: Invalid protocol\n' +
+    '    at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)\n' +
+    '    at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)\n' +
+    '    at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)\n' +
+    '    at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)\n' +
+    '    at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)\n' +
+    '    at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)',
+  stack: 'TypeError: Invalid protocol\n' +
+    '    at RedisClient.parseURL (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:60:19)\n' +
+    '    at Commander._RedisClient_initiateOptions (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:365:27)\n' +
+    '    at new RedisClient (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:168:148)\n' +
+    '    at new Commander (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js:44:13)\n' +
+    '    at create (/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js:47:16)\n' +
+    '    at createClient (/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js:38:38)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/utils/redis.js:5:15)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)',
+  exception: true,
+  date: 'Tue May 27 2025 13:00:29 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 27221,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 90980352,
+      heapTotal: 53477376,
+      heapUsed: 25418856,
+      external: 2126308,
+      arrayBuffers: 16795
+    }
+  },
+  os: {
+    loadavg: [ 1.62451171875, 2.04931640625, 2.59423828125 ],
+    uptime: 718758
+  },
+  trace: [
+    {
+      column: 19,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'RedisClient.parseURL',
+      line: 60,
+      method: 'parseURL',
+      native: false
+    },
+    {
+      column: 27,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'Commander._RedisClient_initiateOptions',
+      line: 365,
+      method: '_RedisClient_initiateOptions',
+      native: false
+    },
+    {
+      column: 148,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'new RedisClient',
+      line: 168,
+      method: null,
+      native: false
+    },
+    {
+      column: 13,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/commander.js',
+      function: 'new Commander',
+      line: 44,
+      method: null,
+      native: false
+    },
+    {
+      column: 16,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/@redis/client/dist/lib/client/index.js',
+      function: 'create',
+      line: 47,
+      method: null,
+      native: false
+    },
+    {
+      column: 38,
+      file: '/Users/ismatsamadov/BirJobBackend/node_modules/redis/dist/index.js',
+      function: 'createClient',
+      line: 38,
+      method: null,
+      native: false
+    },
+    {
+      column: 15,
+      file: '/Users/ismatsamadov/BirJobBackend/utils/redis.js',
+      function: null,
+      line: 5,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:00:29'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:02:12'
+}
+{
+  error: Error: Cannot find module './routes/users'
+  Require stack:
+  - /Users/ismatsamadov/BirJobBackend/server.js
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+      at Module._load (node:internal/modules/cjs/loader:1051:27)
+      at Module.require (node:internal/modules/cjs/loader:1311:19)
+      at require (node:internal/modules/helpers:179:18)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12) {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [ '/Users/ismatsamadov/BirJobBackend/server.js' ]
+  },
+  level: 'error',
+  message: "uncaughtException: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  stack: "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  exception: true,
+  date: 'Tue May 27 2025 13:02:12 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 27263,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 100368384,
+      heapTotal: 55607296,
+      heapUsed: 32241288,
+      external: 2126309,
+      arrayBuffers: 16796
+    }
+  },
+  os: {
+    loadavg: [ 2.61572265625, 2.21337890625, 2.59033203125 ],
+    uptime: 718861
+  },
+  trace: [
+    {
+      column: 15,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._resolveFilename',
+      line: 1225,
+      method: '_resolveFilename',
+      native: false
+    },
+    {
+      column: 27,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1051,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    },
+    {
+      column: 18,
+      file: 'node:internal/modules/helpers',
+      function: 'require',
+      line: 179,
+      method: null,
+      native: false
+    },
+    {
+      column: 20,
+      file: '/Users/ismatsamadov/BirJobBackend/server.js',
+      function: null,
+      line: 19,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/run_main',
+      function: 'Function.executeUserEntryPoint [as runMain]',
+      line: 174,
+      method: 'executeUserEntryPoint [as runMain]',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:02:12'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:03:24'
+}
+{
+  error: Error: Cannot find module './routes/users'
+  Require stack:
+  - /Users/ismatsamadov/BirJobBackend/server.js
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+      at Module._load (node:internal/modules/cjs/loader:1051:27)
+      at Module.require (node:internal/modules/cjs/loader:1311:19)
+      at require (node:internal/modules/helpers:179:18)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12) {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [ '/Users/ismatsamadov/BirJobBackend/server.js' ]
+  },
+  level: 'error',
+  message: "uncaughtException: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  stack: "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  exception: true,
+  date: 'Tue May 27 2025 13:03:24 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 27451,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 106545152,
+      heapTotal: 63209472,
+      heapUsed: 30570264,
+      external: 2126309,
+      arrayBuffers: 16795
+    }
+  },
+  os: {
+    loadavg: [ 1.82470703125, 2.0478515625, 2.49560546875 ],
+    uptime: 718933
+  },
+  trace: [
+    {
+      column: 15,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._resolveFilename',
+      line: 1225,
+      method: '_resolveFilename',
+      native: false
+    },
+    {
+      column: 27,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1051,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    },
+    {
+      column: 18,
+      file: 'node:internal/modules/helpers',
+      function: 'require',
+      line: 179,
+      method: null,
+      native: false
+    },
+    {
+      column: 20,
+      file: '/Users/ismatsamadov/BirJobBackend/server.js',
+      function: null,
+      line: 19,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/run_main',
+      function: 'Function.executeUserEntryPoint [as runMain]',
+      line: 174,
+      method: 'executeUserEntryPoint [as runMain]',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:03:24'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:03:50'
+}
+{
+  error: Error: Cannot find module './routes/users'
+  Require stack:
+  - /Users/ismatsamadov/BirJobBackend/server.js
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+      at Module._load (node:internal/modules/cjs/loader:1051:27)
+      at Module.require (node:internal/modules/cjs/loader:1311:19)
+      at require (node:internal/modules/helpers:179:18)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12) {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [ '/Users/ismatsamadov/BirJobBackend/server.js' ]
+  },
+  level: 'error',
+  message: "uncaughtException: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  stack: "Error: Cannot find module './routes/users'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/server.js:19:20)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)',
+  exception: true,
+  date: 'Tue May 27 2025 13:03:50 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 27705,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 107757568,
+      heapTotal: 63733760,
+      heapUsed: 28867048,
+      external: 2126309,
+      arrayBuffers: 16795
+    }
+  },
+  os: {
+    loadavg: [ 1.79833984375, 2.02587890625, 2.47509765625 ],
+    uptime: 718959
+  },
+  trace: [
+    {
+      column: 15,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._resolveFilename',
+      line: 1225,
+      method: '_resolveFilename',
+      native: false
+    },
+    {
+      column: 27,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1051,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    },
+    {
+      column: 18,
+      file: 'node:internal/modules/helpers',
+      function: 'require',
+      line: 179,
+      method: null,
+      native: false
+    },
+    {
+      column: 20,
+      file: '/Users/ismatsamadov/BirJobBackend/server.js',
+      function: null,
+      line: 19,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/run_main',
+      function: 'Function.executeUserEntryPoint [as runMain]',
+      line: 174,
+      method: 'executeUserEntryPoint [as runMain]',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:03:50'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:04:42'
+}
+{
+  error: Error: Cannot find module '../services/pushNotifications'
+  Require stack:
+  - /Users/ismatsamadov/BirJobBackend/routes/notifications.js
+  - /Users/ismatsamadov/BirJobBackend/server.js
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+      at Module._load (node:internal/modules/cjs/loader:1051:27)
+      at Module.require (node:internal/modules/cjs/loader:1311:19)
+      at require (node:internal/modules/helpers:179:18)
+      at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/routes/notifications.js:15:57)
+      at Module._compile (node:internal/modules/cjs/loader:1469:14)
+      at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+      at Module.load (node:internal/modules/cjs/loader:1288:32)
+      at Module._load (node:internal/modules/cjs/loader:1104:12)
+      at Module.require (node:internal/modules/cjs/loader:1311:19) {
+    code: 'MODULE_NOT_FOUND',
+    requireStack: [
+      '/Users/ismatsamadov/BirJobBackend/routes/notifications.js',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ]
+  },
+  level: 'error',
+  message: "uncaughtException: Cannot find module '../services/pushNotifications'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/routes/notifications.js\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    "Error: Cannot find module '../services/pushNotifications'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/routes/notifications.js\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/routes/notifications.js:15:57)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)',
+  stack: "Error: Cannot find module '../services/pushNotifications'\n" +
+    'Require stack:\n' +
+    '- /Users/ismatsamadov/BirJobBackend/routes/notifications.js\n' +
+    '- /Users/ismatsamadov/BirJobBackend/server.js\n' +
+    '    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1051:27)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)\n' +
+    '    at require (node:internal/modules/helpers:179:18)\n' +
+    '    at Object.<anonymous> (/Users/ismatsamadov/BirJobBackend/routes/notifications.js:15:57)\n' +
+    '    at Module._compile (node:internal/modules/cjs/loader:1469:14)\n' +
+    '    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)\n' +
+    '    at Module.load (node:internal/modules/cjs/loader:1288:32)\n' +
+    '    at Module._load (node:internal/modules/cjs/loader:1104:12)\n' +
+    '    at Module.require (node:internal/modules/cjs/loader:1311:19)',
+  exception: true,
+  date: 'Tue May 27 2025 13:04:42 GMT+0400 (Azerbaijan Standard Time)',
+  process: {
+    pid: 27761,
+    uid: 501,
+    gid: 20,
+    cwd: '/Users/ismatsamadov/BirJobBackend',
+    execPath: '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+    version: 'v20.17.0',
+    argv: [
+      '/Users/ismatsamadov/.nvm/versions/node/v20.17.0/bin/node',
+      '/Users/ismatsamadov/BirJobBackend/server.js'
+    ],
+    memoryUsage: {
+      rss: 109002752,
+      heapTotal: 63995904,
+      heapUsed: 30062616,
+      external: 2126309,
+      arrayBuffers: 16795
+    }
+  },
+  os: {
+    loadavg: [ 2.02783203125, 2.05029296875, 2.45458984375 ],
+    uptime: 719011
+  },
+  trace: [
+    {
+      column: 15,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._resolveFilename',
+      line: 1225,
+      method: '_resolveFilename',
+      native: false
+    },
+    {
+      column: 27,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1051,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    },
+    {
+      column: 18,
+      file: 'node:internal/modules/helpers',
+      function: 'require',
+      line: 179,
+      method: null,
+      native: false
+    },
+    {
+      column: 57,
+      file: '/Users/ismatsamadov/BirJobBackend/routes/notifications.js',
+      function: null,
+      line: 15,
+      method: null,
+      native: false
+    },
+    {
+      column: 14,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._compile',
+      line: 1469,
+      method: '_compile',
+      native: false
+    },
+    {
+      column: 10,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._extensions..js',
+      line: 1548,
+      method: '.js',
+      native: false
+    },
+    {
+      column: 32,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.load',
+      line: 1288,
+      method: 'load',
+      native: false
+    },
+    {
+      column: 12,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module._load',
+      line: 1104,
+      method: '_load',
+      native: false
+    },
+    {
+      column: 19,
+      file: 'node:internal/modules/cjs/loader',
+      function: 'Module.require',
+      line: 1311,
+      method: 'require',
+      native: false
+    }
+  ],
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:04:42'
+}

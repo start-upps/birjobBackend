@@ -1,0 +1,48 @@
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:02:12'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:02:12'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:03:24'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:03:24'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:03:50'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:03:50'
+}
+{
+  message: 'Using Upstash Redis configuration',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-27 13:04:42'
+}
+{
+  service: 'birjob-mobile-backend',
+  level: 'error',
+  message: 'Failed to create Redis client:',
+  timestamp: '2025-05-27 13:04:42'
+}

@@ -75,13 +75,17 @@ const getDatabaseStats = async () => {
       userCount,
       keywordCount,
       notificationCount,
-      searchLogCount
+      searchLogCount,
+      visitorLogCount,
+      blogPostCount
     ] = await Promise.all([
       prisma.jobs_jobpost.count(),
       prisma.users.count(),
       prisma.keywords.count(),
       prisma.notifications.count(),
-      prisma.search_logs.count()
+      prisma.search_logs.count(),
+      prisma.visitor_logs.count(),
+      prisma.BlogPost.count()
     ]);
 
     return {
@@ -90,6 +94,8 @@ const getDatabaseStats = async () => {
       keywords: keywordCount,
       notifications: notificationCount,
       searchLogs: searchLogCount,
+      visitorLogs: visitorLogCount,
+      blogPosts: blogPostCount,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
