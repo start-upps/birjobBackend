@@ -2,8 +2,8 @@ const cron = require('node-cron');
 const { prisma } = require('./database');
 const { cache, keys } = require('./redis');
 const logger = require('./logger');
-const { sendJobAlertNotifications } = require('../services/pushNotifications');
-const { sendJobAlertEmail, sendBulkEmails } = require('../services/emailService');
+const { sendJobAlertNotifications } = require('../routes/pushNotifications');
+const { sendJobAlertEmail, sendBulkEmails } = require('../routes/emailService');
 
 // Track job execution to prevent overlapping
 const jobExecution = new Map();
