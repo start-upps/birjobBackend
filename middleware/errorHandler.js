@@ -105,9 +105,9 @@ const handlePrismaError = (error) => {
 const handleValidationError = (error) => {
   if (error.details) {
     const details = error.details.map(detail => ({
-      field: detail.path ? detail.path.join('.') : 'unknown',
+      field: detail.path ? (Array.isArray(detail.path) ? detail.path.join('.') : detail.path) : 'unknown',
       message: detail.message,
-      value: detail.context?.value
+      value: detail.context?.value || detail.value
     }));
     return new ValidationError('Validation failed', details);
   }

@@ -277,3 +277,87 @@
   service: 'birjob-mobile-backend',
   timestamp: '2025-05-27 18:23:47'
 }
+{
+  message: '⚠️ No Redis configuration found - caching will be disabled',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:55:58'
+}
+{
+  message: 'To enable Redis, set REDIS_URL (e.g., redis://localhost:6379)',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:55:58'
+}
+{
+  message: '⚠️ Email service not configured - missing credentials',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:55:58'
+}
+{
+  message: 'Prisma Info: Starting a postgresql pool with 17 connections.',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:55:59'
+}
+{
+  message: '✅ Database connected successfully',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '⚠️ Redis not available, continuing without cache',
+  level: 'warn',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '🚀 BirJob Mobile Backend running on port 3000',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '📱 API Base URL: http://localhost:3000/api/v1',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '🔍 Health Check: http://localhost:3000/api/health',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '📊 Environment: development',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: '🕐 Timezone: Asia/Baku',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 08:56:00'
+}
+{
+  message: 'Starting graceful shutdown...',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 09:05:06'
+}
+{
+  message: 'Starting graceful shutdown...',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 09:05:06'
+}
+{
+  message: 'Database disconnected',
+  level: 'info',
+  service: 'birjob-mobile-backend',
+  timestamp: '2025-05-28 09:05:06'
+}
