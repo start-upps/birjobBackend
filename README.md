@@ -167,8 +167,8 @@ graph TB
 
 ```bash
 # Clone the repository
-git clone https://github.com/Ismat-Samadov/birJobBackend.git
-cd birJobBackend
+git clone https://github.com/Ismat-Samadov/birjobBackend.git
+cd birjobBackend
 
 # Install dependencies
 npm install
