@@ -1969,10 +1969,10 @@ copies or substantial portions of the Software.
 ### Documentation & Resources
 - **API Documentation**: Available at `/api/health` endpoint
 - **GitHub Repository**: [https://github.com/Ismat-Samadov/birjobBackend](https://github.com/Ismat-Samadov/birjobBackend)
-- **Wiki**: [Project Wiki](https://github.com/Ismat-Samadov/birJobBackend/wiki)
+- **Wiki**: [Project Wiki](https://github.com/Ismat-Samadov/birjobBackend/wiki)
 
 ### Getting Help
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Ismat-Samadov/birJobBackend/issues)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/Ismat-Samadov/birjobBackend/issues)
 - **Email Support**: dev@birjob.az
 - **Technical Support**: Create an issue with detailed information
 
