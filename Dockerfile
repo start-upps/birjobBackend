@@ -148,7 +148,7 @@ LABEL org.opencontainers.image.title="BirJob Mobile Backend"
 LABEL org.opencontainers.image.description="Node.js backend API for BirJob mobile applications"
 LABEL org.opencontainers.image.version="${BUILD_VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
-LABEL org.opencontainers.image.source="https://github.com/Ismat-Samadov/birJobBackend"
+LABEL org.opencontainers.image.source="https://github.com/Ismat-Samadov/birjobBackend"
 LABEL org.opencontainers.image.licenses="MIT"
 
 # =============================================================================
