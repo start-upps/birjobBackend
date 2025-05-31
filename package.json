@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "BirJob Mobile Backend API - Node.js backend for iOS app",
   "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ismat-Samadov/birjobBackend.git"
+  },
+  "homepage": "https://github.com/Ismat-Samadov/birjobBackend#readme",
+  "bugs": {
+    "url": "https://github.com/Ismat-Samadov/birjobBackend/issues"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
