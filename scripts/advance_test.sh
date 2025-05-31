@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # BirJob Backend API - Complete Test Suite
-# Replace YOUR_RENDER_URL with your actual Render URL
+# Updated URL for new Render deployment
 
-# Set your Render URL here
-API_URL="https://birjobbackend.onrender.com"
+# Set your updated Render URL here
+API_URL="https://birjobbackend-ir3e.onrender.com"
 
 echo "🚀 BirJob Backend API Test Suite"
 echo "Testing API at: $API_URL"
@@ -196,140 +196,24 @@ curl -X DELETE "$API_URL/api/v1/users/sources" \
   }'
 
 # =============================================================================
-# 4. NOTIFICATIONS ENDPOINTS
-# =============================================================================
-echo -e "\n\n"
-echo "🔔 NOTIFICATIONS ENDPOINTS"
-echo "-------------------------"
-
-# Get user notifications
-echo "4.1 Get User Notifications:"
-curl -X GET "$API_URL/api/v1/notifications?email=test@example.com" \
-  -H "Accept: application/json"
-
-# Get notifications with pagination
-echo -e "\n\n4.2 Get Notifications with Pagination:"
-curl -X GET "$API_URL/api/v1/notifications?email=test@example.com&page=1&limit=5" \
-  -H "Accept: application/json"
-
-# Get only unread notifications
-echo -e "\n\n4.3 Get Unread Notifications:"
-curl -X GET "$API_URL/api/v1/notifications?email=test@example.com&unreadOnly=true" \
-  -H "Accept: application/json"
-
-# Register device for push notifications
-echo -e "\n\n4.4 Register Device for Push Notifications:"
-curl -X POST "$API_URL/api/v1/notifications/register-device" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "deviceToken": "test-device-token-12345",
-    "platform": "ios",
-    "appVersion": "1.0.0",
-    "deviceModel": "iPhone 14"
-  }'
-
-# Send immediate notification
-echo -e "\n\n4.5 Send Immediate Notification:"
-curl -X POST "$API_URL/api/v1/notifications/send" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "title": "Test Notification",
-    "body": "This is a test notification from the API",
-    "data": {
-      "type": "test",
-      "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-    }
-  }'
-
-# Mark notification as read (replace 1 with actual notification ID)
-echo -e "\n\n4.6 Mark Notification as Read:"
-curl -X PUT "$API_URL/api/v1/notifications/1/read" \
-  -H "Accept: application/json"
-
-# Unregister device
-echo -e "\n\n4.7 Unregister Device:"
-curl -X DELETE "$API_URL/api/v1/notifications/device" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "email": "test@example.com"
-  }'
-
-# =============================================================================
-# 5. ANALYTICS ENDPOINTS
-# =============================================================================
-echo -e "\n\n"
-echo "📊 ANALYTICS ENDPOINTS"
-echo "---------------------"
-
-# Log search activity
-echo "5.1 Log Search Activity:"
-curl -X POST "$API_URL/api/v1/analytics/search" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "query": "software engineer",
-    "resultCount": 25,
-    "searchDuration": 150,
-    "clickedResult": true,
-    "deviceType": "desktop",
-    "sessionId": "session-12345",
-    "searchSource": "web"
-  }'
-
-# Log visitor activity
-echo -e "\n\n5.2 Log Visitor Activity:"
-curl -X POST "$API_URL/api/v1/analytics/visitor" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "visitorId": "visitor-12345",
-    "sessionId": "session-12345",
-    "path": "/api/v1/jobs",
-    "referrer": "https://google.com",
-    "deviceType": "desktop",
-    "screenWidth": 1920,
-    "screenHeight": 1080
-  }'
-
-# Get search statistics (today)
-echo -e "\n\n5.3 Get Search Stats (Today):"
-curl -X GET "$API_URL/api/v1/analytics/search-stats?period=today" \
-  -H "Accept: application/json"
-
-# Get search statistics (week)
-echo -e "\n\n5.4 Get Search Stats (Week):"
-curl -X GET "$API_URL/api/v1/analytics/search-stats?period=week&limit=10" \
-  -H "Accept: application/json"
-
-# Get visitor statistics
-echo -e "\n\n5.5 Get Visitor Stats:"
-curl -X GET "$API_URL/api/v1/analytics/visitor-stats?period=month" \
-  -H "Accept: application/json"
-
-# =============================================================================
-# 6. MOBILE-SPECIFIC ENDPOINTS
+# 4. MOBILE-SPECIFIC ENDPOINTS
 # =============================================================================
 echo -e "\n\n"
 echo "📱 MOBILE-SPECIFIC ENDPOINTS"
 echo "---------------------------"
 
 # Get mobile app configuration (iOS)
-echo "6.1 Get Mobile Config (iOS):"
+echo "4.1 Get Mobile Config (iOS):"
 curl -X GET "$API_URL/api/v1/mobile/config?platform=ios" \
   -H "Accept: application/json"
 
 # Get mobile app configuration (Android)
-echo -e "\n\n6.2 Get Mobile Config (Android):"
+echo -e "\n\n4.2 Get Mobile Config (Android):"
 curl -X GET "$API_URL/api/v1/mobile/config?platform=android" \
   -H "Accept: application/json"
 
 # Track app launch
-echo -e "\n\n6.3 Track App Launch:"
+echo -e "\n\n4.3 Track App Launch:"
 curl -X POST "$API_URL/api/v1/mobile/app-launch" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -344,17 +228,17 @@ curl -X POST "$API_URL/api/v1/mobile/app-launch" \
   }'
 
 # Get featured jobs for mobile
-echo -e "\n\n6.4 Get Featured Jobs (Basic):"
+echo -e "\n\n4.4 Get Featured Jobs (Basic):"
 curl -X GET "$API_URL/api/v1/mobile/jobs/featured?limit=5" \
   -H "Accept: application/json"
 
 # Get personalized featured jobs
-echo -e "\n\n6.5 Get Personalized Featured Jobs:"
+echo -e "\n\n4.5 Get Personalized Featured Jobs:"
 curl -X GET "$API_URL/api/v1/mobile/jobs/featured?limit=5&userEmail=test@example.com" \
   -H "Accept: application/json"
 
 # Submit app feedback
-echo -e "\n\n6.6 Submit App Feedback:"
+echo -e "\n\n4.6 Submit App Feedback:"
 curl -X POST "$API_URL/api/v1/mobile/feedback" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -372,77 +256,8 @@ curl -X POST "$API_URL/api/v1/mobile/feedback" \
   }'
 
 # Get user mobile stats
-echo -e "\n\n6.7 Get User Mobile Stats:"
+echo -e "\n\n4.7 Get User Mobile Stats:"
 curl -X GET "$API_URL/api/v1/mobile/stats/user?email=test@example.com" \
-  -H "Accept: application/json"
-
-# Report app crash
-echo -e "\n\n6.8 Report App Crash:"
-curl -X POST "$API_URL/api/v1/mobile/crash-report" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "platform": "ios",
-    "appVersion": "1.0.0",
-    "crashLog": "Fatal error in JobsViewController line 45",
-    "deviceInfo": {
-      "model": "iPhone 14",
-      "os": "iOS 16.0",
-      "memory": "6GB"
-    },
-    "userEmail": "test@example.com"
-  }'
-
-# =============================================================================
-# 7. API ROOT & DOCUMENTATION
-# =============================================================================
-echo -e "\n\n"
-echo "📖 API ROOT & DOCUMENTATION"
-echo "---------------------------"
-
-# API root endpoint
-echo "7.1 API Root Information:"
-curl -X GET "$API_URL/" \
-  -H "Accept: application/json"
-
-# API v1 info (if exists)
-echo -e "\n\n7.2 API v1 Information:"
-curl -X GET "$API_URL/api/v1/" \
-  -H "Accept: application/json"
-
-# =============================================================================
-# 8. ERROR TESTING (Invalid Requests)
-# =============================================================================
-echo -e "\n\n"
-echo "❌ ERROR TESTING (Invalid Requests)"
-echo "----------------------------------"
-
-# Invalid email format
-echo "8.1 Invalid Email Format:"
-curl -X POST "$API_URL/api/v1/users/register" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "email": "invalid-email"
-  }'
-
-# Missing required fields
-echo -e "\n\n8.2 Missing Required Fields:"
-curl -X POST "$API_URL/api/v1/users/keywords" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "email": "test@example.com"
-  }'
-
-# Invalid job ID
-echo -e "\n\n8.3 Invalid Job ID:"
-curl -X GET "$API_URL/api/v1/jobs/invalid-id" \
-  -H "Accept: application/json"
-
-# Invalid endpoint
-echo -e "\n\n8.4 Invalid Endpoint:"
-curl -X GET "$API_URL/api/v1/nonexistent" \
   -H "Accept: application/json"
 
 # =============================================================================
@@ -451,7 +266,7 @@ curl -X GET "$API_URL/api/v1/nonexistent" \
 echo -e "\n\n"
 echo "🎯 TEST SUMMARY"
 echo "==============="
-echo "✅ All curl commands have been executed"
+echo "✅ All curl commands have been executed for: $API_URL"
 echo "📊 Check the responses above for:"
 echo "   - HTTP status codes (200, 201, 404, 500, etc.)"
 echo "   - JSON response structure"

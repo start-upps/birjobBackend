@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # Quick BirJob API Tests - Essential Endpoints Only
-# Replace YOUR_URL with your actual Render URL
+# Updated URL for new Render deployment
 
-URL="https://birjobbackend.onrender.com"
+URL="https://birjobbackend-ir3e.onrender.com"
 
 echo "🚀 Quick BirJob API Tests"
 echo "========================="
+echo "Testing: $URL"
 
 # 1. Health Check
 echo "1. 🏥 Health Check:"
