@@ -884,7 +884,7 @@ DEBUG_SQL_QUERIES=true
 ### Project Structure
 
 ```
-birJobBackend/
+birjobBackend/
 ├── server.js                  # Main application entry point
 ├── package.json              # Dependencies and scripts
 ├── prisma/
