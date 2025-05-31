@@ -1968,7 +1968,7 @@ copies or substantial portions of the Software.
 
 ### Documentation & Resources
 - **API Documentation**: Available at `/api/health` endpoint
-- **GitHub Repository**: [https://github.com/Ismat-Samadov/birJobBackend](https://github.com/Ismat-Samadov/birJobBackend)
+- **GitHub Repository**: [https://github.com/Ismat-Samadov/birjobBackend](https://github.com/Ismat-Samadov/birjobBackend)
 - **Wiki**: [Project Wiki](https://github.com/Ismat-Samadov/birJobBackend/wiki)
 
 ### Getting Help
