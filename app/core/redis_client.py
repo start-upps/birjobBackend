@@ -14,9 +14,17 @@ class RedisClient:
     async def init_redis(self):
         """Initialize Redis connection"""
         try:
-            logger.info(f"Attempting to connect to Redis: {settings.REDIS_URL}")
+            # Debug environment variables
+            import os
+            env_redis_url = os.getenv("REDIS_URL")
+            logger.info(f"Environment REDIS_URL: {env_redis_url}")
+            logger.info(f"Settings REDIS_URL: {settings.REDIS_URL}")
+            
+            redis_url = env_redis_url if env_redis_url else settings.REDIS_URL
+            logger.info(f"Using Redis URL: {redis_url}")
+            
             self.redis = redis.from_url(
-                settings.REDIS_URL,
+                redis_url,
                 encoding="utf-8",
                 decode_responses=True
             )
@@ -25,7 +33,7 @@ class RedisClient:
             logger.info("Redis connection established")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            logger.error(f"Redis URL used: {settings.REDIS_URL}")
+            logger.error(f"Redis URL used: {redis_url}")
             logger.warning("Redis connection failed - continuing without cache")
             self.redis = None
     

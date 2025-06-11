@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -28,7 +28,7 @@ class KeywordSubscription(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), nullable=False, index=True)
     keywords = Column(ARRAY(Text), nullable=False)
     sources = Column(ARRAY(Text))
     location_filters = Column(JSONB)
@@ -45,7 +45,7 @@ class JobMatch(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), nullable=False, index=True)
     job_id = Column(String, nullable=False)  # References scraper.jobs_jobpost.id
     matched_keywords = Column(ARRAY(Text), nullable=False)
     relevance_score = Column(String)  # DECIMAL(3,2) as string for easier handling
@@ -61,8 +61,8 @@ class PushNotification(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    match_id = Column(UUID(as_uuid=True), nullable=True)
+    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), nullable=False, index=True)
+    match_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.job_matches.id'), nullable=True)
     notification_type = Column(String(50), nullable=False)  # 'job_match', 'daily_digest', 'system'
     payload = Column(JSONB, nullable=False)
     status = Column(String(20), default='pending', index=True)  # 'pending', 'sent', 'delivered', 'failed'
@@ -79,6 +79,6 @@ class ProcessedJob(Base):
     __tablename__ = "processed_jobs"
     __table_args__ = {'schema': 'iosapp'}
     
-    device_id = Column(UUID(as_uuid=True), primary_key=True)
+    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), primary_key=True)
     job_id = Column(String, primary_key=True)
     processed_at = Column(DateTime(timezone=True), server_default=func.now())
