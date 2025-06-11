@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -12,7 +12,7 @@ class DeviceToken(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     device_token = Column(String(255), unique=True, nullable=False, index=True)
-    device_info = Column(JSON)
+    device_info = Column(JSONB)
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -31,7 +31,7 @@ class KeywordSubscription(Base):
     device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     keywords = Column(ARRAY(Text), nullable=False)
     sources = Column(ARRAY(Text))
-    location_filters = Column(JSON)
+    location_filters = Column(JSONB)
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -64,9 +64,9 @@ class PushNotification(Base):
     device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     match_id = Column(UUID(as_uuid=True), nullable=True)
     notification_type = Column(String(50), nullable=False)  # 'job_match', 'daily_digest', 'system'
-    payload = Column(JSON, nullable=False)
+    payload = Column(JSONB, nullable=False)
     status = Column(String(20), default='pending', index=True)  # 'pending', 'sent', 'delivered', 'failed'
-    apns_response = Column(JSON)
+    apns_response = Column(JSONB)
     sent_at = Column(DateTime(timezone=True))
     delivered_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
