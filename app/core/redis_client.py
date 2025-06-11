@@ -14,6 +14,7 @@ class RedisClient:
     async def init_redis(self):
         """Initialize Redis connection"""
         try:
+            logger.info(f"Attempting to connect to Redis: {settings.REDIS_URL}")
             self.redis = redis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
@@ -24,18 +25,24 @@ class RedisClient:
             logger.info("Redis connection established")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            raise e
+            logger.error(f"Redis URL used: {settings.REDIS_URL}")
+            logger.warning("Redis connection failed - continuing without cache")
+            self.redis = None
     
     async def get(self, key: str) -> Optional[str]:
         """Get value by key"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return None
         return await self.redis.get(key)
     
     async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
         """Set key-value pair with optional expiration"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return False
         
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
@@ -46,24 +53,32 @@ class RedisClient:
         """Delete key"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return 0
         return await self.redis.delete(key)
     
     async def exists(self, key: str) -> bool:
         """Check if key exists"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return False
         return bool(await self.redis.exists(key))
     
     async def expire(self, key: str, seconds: int) -> bool:
         """Set expiration on key"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return False
         return await self.redis.expire(key, seconds)
     
     async def increment(self, key: str, amount: int = 1) -> int:
         """Increment key value"""
         if not self.redis:
             await self.init_redis()
+        if not self.redis:
+            return 0
         return await self.redis.incrby(key, amount)
     
     async def get_json(self, key: str) -> Optional[dict]:
