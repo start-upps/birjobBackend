@@ -39,7 +39,6 @@ class KeywordSubscription(Base):
     # Foreign key constraint handled at database level
     # Relationships
     device = relationship("DeviceToken", back_populates="subscriptions")
-    matches = relationship("JobMatch", back_populates="subscription", cascade="all, delete-orphan")
 
 class JobMatch(Base):
     __tablename__ = "job_matches"
@@ -47,7 +46,6 @@ class JobMatch(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     device_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    subscription_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     job_id = Column(String, nullable=False)  # References scraper.jobs_jobpost.id
     matched_keywords = Column(ARRAY(Text), nullable=False)
     relevance_score = Column(String)  # DECIMAL(3,2) as string for easier handling
@@ -56,7 +54,6 @@ class JobMatch(Base):
     
     # Relationships
     device = relationship("DeviceToken", back_populates="matches")
-    subscription = relationship("KeywordSubscription", back_populates="matches")
     notifications = relationship("PushNotification", back_populates="match")
 
 class PushNotification(Base):
