@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 # Create async engine - handle both asyncpg and psycopg2 URLs
 database_url = settings.DATABASE_URL
+original_url = database_url
+
 if database_url and not database_url.startswith('postgresql+asyncpg://'):
     # Convert postgres:// to postgresql+asyncpg://
     if database_url.startswith('postgres://'):
@@ -17,13 +19,21 @@ if database_url and not database_url.startswith('postgresql+asyncpg://'):
     elif database_url.startswith('postgresql://'):
         database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
 
-# asyncpg expects sslmode parameter - no conversion needed
+# Remove sslmode from URL and configure SSL through connect_args
+if database_url and 'sslmode=' in database_url:
+    database_url = database_url.split('?sslmode=')[0]
+
+# Configure SSL for cloud databases
+connect_args = {}
+if original_url and 'sslmode=require' in original_url:
+    connect_args = {"ssl": "require"}
 
 engine = create_async_engine(
     database_url,
     echo=False,
     pool_size=10,
     max_overflow=20,
+    connect_args=connect_args,
 )
 
 # Create session factory
