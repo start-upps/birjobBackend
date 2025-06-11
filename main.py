@@ -15,7 +15,8 @@ def main():
     """Main entry point"""
     try:
         # Add current directory to Python path
-        sys.path.insert(0, os.path.dirname(__file__))
+        current_dir = os.path.dirname(__file__)
+        sys.path.insert(0, current_dir)
         
         logger.info("🚀 Starting iOS Backend API...")
         logger.info(f"Python path: {sys.path[:3]}...")
@@ -45,7 +46,6 @@ def main():
         logger.error(f"❌ Import error: {e}")
         logger.error("Available modules in current directory:")
         try:
-            import os
             for item in os.listdir('.'):
                 if not item.startswith('.'):
                     logger.error(f"  - {item}")
