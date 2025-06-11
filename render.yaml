@@ -1,0 +1,64 @@
+services:
+  # Main API Service
+  - type: web
+    name: birjob-ios-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: |
+      alembic upgrade head && 
+      uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: birjob-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: birjob-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: API_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: APNS_SANDBOX
+        value: "true"
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    
+  # Match Engine Background Service
+  - type: worker
+    name: birjob-match-engine
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -c "import asyncio; from app.services.match_engine import job_scheduler; asyncio.run(job_scheduler.start())"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: birjob-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: birjob-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: MATCH_ENGINE_INTERVAL_MINUTES
+        value: "5"
+      - key: LOG_LEVEL
+        value: "INFO"
+    autoDeploy: false
+
+  # Redis Cache
+  - type: redis
+    name: birjob-redis
+    maxmemoryPolicy: allkeys-lru
+    plan: starter
+
+databases:
+  # PostgreSQL Database
+  - name: birjob-postgres
+    plan: starter

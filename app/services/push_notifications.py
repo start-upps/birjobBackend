@@ -1,0 +1,333 @@
+import asyncio
+import logging
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
+import uuid
+import json
+
+try:
+    from aioapns import APNs, NotificationRequest, PushType
+    APNS_AVAILABLE = True
+except ImportError:
+    APNS_AVAILABLE = False
+    logging.warning("aioapns not available - push notifications will be mocked")
+
+from app.core.config import settings
+from app.core.database import db_manager
+from app.core.redis_client import redis_client
+from app.core.monitoring import metrics
+
+logger = logging.getLogger(__name__)
+
+class PushNotificationService:
+    """Service for sending Apple Push Notifications"""
+    
+    def __init__(self):
+        self.apns_client = None
+        self.logger = logging.getLogger(__name__)
+        
+        if APNS_AVAILABLE and settings.APNS_KEY_PATH:
+            self._init_apns_client()
+    
+    def _init_apns_client(self):
+        """Initialize APNs client"""
+        try:
+            # Check if APNs key file exists
+            import os
+            if not os.path.exists(settings.APNS_KEY_PATH):
+                self.logger.warning(f"APNs key file not found: {settings.APNS_KEY_PATH}")
+                return
+            
+            self.apns_client = APNs(
+                key=settings.APNS_KEY_PATH,
+                key_id=settings.APNS_KEY_ID,
+                team_id=settings.APNS_TEAM_ID,
+                bundle_id=settings.APNS_BUNDLE_ID,
+                use_sandbox=settings.APNS_SANDBOX
+            )
+            self.logger.info("APNs client initialized successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize APNs client: {e}")
+            self.apns_client = None
+    
+    async def send_job_match_notification(
+        self,
+        device_token: str,
+        device_id: str,
+        job: Dict[str, Any],
+        matched_keywords: List[str],
+        match_id: str
+    ) -> bool:
+        """Send job match push notification"""
+        
+        # Check throttling
+        if not await self._check_notification_throttling(device_id):
+            self.logger.info(f"Notification throttled for device {device_id}")
+            return False
+        
+        # Check quiet hours
+        if await self._is_quiet_hours(device_id):
+            self.logger.info(f"Notification suppressed (quiet hours) for device {device_id}")
+            # Store notification for later delivery
+            await self._store_pending_notification(device_token, device_id, job, matched_keywords, match_id)
+            return False
+        
+        # Create notification payload
+        payload = self._create_job_match_payload(job, matched_keywords, match_id)
+        
+        # Send notification
+        success = await self._send_notification(device_token, payload, "job_match", match_id)
+        
+        if success:
+            # Update notification counts
+            await self._update_notification_counts(device_id)
+            metrics.record_notification_sent("sent")
+        else:
+            metrics.record_notification_sent("failed")
+        
+        return success
+    
+    def _create_job_match_payload(
+        self,
+        job: Dict[str, Any],
+        matched_keywords: List[str],
+        match_id: str
+    ) -> Dict[str, Any]:
+        """Create push notification payload for job match"""
+        
+        # Truncate title and company for notification
+        title = job.get('title', 'New Job')[:50]
+        company = job.get('company', 'Unknown Company')[:30]
+        keywords_text = ', '.join(matched_keywords[:3])  # Show max 3 keywords
+        
+        return {
+            "aps": {
+                "alert": {
+                    "title": "New Job Match! 🎯",
+                    "subtitle": f"{title} at {company}",
+                    "body": f"Matches your keywords: {keywords_text}"
+                },
+                "badge": 1,
+                "sound": "default",
+                "category": "JOB_MATCH",
+                "thread-id": "job-matches"
+            },
+            "custom_data": {
+                "type": "job_match",
+                "match_id": match_id,
+                "job_id": job.get('id'),
+                "matched_keywords": matched_keywords,
+                "deep_link": f"birjob://job/{job.get('id')}"
+            }
+        }
+    
+    async def send_daily_digest(self, device_token: str, device_id: str, matches_count: int) -> bool:
+        """Send daily digest notification"""
+        if matches_count == 0:
+            return True  # No notification needed
+        
+        payload = {
+            "aps": {
+                "alert": {
+                    "title": "Daily Job Summary 📊",
+                    "body": f"You have {matches_count} new job matches today"
+                },
+                "badge": matches_count,
+                "sound": "default",
+                "category": "DAILY_DIGEST"
+            },
+            "custom_data": {
+                "type": "daily_digest",
+                "matches_count": matches_count,
+                "deep_link": "birjob://matches"
+            }
+        }
+        
+        return await self._send_notification(device_token, payload, "daily_digest")
+    
+    async def send_system_notification(
+        self,
+        device_token: str,
+        device_id: str,
+        title: str,
+        message: str,
+        data: Optional[Dict] = None
+    ) -> bool:
+        """Send system notification"""
+        payload = {
+            "aps": {
+                "alert": {
+                    "title": title,
+                    "body": message
+                },
+                "sound": "default",
+                "category": "SYSTEM"
+            },
+            "custom_data": {
+                "type": "system",
+                **(data or {})
+            }
+        }
+        
+        return await self._send_notification(device_token, payload, "system")
+    
+    async def _send_notification(
+        self,
+        device_token: str,
+        payload: Dict[str, Any],
+        notification_type: str,
+        match_id: Optional[str] = None
+    ) -> bool:
+        """Send push notification via APNs"""
+        
+        notification_id = str(uuid.uuid4())
+        
+        try:
+            # Store notification in database first
+            await self._store_notification(
+                device_token, notification_id, payload, notification_type, match_id
+            )
+            
+            if self.apns_client and APNS_AVAILABLE:
+                # Send via APNs
+                request = NotificationRequest(
+                    device_token=device_token,
+                    message=payload,
+                    push_type=PushType.ALERT
+                )
+                
+                response = await self.apns_client.send_notification(request)
+                
+                if response.is_successful:
+                    await self._update_notification_status(notification_id, "sent", response)
+                    self.logger.info(f"Push notification sent successfully: {notification_id}")
+                    return True
+                else:
+                    await self._update_notification_status(notification_id, "failed", response)
+                    self.logger.error(f"Push notification failed: {response.description}")
+                    return False
+            else:
+                # Mock mode for development
+                self.logger.info(f"Mock push notification sent: {notification_id}")
+                await self._update_notification_status(notification_id, "sent", {"mock": True})
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error sending push notification: {e}")
+            await self._update_notification_status(notification_id, "failed", {"error": str(e)})
+            return False
+    
+    async def _store_notification(
+        self,
+        device_token: str,
+        notification_id: str,
+        payload: Dict[str, Any],
+        notification_type: str,
+        match_id: Optional[str] = None
+    ):
+        """Store notification in database"""
+        try:
+            # Get device_id from token
+            device_query = "SELECT id FROM iosapp.device_tokens WHERE device_token = $1"
+            device_result = await db_manager.execute_query(device_query, device_token)
+            
+            if not device_result:
+                raise Exception(f"Device not found for token: {device_token}")
+            
+            device_id = device_result[0]['id']
+            
+            query = """
+                INSERT INTO iosapp.push_notifications 
+                (id, device_id, match_id, notification_type, payload, status)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            """
+            
+            await db_manager.execute_command(
+                query,
+                uuid.UUID(notification_id),
+                device_id,
+                uuid.UUID(match_id) if match_id else None,
+                notification_type,
+                json.dumps(payload),
+                "pending"
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error storing notification: {e}")
+            raise e
+    
+    async def _update_notification_status(
+        self,
+        notification_id: str,
+        status: str,
+        response: Any = None
+    ):
+        """Update notification status in database"""
+        try:
+            query = """
+                UPDATE iosapp.push_notifications 
+                SET status = $1, apns_response = $2, sent_at = NOW()
+                WHERE id = $3
+            """
+            
+            response_data = None
+            if response:
+                if hasattr(response, '__dict__'):
+                    response_data = json.dumps(response.__dict__)
+                else:
+                    response_data = json.dumps(response)
+            
+            await db_manager.execute_command(
+                query,
+                status,
+                response_data,
+                uuid.UUID(notification_id)
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error updating notification status: {e}")
+    
+    async def _check_notification_throttling(self, device_id: str) -> bool:
+        """Check if device has exceeded notification limits"""
+        
+        # Check hourly limit
+        hour_count = await redis_client.get_notification_count(device_id, "hour")
+        if hour_count >= settings.MAX_NOTIFICATIONS_PER_HOUR:
+            return False
+        
+        # Check daily limit
+        day_count = await redis_client.get_notification_count(device_id, "day")
+        if day_count >= settings.MAX_NOTIFICATIONS_PER_DAY:
+            return False
+        
+        return True
+    
+    async def _update_notification_counts(self, device_id: str):
+        """Update notification counts in Redis"""
+        # Increment hourly count (expires after 1 hour)
+        await redis_client.increment_notification_count(device_id, "hour", 3600)
+        
+        # Increment daily count (expires after 24 hours)
+        await redis_client.increment_notification_count(device_id, "day", 86400)
+    
+    async def _is_quiet_hours(self, device_id: str) -> bool:
+        """Check if it's quiet hours for device based on timezone"""
+        # TODO: Implement timezone-aware quiet hours check
+        # For now, use UTC time
+        current_hour = datetime.now(timezone.utc).hour
+        return (current_hour >= settings.QUIET_HOURS_START or 
+                current_hour < settings.QUIET_HOURS_END)
+    
+    async def _store_pending_notification(
+        self,
+        device_token: str,
+        device_id: str,
+        job: Dict[str, Any],
+        matched_keywords: List[str],
+        match_id: str
+    ):
+        """Store notification for later delivery (during quiet hours)"""
+        # TODO: Implement pending notification storage
+        # This would store notifications to be sent when quiet hours end
+        pass

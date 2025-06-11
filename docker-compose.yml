@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://birjob:birjob_password@postgres:5432/birjob_ios
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - API_KEY=dev-api-key-change-in-production
+      - APNS_SANDBOX=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./secrets:/secrets:ro
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=birjob_ios
+      - POSTGRES_USER=birjob
+      - POSTGRES_PASSWORD=birjob_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  match-engine:
+    build: .
+    command: python -c "
+      import asyncio;
+      from app.services.match_engine import job_scheduler;
+      asyncio.run(job_scheduler.start())
+      "
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://birjob:birjob_password@postgres:5432/birjob_ios
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

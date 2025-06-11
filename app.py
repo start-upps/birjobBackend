@@ -1,0 +1,65 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import asyncio
+import logging
+import os
+
+from app.core.config import settings
+from app.core.database import init_db
+from app.core.redis_client import init_redis
+from app.api.v1.router import api_router
+from app.core.monitoring import setup_monitoring
+from app.core.security import setup_security_headers
+
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting iOS Backend API...")
+    
+    # Initialize database and Redis
+    await init_db()
+    await init_redis()
+    logger.info("Database and Redis initialized")
+    
+    # Check if we're in production and ensure migrations are up to date
+    if os.getenv("RENDER"):
+        logger.info("Production environment detected - migration check skipped (handled by start command)")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down iOS Backend API...")
+
+app = FastAPI(
+    title="iOS Native App Backend",
+    description="Backend API for iOS job matching app with push notifications",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Setup CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Setup monitoring and security
+setup_monitoring(app)
+setup_security_headers(app)
+
+# Include routers
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/")
+async def root():
+    return {"message": "iOS Native App Backend API", "version": "1.0.0"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
