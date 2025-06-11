@@ -22,7 +22,7 @@ def main():
         logger.info(f"Current directory: {os.getcwd()}")
         
         # Import the FastAPI app
-        from app import app
+        from application import app
         
         logger.info("✅ FastAPI app imported successfully")
         
