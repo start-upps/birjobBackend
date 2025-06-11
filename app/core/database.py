@@ -8,9 +8,17 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Create async engine
+# Create async engine - handle both asyncpg and psycopg2 URLs
+database_url = settings.DATABASE_URL
+if database_url and not database_url.startswith('postgresql+asyncpg://'):
+    # Convert postgres:// to postgresql+asyncpg://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+    elif database_url.startswith('postgresql://'):
+        database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    database_url,
     echo=False,
     pool_size=10,
     max_overflow=20,
