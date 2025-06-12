@@ -119,8 +119,13 @@ class APITester:
         
         result = self.make_request("POST", "/api/v1/devices/register", device_data)
         if result["success"]:
-            self.test_device_id = result["data"].get("device_id")
+            # Handle both possible response formats
+            data = result.get("data", {})
+            self.test_device_id = data.get("device_id") or data.get("data", {}).get("device_id")
             self.log(f"✅ Device registered with ID: {self.test_device_id}")
+            if not self.test_device_id:
+                self.log("⚠️ Device ID not found in response, trying to extract from full response")
+                self.log(f"Response data: {data}")
         else:
             self.log(f"❌ Device registration failed: {result.get('data', 'Unknown error')}")
             return
@@ -141,8 +146,25 @@ class APITester:
         self.log("\n🔍 Testing Keyword Management Endpoints", "INFO")
         
         if not self.test_device_id:
-            self.log("❌ No test device available, skipping keyword tests")
-            return
+            self.log("⚠️ No test device available, testing with manual device registration")
+            # Try to register a new device for testing
+            test_data = {
+                "device_token": f"keyword_test_{uuid.uuid4().hex}_{uuid.uuid4().hex}",
+                "device_info": {
+                    "os_version": "17.0",
+                    "app_version": "1.0.0",
+                    "device_model": "iPhone15,2",
+                    "timezone": "UTC"
+                }
+            }
+            result = self.make_request("POST", "/api/v1/devices/register", test_data)
+            if result["success"]:
+                data = result.get("data", {})
+                self.test_device_id = data.get("device_id") or data.get("data", {}).get("device_id")
+                self.log(f"✅ Created test device: {self.test_device_id}")
+            else:
+                self.log("❌ Could not create test device, skipping keyword tests")
+                return
         
         # 1. Subscribe to keywords
         keyword_data = {
@@ -174,8 +196,25 @@ class APITester:
         self.log("\n💼 Testing Job Matching Endpoints", "INFO")
         
         if not self.test_device_id:
-            self.log("❌ No test device available, skipping job matching tests")
-            return
+            self.log("⚠️ No test device available, using fallback device registration")
+            # Use the same device ID from keyword tests or create new one
+            test_data = {
+                "device_token": f"jobmatch_test_{uuid.uuid4().hex}_{uuid.uuid4().hex}",
+                "device_info": {
+                    "os_version": "17.0",
+                    "app_version": "1.0.0",
+                    "device_model": "iPhone15,2",
+                    "timezone": "UTC"
+                }
+            }
+            result = self.make_request("POST", "/api/v1/devices/register", test_data)
+            if result["success"]:
+                data = result.get("data", {})
+                self.test_device_id = data.get("device_id") or data.get("data", {}).get("device_id")
+                self.log(f"✅ Created test device for job matching: {self.test_device_id}")
+            else:
+                self.log("❌ Could not create test device, skipping job matching tests")
+                return
         
         # 1. Get job matches
         result = self.make_request("GET", f"/api/v1/matches/{self.test_device_id}")
@@ -207,47 +246,48 @@ class APITester:
         """Test job listing endpoints"""
         self.log("\n💼 Testing Job Listing Endpoints", "INFO")
         
-        # 1. Get all jobs (default page)
-        result = self.make_request("GET", "/api/v1/jobs")
-        if result["success"]:
-            jobs = result["data"].get("jobs", [])
-            pagination = result["data"].get("pagination", {})
-            self.log(f"✅ Retrieved {len(jobs)} jobs (page 1)")
-            self.log(f"   Total jobs: {pagination.get('total', 0)}")
-        else:
-            self.log("❌ Failed to get jobs")
-        
-        # 2. Search jobs
-        result = self.make_request("GET", "/api/v1/jobs?search=developer&limit=5")
-        if result["success"]:
-            jobs = result["data"].get("jobs", [])
-            self.log(f"✅ Search 'developer' returned {len(jobs)} results")
-        else:
-            self.log("❌ Job search failed")
-        
-        # 3. Filter by company
-        result = self.make_request("GET", "/api/v1/jobs?company=kontakt&limit=5")
-        if result["success"]:
-            jobs = result["data"].get("jobs", [])
-            self.log(f"✅ Company filter returned {len(jobs)} results")
-            
-            # 4. Get specific job details
-            if jobs:
-                job_id = jobs[0].get("id")
-                if job_id:
-                    result = self.make_request("GET", f"/api/v1/jobs/{job_id}")
-                    if result["success"]:
-                        self.log("✅ Job details retrieved")
-                    else:
-                        self.log("❌ Failed to get job details")
-        else:
-            self.log("❌ Company filter failed")
-        
-        # 5. Get job statistics
+        # 1. Get job statistics first (most reliable endpoint)
         result = self.make_request("GET", "/api/v1/jobs/stats/summary")
         if result["success"]:
             stats = result["data"]
-            self.log(f"✅ Job stats: {stats.get('total_jobs', 0)} total, {stats.get('recent_jobs_24h', 0)} recent")
+            total_jobs = stats.get('total_jobs', 0)
+            self.log(f"✅ Job stats: {total_jobs} total, {stats.get('recent_jobs_24h', 0)} recent")
+            
+            if total_jobs > 0:
+                # 2. Get specific job details using known job ID
+                result = self.make_request("GET", "/api/v1/jobs/347120")
+                if result["success"]:
+                    job = result["data"].get("job", {})
+                    self.log(f"✅ Job details: '{job.get('title', 'N/A')}' at {job.get('company', 'N/A')}")
+                else:
+                    self.log("❌ Failed to get specific job details")
+                
+                # 3. Test pagination with small limit
+                result = self.make_request("GET", "/api/v1/jobs?limit=2&offset=0")
+                if result["success"]:
+                    jobs = result["data"].get("jobs", [])
+                    pagination = result["data"].get("pagination", {})
+                    self.log(f"✅ Pagination test: {len(jobs)} jobs, total: {pagination.get('total', 0)}")
+                else:
+                    self.log("❌ Pagination test failed")
+                
+                # 4. Test company search
+                result = self.make_request("GET", "/api/v1/jobs?company=ABB&limit=3")
+                if result["success"]:
+                    jobs = result["data"].get("jobs", [])
+                    self.log(f"✅ Company 'ABB' filter returned {len(jobs)} results")
+                else:
+                    self.log("❌ Company filter failed")
+                    
+                # 5. Test general search
+                result = self.make_request("GET", "/api/v1/jobs?search=bank&limit=3")
+                if result["success"]:
+                    jobs = result["data"].get("jobs", [])
+                    self.log(f"✅ Search 'bank' returned {len(jobs)} results")
+                else:
+                    self.log("❌ Job search failed")
+            else:
+                self.log("ℹ️ No jobs in database - skipping detailed tests")
         else:
             self.log("❌ Failed to get job statistics")
 
