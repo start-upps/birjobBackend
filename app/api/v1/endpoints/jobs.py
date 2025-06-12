@@ -30,13 +30,12 @@ async def get_jobs(
         params = []
         param_count = 0
         
-        # Search functionality
+        # Search functionality (only available columns)
         if search:
             param_count += 1
             where_conditions.append(f"""
                 (LOWER(title) LIKE LOWER(${param_count}) 
-                OR LOWER(company) LIKE LOWER(${param_count}) 
-                OR LOWER(description) LIKE LOWER(${param_count}))
+                OR LOWER(company) LIKE LOWER(${param_count}))
             """)
             params.append(f"%{search}%")
         
@@ -52,10 +51,10 @@ async def get_jobs(
             where_conditions.append(f"source = ${param_count}")
             params.append(source)
         
-        # Location filter
+        # Location filter (search in title/company since no location column)
         if location:
             param_count += 1
-            where_conditions.append(f"LOWER(location) LIKE LOWER(${param_count})")
+            where_conditions.append(f"(LOWER(title) LIKE LOWER(${param_count}) OR LOWER(company) LIKE LOWER(${param_count}))")
             params.append(f"%{location}%")
         
         # Date filter
@@ -95,9 +94,7 @@ async def get_jobs(
         offset_param = f"${param_count}"
         
         jobs_query = f"""
-            SELECT id, title, company, apply_link, source, location, 
-                   salary, employment_type, description, requirements,
-                   created_at, updated_at
+            SELECT id, title, company, apply_link, source, created_at
             FROM scraper.jobs_jobpost
             {where_clause}
             {order_clause}
@@ -107,7 +104,7 @@ async def get_jobs(
         params.extend([limit, offset])
         jobs_result = await db_manager.execute_query(jobs_query, *params)
         
-        # Format job data
+        # Format job data (only available columns)
         jobs = []
         for job in jobs_result:
             job_data = {
@@ -116,13 +113,7 @@ async def get_jobs(
                 "company": job["company"],
                 "apply_link": job["apply_link"],
                 "source": job["source"],
-                "location": job.get("location"),
-                "salary": job.get("salary"),
-                "employment_type": job.get("employment_type"),
-                "description": job.get("description"),
-                "requirements": job.get("requirements"),
-                "posted_at": job["created_at"].isoformat() if job["created_at"] else None,
-                "updated_at": job["updated_at"].isoformat() if job.get("updated_at") else None
+                "posted_at": job["created_at"].isoformat() if job["created_at"] else None
             }
             jobs.append(job_data)
         
@@ -170,10 +161,7 @@ async def get_job_details(job_id: int):
     """
     try:
         job_query = """
-            SELECT id, title, company, apply_link, source, location,
-                   salary, employment_type, description, requirements,
-                   benefits, contact_info, application_deadline,
-                   created_at, updated_at
+            SELECT id, title, company, apply_link, source, created_at
             FROM scraper.jobs_jobpost
             WHERE id = $1
         """
@@ -193,16 +181,7 @@ async def get_job_details(job_id: int):
             "company": job["company"],
             "apply_link": job["apply_link"],
             "source": job["source"],
-            "location": job.get("location"),
-            "salary": job.get("salary"),
-            "employment_type": job.get("employment_type"),
-            "description": job.get("description"),
-            "requirements": job.get("requirements"),
-            "benefits": job.get("benefits"),
-            "contact_info": job.get("contact_info"),
-            "application_deadline": job.get("application_deadline").isoformat() if job.get("application_deadline") else None,
-            "posted_at": job["created_at"].isoformat() if job["created_at"] else None,
-            "updated_at": job["updated_at"].isoformat() if job.get("updated_at") else None
+            "posted_at": job["created_at"].isoformat() if job["created_at"] else None
         }
         
         return {
