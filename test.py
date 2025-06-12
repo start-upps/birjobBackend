@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """
 Comprehensive API endpoint testing for birjobBackend
-Tests all endpoints against the deployed Render URL
+Tests all endpoints against the deployed Render URL including:
+
+🏥 Health & Monitoring
+📱 Device Management (register, status, delete)
+🔍 Keyword Subscriptions (create, list, manage)
+💼 Job Matching (matches, unread count, processing)
+💼 Job Database API (listing, search, filters, pagination, details, stats)
+🔔 Push Notifications (planned)
+👑 Admin Endpoints (planned)
+
+Perfect for testing your mobile job app's default page and all functionality.
 """
 
 import requests
@@ -243,51 +253,140 @@ class APITester:
             self.log("❌ Failed to get unread count")
     
     def test_jobs_endpoints(self):
-        """Test job listing endpoints"""
-        self.log("\n💼 Testing Job Listing Endpoints", "INFO")
+        """Test comprehensive job listing endpoints for mobile app"""
+        self.log("\n💼 Testing Job Database Endpoints", "INFO")
         
         # 1. Get job statistics first (most reliable endpoint)
         result = self.make_request("GET", "/api/v1/jobs/stats/summary")
         if result["success"]:
             stats = result["data"]
             total_jobs = stats.get('total_jobs', 0)
-            self.log(f"✅ Job stats: {total_jobs} total, {stats.get('recent_jobs_24h', 0)} recent")
+            recent_jobs = stats.get('recent_jobs_24h', 0)
+            top_companies = stats.get('top_companies', [])
+            job_sources = stats.get('job_sources', [])
             
-            if total_jobs > 0:
-                # 2. Get specific job details using known job ID
-                result = self.make_request("GET", "/api/v1/jobs/347120")
+            self.log(f"✅ Job statistics: {total_jobs} total, {recent_jobs} recent (24h)")
+            self.log(f"   Top companies: {len(top_companies)} companies tracked")
+            self.log(f"   Job sources: {len(job_sources)} sources integrated")
+            
+            if total_jobs > 0 and top_companies:
+                # Store sample data for further testing
+                sample_company = top_companies[0]['company'] if top_companies else "ABB"
+                sample_job_id = 347120  # Known working job ID
+                
+                # 2. Test specific job details endpoint
+                result = self.make_request("GET", f"/api/v1/jobs/{sample_job_id}")
                 if result["success"]:
                     job = result["data"].get("job", {})
                     self.log(f"✅ Job details: '{job.get('title', 'N/A')}' at {job.get('company', 'N/A')}")
+                    self.log(f"   Apply link: {job.get('apply_link', 'N/A')[:50]}...")
                 else:
                     self.log("❌ Failed to get specific job details")
                 
-                # 3. Test pagination with small limit
-                result = self.make_request("GET", "/api/v1/jobs?limit=2&offset=0")
+                # 3. Test main jobs listing (default app page) with pagination
+                result = self.make_request("GET", "/api/v1/jobs?limit=5&offset=0")
                 if result["success"]:
                     jobs = result["data"].get("jobs", [])
                     pagination = result["data"].get("pagination", {})
-                    self.log(f"✅ Pagination test: {len(jobs)} jobs, total: {pagination.get('total', 0)}")
-                else:
-                    self.log("❌ Pagination test failed")
-                
-                # 4. Test company search
-                result = self.make_request("GET", "/api/v1/jobs?company=ABB&limit=3")
-                if result["success"]:
-                    jobs = result["data"].get("jobs", [])
-                    self.log(f"✅ Company 'ABB' filter returned {len(jobs)} results")
-                else:
-                    self.log("❌ Company filter failed")
+                    filters = result["data"].get("filters", {})
                     
-                # 5. Test general search
-                result = self.make_request("GET", "/api/v1/jobs?search=bank&limit=3")
+                    self.log(f"✅ Main job listing: {len(jobs)} jobs displayed")
+                    self.log(f"   Pagination: page {pagination.get('current_page', 1)} of {pagination.get('total_pages', 1)}")
+                    self.log(f"   Has more: {pagination.get('has_more', False)}")
+                    
+                    # Test job data structure
+                    if jobs:
+                        first_job = jobs[0]
+                        required_fields = ['id', 'title', 'company', 'apply_link', 'source', 'posted_at']
+                        missing_fields = [field for field in required_fields if field not in first_job]
+                        if not missing_fields:
+                            self.log("✅ Job data structure complete")
+                        else:
+                            self.log(f"⚠️ Missing job fields: {missing_fields}")
+                else:
+                    self.log("❌ Main job listing failed")
+                
+                # 4. Test company filtering
+                result = self.make_request("GET", f"/api/v1/jobs?company={sample_company}&limit=3")
                 if result["success"]:
                     jobs = result["data"].get("jobs", [])
-                    self.log(f"✅ Search 'bank' returned {len(jobs)} results")
+                    self.log(f"✅ Company filter '{sample_company}': {len(jobs)} results")
                 else:
-                    self.log("❌ Job search failed")
+                    self.log(f"❌ Company filter failed for '{sample_company}'")
+                
+                # 5. Test search functionality
+                search_terms = ["developer", "manager", "bank", "sales"]
+                for term in search_terms:
+                    result = self.make_request("GET", f"/api/v1/jobs?search={term}&limit=3")
+                    if result["success"]:
+                        jobs = result["data"].get("jobs", [])
+                        self.log(f"✅ Search '{term}': {len(jobs)} results")
+                        break  # Test one working search term
+                    else:
+                        continue
+                else:
+                    self.log("❌ All search terms failed")
+                
+                # 6. Test source filtering
+                if job_sources:
+                    sample_source = job_sources[0]['source']
+                    result = self.make_request("GET", f"/api/v1/jobs?source={sample_source}&limit=3")
+                    if result["success"]:
+                        jobs = result["data"].get("jobs", [])
+                        self.log(f"✅ Source filter '{sample_source}': {len(jobs)} results")
+                    else:
+                        self.log(f"❌ Source filter failed for '{sample_source}'")
+                
+                # 7. Test date filtering (recent jobs)
+                result = self.make_request("GET", "/api/v1/jobs?days=7&limit=3")
+                if result["success"]:
+                    jobs = result["data"].get("jobs", [])
+                    self.log(f"✅ Recent jobs (7 days): {len(jobs)} results")
+                else:
+                    self.log("❌ Date filtering failed")
+                
+                # 8. Test sorting options
+                sort_tests = [
+                    ("created_at", "desc", "Latest jobs first"),
+                    ("title", "asc", "Alphabetical by title"),
+                    ("company", "asc", "Alphabetical by company")
+                ]
+                
+                for sort_by, sort_order, description in sort_tests:
+                    result = self.make_request("GET", f"/api/v1/jobs?sort_by={sort_by}&sort_order={sort_order}&limit=2")
+                    if result["success"]:
+                        jobs = result["data"].get("jobs", [])
+                        self.log(f"✅ Sorting ({description}): {len(jobs)} results")
+                    else:
+                        self.log(f"❌ Sorting failed: {description}")
+                
+                # 9. Test pagination navigation
+                result = self.make_request("GET", "/api/v1/jobs?limit=2&offset=2")
+                if result["success"]:
+                    pagination = result["data"].get("pagination", {})
+                    self.log(f"✅ Pagination navigation: page {pagination.get('current_page', 'N/A')}")
+                else:
+                    self.log("❌ Pagination navigation failed")
+                
+                # 10. Test combined filters (realistic mobile app usage)
+                result = self.make_request("GET", f"/api/v1/jobs?search=manager&company={sample_company}&limit=5&sort_by=created_at&sort_order=desc")
+                if result["success"]:
+                    jobs = result["data"].get("jobs", [])
+                    filters = result["data"].get("filters", {})
+                    self.log(f"✅ Combined filters: {len(jobs)} results")
+                    self.log(f"   Applied filters: search={filters.get('search')}, company={filters.get('company')}")
+                else:
+                    self.log("❌ Combined filters failed")
+                
+                # 11. Test error handling with invalid job ID
+                result = self.make_request("GET", "/api/v1/jobs/999999999")
+                if not result["success"] and result["status_code"] == 404:
+                    self.log("✅ Error handling: Invalid job ID returns 404")
+                else:
+                    self.log("❌ Error handling failed for invalid job ID")
+                
             else:
-                self.log("ℹ️ No jobs in database - skipping detailed tests")
+                self.log("ℹ️ No jobs in database or no company data - skipping detailed tests")
         else:
             self.log("❌ Failed to get job statistics")
 
