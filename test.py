@@ -203,6 +203,54 @@ class APITester:
         else:
             self.log("❌ Failed to get unread count")
     
+    def test_jobs_endpoints(self):
+        """Test job listing endpoints"""
+        self.log("\n💼 Testing Job Listing Endpoints", "INFO")
+        
+        # 1. Get all jobs (default page)
+        result = self.make_request("GET", "/api/v1/jobs")
+        if result["success"]:
+            jobs = result["data"].get("jobs", [])
+            pagination = result["data"].get("pagination", {})
+            self.log(f"✅ Retrieved {len(jobs)} jobs (page 1)")
+            self.log(f"   Total jobs: {pagination.get('total', 0)}")
+        else:
+            self.log("❌ Failed to get jobs")
+        
+        # 2. Search jobs
+        result = self.make_request("GET", "/api/v1/jobs?search=developer&limit=5")
+        if result["success"]:
+            jobs = result["data"].get("jobs", [])
+            self.log(f"✅ Search 'developer' returned {len(jobs)} results")
+        else:
+            self.log("❌ Job search failed")
+        
+        # 3. Filter by company
+        result = self.make_request("GET", "/api/v1/jobs?company=kontakt&limit=5")
+        if result["success"]:
+            jobs = result["data"].get("jobs", [])
+            self.log(f"✅ Company filter returned {len(jobs)} results")
+            
+            # 4. Get specific job details
+            if jobs:
+                job_id = jobs[0].get("id")
+                if job_id:
+                    result = self.make_request("GET", f"/api/v1/jobs/{job_id}")
+                    if result["success"]:
+                        self.log("✅ Job details retrieved")
+                    else:
+                        self.log("❌ Failed to get job details")
+        else:
+            self.log("❌ Company filter failed")
+        
+        # 5. Get job statistics
+        result = self.make_request("GET", "/api/v1/jobs/stats/summary")
+        if result["success"]:
+            stats = result["data"]
+            self.log(f"✅ Job stats: {stats.get('total_jobs', 0)} total, {stats.get('recent_jobs_24h', 0)} recent")
+        else:
+            self.log("❌ Failed to get job statistics")
+
     def test_push_notifications(self):
         """Test push notification endpoints"""
         self.log("\n🔔 Testing Push Notification Endpoints", "INFO")
@@ -238,6 +286,7 @@ class APITester:
             self.test_device_management()
             self.test_keyword_management()
             self.test_job_matching()
+            self.test_jobs_endpoints()
             self.test_push_notifications()
             self.test_admin_endpoints()
             
