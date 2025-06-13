@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["*"]
     
     # Apple Push Notifications
-    APNS_KEY_PATH: str = "/secrets/apns.p8"
+    APNS_PRIVATE_KEY: Optional[str] = None
+    APNS_KEY_PATH: str = "/secrets/apns.p8"  # Fallback to file if APNS_PRIVATE_KEY not set
     APNS_KEY_ID: str = "your-apns-key-id"
     APNS_TEAM_ID: str = "your-team-id"
     APNS_BUNDLE_ID: str = "com.yourcompany.birjob"
