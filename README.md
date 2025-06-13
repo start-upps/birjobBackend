@@ -25,6 +25,7 @@ This is a FastAPI backend for an iOS job matching application. The system has **
 
 ### Existing Job Data (`scraper` schema)
 - `jobs_jobpost` - 4,427 jobs from 36+ sources (Glorri, Djinni, etc.)
+  - Available fields: `id`, `title`, `company`, `apply_link`, `source`, `created_at`
 
 ## Complete API Endpoints
 
@@ -60,11 +61,7 @@ Subscribe to job keywords.
 {
   "device_id": "uuid-from-registration",
   "keywords": ["Python", "iOS Developer", "Remote"],
-  "sources": ["Glorri", "Djinni", "Vakansiya.biz"],
-  "location_filters": {
-    "cities": ["Baku", "Ganja"],
-    "remote_only": true
-  }
+  "sources": ["Glorri", "Djinni", "Vakansiya.biz"]
 }
 ```
 **Response**: `{"data": {"subscription_id": "uuid", "keywords_count": 3}}`
@@ -89,10 +86,11 @@ Browse all jobs with filtering.
 - `search` (search title/company)
 - `company` (filter by company)
 - `source` (filter by job board)
-- `location` (filter by location)
 - `days` (jobs from last N days)
 - `sort_by` (created_at, title, company)
 - `sort_order` (asc/desc)
+
+**Note**: No location column exists in database. Location searches work by searching within title/company fields.
 
 **Example**: `/api/v1/jobs/?search=developer&company=ABB&limit=5`
 
@@ -105,7 +103,7 @@ Browse all jobs with filtering.
         "id": 369139,
         "title": "Python Developer",
         "company": "TechCorp",
-        "apply_link": "https://...",
+        "apply_link": "https://jobs.glorri.az/vacancies/...",
         "source": "Glorri",
         "posted_at": "2025-06-13T05:26:27.182789"
       }
