@@ -280,3 +280,112 @@ APNS_SANDBOX=true
 - Show unread match badges
 
 This backend is production-ready with 4,427 live jobs and full push notification support. All endpoints return JSON with consistent `{"success": true, "data": {...}}` format.
+
+## 📁 Project Structure
+
+```
+birjobBackend/
+├── 📄 application.py          # Main FastAPI app configuration
+├── 📄 run.py                  # Production server entry point
+├── 📄 requirements.txt        # Python dependencies
+├── 📄 render.yaml            # Render.com deployment config
+├── 📄 .env                   # Environment variables (not in git)
+├── 📄 LICENSE                # MIT License
+├── 📄 README.md             # This documentation
+├── 📄 quick_test.py         # API testing script
+├── 📄 apn.p8                # APNs private key file (fallback)
+│
+└── 📁 app/                   # Main application package
+    ├── 📄 __init__.py
+    │
+    ├── 📁 api/               # API layer
+    │   ├── 📄 __init__.py
+    │   └── 📁 v1/            # API version 1
+    │       ├── 📄 __init__.py
+    │       ├── 📄 router.py   # Main API router setup
+    │       └── 📁 endpoints/  # API endpoint implementations
+    │           ├── 📄 __init__.py
+    │           ├── 📄 devices.py    # Device registration/management
+    │           ├── 📄 keywords.py   # Keyword subscriptions
+    │           ├── 📄 jobs.py       # Job database queries
+    │           ├── 📄 matches.py    # Job matching results
+    │           └── 📄 health.py     # System health monitoring
+    │
+    ├── 📁 core/              # Core system components
+    │   ├── 📄 __init__.py
+    │   ├── 📄 config.py       # App settings & environment config
+    │   ├── 📄 database.py     # PostgreSQL connection & management
+    │   ├── 📄 redis_client.py # Redis caching & session management
+    │   ├── 📄 security.py     # Security headers & validation
+    │   └── 📄 monitoring.py   # Performance metrics & logging
+    │
+    ├── 📁 models/            # Database models (SQLAlchemy)
+    │   ├── 📄 __init__.py
+    │   └── 📄 device.py       # iOS app database tables
+    │
+    ├── 📁 schemas/           # Data validation (Pydantic)
+    │   ├── 📄 __init__.py
+    │   └── 📄 device.py       # Request/response data models
+    │
+    └── 📁 services/          # Business logic services
+        ├── 📄 __init__.py
+        ├── 📄 push_notifications.py  # APNs integration
+        └── 📄 match_engine.py        # Job matching algorithms
+```
+
+## 📋 File Functions
+
+### **Root Files**
+- **`application.py`** - Main FastAPI app setup, CORS, middleware, lifespan events
+- **`run.py`** - Production entry point for Render.com deployment
+- **`requirements.txt`** - All Python package dependencies
+- **`render.yaml`** - Render.com deployment configuration (web service + worker)
+- **`quick_test.py`** - Simple API testing script for verification
+
+### **Core System (`app/core/`)**
+- **`config.py`** - Environment variables, settings, APNs credentials
+- **`database.py`** - PostgreSQL connection, async session management
+- **`redis_client.py`** - Redis connection, caching, rate limiting
+- **`security.py`** - CORS headers, API key validation, security middleware
+- **`monitoring.py`** - Health checks, metrics collection, performance tracking
+
+### **API Layer (`app/api/v1/`)**
+- **`router.py`** - Combines all endpoint routers into main API router
+- **`endpoints/devices.py`** - iOS device registration, status, deletion
+- **`endpoints/keywords.py`** - Keyword subscriptions CRUD operations
+- **`endpoints/jobs.py`** - Job database queries, search, filtering, stats
+- **`endpoints/matches.py`** - Job matching results, mark as read, unread counts
+- **`endpoints/health.py`** - System health, scraper status, metrics
+
+### **Data Layer (`app/models/` & `app/schemas/`)**
+- **`models/device.py`** - SQLAlchemy models for `iosapp` schema tables
+- **`schemas/device.py`** - Pydantic models for request/response validation
+
+### **Business Logic (`app/services/`)**
+- **`push_notifications.py`** - Apple Push Notifications Service integration
+- **`match_engine.py`** - Job matching algorithms, background processing
+
+## 🔧 Key Design Patterns
+
+### **Clean Architecture**
+- **Separation of concerns** - API, business logic, data access layers
+- **Dependency injection** - Database sessions, Redis clients injected
+- **Environment-based config** - All settings via environment variables
+
+### **Async/Await Throughout**
+- **FastAPI async handlers** - Non-blocking request processing
+- **Async database operations** - PostgreSQL with asyncpg
+- **Background job processing** - Match engine runs independently
+
+### **Error Handling**
+- **Consistent response format** - All endpoints return `{"success": bool, "data": {}}`
+- **HTTP status codes** - Proper 200, 400, 404, 500 responses
+- **Detailed logging** - All errors logged with context
+
+### **Security**
+- **API key authentication** - For admin endpoints
+- **Device ID validation** - UUID format checking
+- **Rate limiting** - Via Redis counters
+- **CORS configuration** - Controlled cross-origin access
+
+This structure makes the codebase maintainable, testable, and scalable for building iOS apps.
