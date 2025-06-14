@@ -47,7 +47,6 @@ class PushNotificationService:
                     key=temp_key_path,
                     key_id=settings.APNS_KEY_ID,
                     team_id=settings.APNS_TEAM_ID,
-                    bundle_id=settings.APNS_BUNDLE_ID,
                     use_sandbox=settings.APNS_SANDBOX
                 )
                 
@@ -66,7 +65,6 @@ class PushNotificationService:
                     key=settings.APNS_KEY_PATH,
                     key_id=settings.APNS_KEY_ID,
                     team_id=settings.APNS_TEAM_ID,
-                    bundle_id=settings.APNS_BUNDLE_ID,
                     use_sandbox=settings.APNS_SANDBOX
                 )
                 self.logger.info("APNs client initialized successfully with key file")
@@ -218,7 +216,8 @@ class PushNotificationService:
                 request = NotificationRequest(
                     device_token=device_token,
                     message=payload,
-                    push_type=PushType.ALERT
+                    push_type=PushType.ALERT,
+                    topic=settings.APNS_BUNDLE_ID
                 )
                 
                 response = await self.apns_client.send_notification(request)
