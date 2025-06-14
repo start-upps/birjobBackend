@@ -40,12 +40,21 @@ class JobMatchEngine:
             # Clean up old matches for jobs that no longer exist
             await self.cleanup_orphaned_matches()
             
+            self.logger.info(f"Found {len(active_subscriptions)} active subscriptions")
+            for sub in active_subscriptions:
+                self.logger.info(f"  Device {sub['device_id']}: keywords={sub['keywords']}")
+            
             matches_created = 0
+            jobs_processed = 0
             for job in all_jobs:
+                jobs_processed += 1
+                if jobs_processed % 1000 == 0:  # Log progress every 1000 jobs
+                    self.logger.info(f"Processed {jobs_processed}/{len(all_jobs)} jobs, created {matches_created} matches")
+                    
                 if await self.match_job_to_subscriptions(job, active_subscriptions):
                     matches_created += 1
             
-            self.logger.info(f"Created {matches_created} new matches")
+            self.logger.info(f"Processing complete: {jobs_processed} jobs processed, {matches_created} new matches created")
                 
         except Exception as e:
             self.logger.error(f"Error in match engine: {e}", exc_info=True)
@@ -153,7 +162,7 @@ class JobMatchEngine:
                     )
                     
                     # Only proceed if relevance score meets minimum threshold
-                    if relevance_score >= 0.3:  # Configurable threshold
+                    if relevance_score >= 0.1:  # Lowered threshold for better matching
                         # Store match in database
                         match_id = await self.store_job_match(
                             subscription['device_id'],
@@ -282,10 +291,20 @@ class JobMatchScheduler:
         self.running = True
         self.logger.info(f"Starting job match scheduler (interval: {self.interval_minutes} minutes)")
         
+        # Run once immediately on startup
+        try:
+            self.logger.info("Running initial job matching on startup...")
+            await self.match_engine.process_new_jobs()
+        except Exception as e:
+            self.logger.error(f"Error in initial job matching: {e}")
+        
         while self.running:
             try:
-                await self.match_engine.process_new_jobs()
+                self.logger.info(f"Waiting {self.interval_minutes} minutes until next matching run...")
                 await asyncio.sleep(self.interval_minutes * 60)  # Convert to seconds
+                
+                self.logger.info("Running scheduled job matching...")
+                await self.match_engine.process_new_jobs()
             except Exception as e:
                 self.logger.error(f"Error in job match scheduler: {e}")
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
