@@ -185,24 +185,42 @@ async def get_unread_count(
         )
     
     try:
-        stmt = select(JobMatch).where(
+        # First verify device exists
+        device_stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        device_result = await db.execute(device_stmt)
+        device = device_result.scalar_one_or_none()
+        
+        if not device:
+            logger.warning(f"Device not found for unread count: {device_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Device not found"
+            )
+        
+        # Use count() for better performance
+        from sqlalchemy import func
+        stmt = select(func.count(JobMatch.id)).where(
             and_(
                 JobMatch.device_id == device_uuid,
                 JobMatch.is_read == False
             )
         )
         result = await db.execute(stmt)
-        unread_matches = result.scalars().all()
+        unread_count = result.scalar()
+        
+        logger.info(f"Unread count for device {device_id}: {unread_count}")
         
         return {
             "success": True,
             "data": {
-                "unread_count": len(unread_matches)
+                "unread_count": unread_count or 0
             }
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting unread count: {e}")
+        logger.error(f"Error getting unread count for device {device_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get unread count"
