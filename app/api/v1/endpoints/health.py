@@ -198,10 +198,29 @@ async def trigger_match_engine():
         logger.info(f"Match engine completed. Recent matches: {recent_matches}")
         
         return {
-            "message": "Match engine triggered successfully",
+            "message": "Match engine triggered successfully", 
             "matches_created_last_hour": recent_matches,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+
+@router.get("/scheduler-status")
+async def get_scheduler_status():
+    """Check if the background scheduler is running"""
+    try:
+        from app.services.match_engine import job_scheduler
+        
+        return {
+            "scheduler_running": job_scheduler.running,
+            "interval_minutes": job_scheduler.interval_minutes,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get scheduler status: {str(e)}"
+        )
         
     except Exception as e:
         logger.error(f"Failed to trigger match engine: {e}")
