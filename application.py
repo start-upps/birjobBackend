@@ -30,8 +30,13 @@ async def lifespan(app: FastAPI):
         logger.info("Production environment detected - migration check skipped (handled by start command)")
     
     # Start the job matching scheduler in the background
-    logger.info("Starting job matching scheduler...")
-    asyncio.create_task(job_scheduler.start())
+    try:
+        logger.info("Starting job matching scheduler...")
+        asyncio.create_task(job_scheduler.start())
+        logger.info("Job matching scheduler task created successfully")
+    except Exception as e:
+        logger.error(f"Failed to start job matching scheduler: {e}")
+        # Don't fail the entire app if scheduler fails to start
     
     yield
     
