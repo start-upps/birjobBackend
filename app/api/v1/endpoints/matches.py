@@ -74,7 +74,7 @@ async def get_job_matches(
         for match in matches:
             # Query job details from scraper schema
             job_query = """
-                SELECT id, title, company, apply_link, source, posted_at
+                SELECT id, title, company, apply_link, source, created_at
                 FROM scraper.jobs_jobpost 
                 WHERE id = $1
             """
@@ -90,7 +90,7 @@ async def get_job_matches(
                         "company": job["company"],
                         "apply_link": job["apply_link"],
                         "source": job["source"],
-                        "posted_at": job["posted_at"].isoformat() if job["posted_at"] else None
+                        "posted_at": job["created_at"].isoformat() if job["created_at"] else None
                     },
                     "matched_keywords": match.matched_keywords,
                     "relevance_score": float(match.relevance_score) if match.relevance_score else 0.0,

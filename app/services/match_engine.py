@@ -19,36 +19,72 @@ class JobMatchEngine:
         self.logger = logging.getLogger(__name__)
     
     async def process_new_jobs(self):
-        """Main matching engine - processes jobs from last interval"""
+        """Main matching engine - processes all jobs since scraper runs every 4-5 hours"""
         try:
-            # Get jobs from last 10 minutes (with overlap buffer)
-            cutoff_time = datetime.utcnow() - timedelta(minutes=10)
-            
-            new_jobs = await self.get_new_jobs_since(cutoff_time)
-            if not new_jobs:
-                self.logger.info("No new jobs to process")
+            # Since scraper truncates and refreshes all data every 4-5 hours,
+            # we need to process ALL jobs, not just recent ones
+            all_jobs = await self.get_all_jobs()
+            if not all_jobs:
+                self.logger.info("No jobs to process")
                 return
             
-            self.logger.info(f"Processing {len(new_jobs)} new jobs")
+            self.logger.info(f"Processing {len(all_jobs)} jobs against subscriptions")
             
-            # Get all active subscriptions with caching
+            # Get all active subscriptions
             active_subscriptions = await self.get_active_subscriptions()
             
             if not active_subscriptions:
                 self.logger.info("No active subscriptions found")
                 return
             
-            for job in new_jobs:
-                await self.match_job_to_subscriptions(job, active_subscriptions)
+            # Clean up old matches for jobs that no longer exist
+            await self.cleanup_orphaned_matches()
+            
+            matches_created = 0
+            for job in all_jobs:
+                if await self.match_job_to_subscriptions(job, active_subscriptions):
+                    matches_created += 1
+            
+            self.logger.info(f"Created {matches_created} new matches")
                 
         except Exception as e:
             self.logger.error(f"Error in match engine: {e}", exc_info=True)
     
-    async def get_new_jobs_since(self, cutoff_time: datetime) -> List[Dict[str, Any]]:
-        """Get new jobs from scraper schema since cutoff time"""
+    async def get_all_jobs(self) -> List[Dict[str, Any]]:
+        """Get all jobs from scraper schema (since scraper refreshes all data)"""
         try:
             query = """
-                SELECT id, title, company, apply_link, source, posted_at, created_at, description
+                SELECT id, title, company, apply_link, source, created_at
+                FROM scraper.jobs_jobpost 
+                ORDER BY created_at DESC
+            """
+            jobs = await db_manager.execute_query(query)
+            return [dict(job) for job in jobs] if jobs else []
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching all jobs: {e}")
+            return []
+    
+    async def cleanup_orphaned_matches(self):
+        """Remove job matches for jobs that no longer exist (deleted by scraper truncate)"""
+        try:
+            query = """
+                DELETE FROM iosapp.job_matches 
+                WHERE job_id NOT IN (
+                    SELECT id::text FROM scraper.jobs_jobpost
+                )
+            """
+            result = await db_manager.execute_command(query)
+            self.logger.info("Cleaned up orphaned job matches")
+            
+        except Exception as e:
+            self.logger.error(f"Error cleaning up orphaned matches: {e}")
+    
+    async def get_new_jobs_since(self, cutoff_time: datetime) -> List[Dict[str, Any]]:
+        """Get new jobs from scraper schema since cutoff time (legacy method)"""
+        try:
+            query = """
+                SELECT id, title, company, apply_link, source, created_at
                 FROM scraper.jobs_jobpost 
                 WHERE created_at > $1
                 ORDER BY created_at DESC
@@ -83,14 +119,16 @@ class JobMatchEngine:
             self.logger.error(f"Error fetching active subscriptions: {e}")
             return []
     
-    async def match_job_to_subscriptions(self, job: Dict[str, Any], subscriptions: List[Dict[str, Any]]):
-        """Match a single job against all active subscriptions"""
-        job_text = f"{job.get('title', '')} {job.get('company', '')} {job.get('description', '')}".lower()
+    async def match_job_to_subscriptions(self, job: Dict[str, Any], subscriptions: List[Dict[str, Any]]) -> bool:
+        """Match a single job against all active subscriptions. Returns True if any matches created."""
+        # Only use title and company for matching since description column doesn't exist
+        job_text = f"{job.get('title', '')} {job.get('company', '')}".lower()
+        matches_created = False
         
         for subscription in subscriptions:
             try:
-                # Check if this job was already processed for this device
-                if await redis_client.is_job_processed(str(subscription['device_id']), job['id']):
+                # Check if match already exists for this job+device combination (replaces Redis check)
+                if await self.match_already_exists(subscription['device_id'], job['id']):
                     continue
                 
                 # Apply source filter if specified
@@ -119,7 +157,6 @@ class JobMatchEngine:
                         # Store match in database
                         match_id = await self.store_job_match(
                             subscription['device_id'],
-                            subscription['id'],
                             job['id'],
                             matched_keywords,
                             relevance_score
@@ -134,14 +171,9 @@ class JobMatchEngine:
                             match_id
                         )
                         
-                        # Mark as processed
-                        await redis_client.mark_job_processed(
-                            str(subscription['device_id']), 
-                            job['id']
-                        )
-                        
                         # Record metrics
                         metrics.record_match_created()
+                        matches_created = True
                         
                         self.logger.info(
                             f"Match created: job {job['id']} -> device {subscription['device_id']} "
@@ -152,6 +184,23 @@ class JobMatchEngine:
                 self.logger.error(
                     f"Error processing job {job['id']} for subscription {subscription['id']}: {e}"
                 )
+        
+        return matches_created
+    
+    async def match_already_exists(self, device_id: str, job_id: str) -> bool:
+        """Check if a match already exists for this device+job combination"""
+        try:
+            query = """
+                SELECT 1 FROM iosapp.job_matches 
+                WHERE device_id = $1 AND job_id = $2 
+                LIMIT 1
+            """
+            result = await db_manager.execute_query(query, device_id, str(job_id))
+            return len(result) > 0 if result else False
+            
+        except Exception as e:
+            self.logger.error(f"Error checking existing match: {e}")
+            return False
     
     def check_location_filters(self, job: Dict[str, Any], location_filters: Optional[Dict]) -> bool:
         """Check if job matches location filters"""
@@ -179,17 +228,19 @@ class JobMatchEngine:
         company_matches = sum(1 for kw in matched_keywords if kw.lower() in company)
         company_bonus = (company_matches / len(matched_keywords)) * 0.1
         
-        # Apply recency bonus (newer jobs get higher scores)
+        # Apply recency bonus based on created_at (posted_at doesn't exist)
         recency_bonus = 0.0
-        if job.get('posted_at'):
-            hours_old = (datetime.utcnow() - job['posted_at']).total_seconds() / 3600
+        if job.get('created_at'):
+            job_created = job['created_at']
+            # Use naive datetime comparison since database uses naive timestamps
+            hours_old = (datetime.now() - job_created).total_seconds() / 3600
             if hours_old < 24:  # Jobs less than 24 hours old get bonus
                 recency_bonus = (24 - hours_old) / 24 * 0.1
         
         total_score = base_score + title_bonus + company_bonus + recency_bonus
         return min(1.0, total_score)
     
-    async def store_job_match(self, device_id: uuid.UUID, subscription_id: uuid.UUID, 
+    async def store_job_match(self, device_id: uuid.UUID, 
                             job_id: int, matched_keywords: List[str], 
                             relevance_score: float) -> str:
         """Store job match in database"""
@@ -198,15 +249,14 @@ class JobMatchEngine:
             
             query = """
                 INSERT INTO iosapp.job_matches 
-                (id, device_id, subscription_id, job_id, matched_keywords, relevance_score)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                (id, device_id, job_id, matched_keywords, relevance_score)
+                VALUES ($1, $2, $3, $4, $5)
             """
             
             await db_manager.execute_command(
                 query,
                 uuid.UUID(match_id),
                 device_id,
-                subscription_id,
                 str(job_id),
                 matched_keywords,
                 str(relevance_score)
@@ -221,7 +271,7 @@ class JobMatchEngine:
 class JobMatchScheduler:
     """Scheduler for running job matching at regular intervals"""
     
-    def __init__(self, interval_minutes: int = 5):
+    def __init__(self, interval_minutes: int = 240):  # Changed to 4 hours (240 minutes) to align with scraper
         self.interval_minutes = interval_minutes
         self.match_engine = JobMatchEngine()
         self.running = False
