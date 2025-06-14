@@ -22,6 +22,14 @@ services:
         value: "3.11"
       - key: APNS_SANDBOX
         value: "true"
+      - key: APNS_KEY_PATH
+        value: "/etc/secrets/apn.p8"
+      - key: APNS_KEY_ID
+        value: "DKK5M29XQJ"
+      - key: APNS_TEAM_ID
+        value: "G9KT8SLBVR"  
+      - key: APNS_BUNDLE_ID
+        value: "az.birjob.jobapp"
     healthCheckPath: /api/v1/health
     autoDeploy: false
     

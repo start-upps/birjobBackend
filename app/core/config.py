@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     
     # Apple Push Notifications
     APNS_PRIVATE_KEY: Optional[str] = None
-    APNS_KEY_PATH: str = "/secrets/apns.p8"  # Fallback to file if APNS_PRIVATE_KEY not set
+    APNS_KEY_PATH: str = "/etc/secrets/apn.p8"  # Path to your APNS key file
     APNS_KEY_ID: str = "your-apns-key-id"
     APNS_TEAM_ID: str = "your-team-id"
     APNS_BUNDLE_ID: str = "com.yourcompany.birjob"
