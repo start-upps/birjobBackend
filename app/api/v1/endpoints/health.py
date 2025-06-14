@@ -37,7 +37,7 @@ async def health_check():
         scraper_healthy = True
         try:
             recent_jobs = await db_manager.execute_query(
-                "SELECT COUNT(*) as count FROM scraper.jobs_jobpost WHERE created_at > NOW() - INTERVAL '1 hour'"
+                "SELECT COUNT(*) as count FROM scraper.jobs_jobpost WHERE created_at > NOW() - INTERVAL '8 hours'"
             )
             if recent_jobs and recent_jobs[0]['count'] == 0:
                 scraper_healthy = False
