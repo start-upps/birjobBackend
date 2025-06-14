@@ -221,10 +221,3 @@ async def get_scheduler_status():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get scheduler status: {str(e)}"
         )
-        
-    except Exception as e:
-        logger.error(f"Failed to trigger match engine: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to trigger match engine: {str(e)}"
-        )
