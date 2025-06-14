@@ -11,6 +11,7 @@ from app.core.redis_client import init_redis
 from app.api.v1.router import api_router
 from app.core.monitoring import setup_monitoring
 from app.core.security import setup_security_headers
+from app.services.match_engine import job_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,10 @@ async def lifespan(app: FastAPI):
     # Check if we're in production and ensure migrations are up to date
     if os.getenv("RENDER"):
         logger.info("Production environment detected - migration check skipped (handled by start command)")
+    
+    # Start the job matching scheduler in the background
+    logger.info("Starting job matching scheduler...")
+    asyncio.create_task(job_scheduler.start())
     
     yield
     

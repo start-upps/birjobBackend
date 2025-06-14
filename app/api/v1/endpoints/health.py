@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from app.core.database import db_manager
 from app.core.redis_client import redis_client
+from app.services.match_engine import JobMatchEngine
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -175,3 +176,36 @@ async def get_system_metrics() -> Dict[str, Any]:
             "matches_last_24h": 0,
             "notifications_sent_last_24h": 0
         }
+
+@router.post("/trigger-matching")
+async def trigger_match_engine():
+    """Manually trigger the job matching engine for testing"""
+    try:
+        logger.info("Manually triggering match engine...")
+        
+        engine = JobMatchEngine()
+        await engine.process_new_jobs()
+        
+        # Get updated match count
+        matches_count = await db_manager.execute_query("""
+            SELECT COUNT(*) as count 
+            FROM iosapp.job_matches 
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """)
+        
+        recent_matches = matches_count[0]["count"] if matches_count else 0
+        
+        logger.info(f"Match engine completed. Recent matches: {recent_matches}")
+        
+        return {
+            "message": "Match engine triggered successfully",
+            "matches_created_last_hour": recent_matches,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger match engine: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger match engine: {str(e)}"
+        )
