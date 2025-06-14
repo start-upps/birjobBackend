@@ -26,27 +26,38 @@ class PushNotificationService:
         self.apns_client = None
         self.logger = logging.getLogger(__name__)
         
-        if APNS_AVAILABLE and (settings.APNS_PRIVATE_KEY or settings.APNS_KEY_PATH):
+        if APNS_AVAILABLE:
             self._init_apns_client()
     
     def _init_apns_client(self):
         """Initialize APNs client"""
         try:
-            # Use private key from environment variable if available, otherwise fall back to file
+            import os
+            
+            # Debug logging
+            self.logger.info(f"APNS_PRIVATE_KEY present: {bool(settings.APNS_PRIVATE_KEY)}")
+            self.logger.info(f"APNS_KEY_PATH: {settings.APNS_KEY_PATH}")
+            self.logger.info(f"APNS_KEY_ID: {settings.APNS_KEY_ID}")
+            self.logger.info(f"APNS_TEAM_ID: {settings.APNS_TEAM_ID}")
+            self.logger.info(f"APNS_BUNDLE_ID: {settings.APNS_BUNDLE_ID}")
+            
+            # Use private key from environment variable if available
             if settings.APNS_PRIVATE_KEY:
                 self.logger.info("Using APNs private key from environment variable")
+                
                 # Create temporary file for aioapns (it expects a file path)
                 import tempfile
-                import os
                 
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.p8', delete=False) as f:
                     f.write(settings.APNS_PRIVATE_KEY)
                     temp_key_path = f.name
                 
+                # Initialize APNs client
                 self.apns_client = APNs(
                     key=temp_key_path,
                     key_id=settings.APNS_KEY_ID,
                     team_id=settings.APNS_TEAM_ID,
+                    topic=settings.APNS_BUNDLE_ID,
                     use_sandbox=settings.APNS_SANDBOX
                 )
                 
@@ -54,23 +65,50 @@ class PushNotificationService:
                 os.unlink(temp_key_path)
                 self.logger.info("APNs client initialized successfully with environment key")
                 
-            else:
-                # Fall back to file path
-                import os
-                if not os.path.exists(settings.APNS_KEY_PATH):
-                    self.logger.warning(f"APNs key file not found: {settings.APNS_KEY_PATH}")
+            # Check if key file exists
+            elif os.path.exists(settings.APNS_KEY_PATH):
+                self.logger.info(f"APNs key file found at: {settings.APNS_KEY_PATH}")
+                
+                # Verify the file is readable and not empty
+                try:
+                    with open(settings.APNS_KEY_PATH, 'r') as f:
+                        key_content = f.read()
+                        if key_content.strip():
+                            self.logger.info("APNs key file content verified")
+                        else:
+                            self.logger.error("APNs key file is empty")
+                            return
+                except Exception as e:
+                    self.logger.error(f"Cannot read APNs key file: {e}")
                     return
                 
+                # Initialize APNs client
                 self.apns_client = APNs(
                     key=settings.APNS_KEY_PATH,
                     key_id=settings.APNS_KEY_ID,
                     team_id=settings.APNS_TEAM_ID,
+                    topic=settings.APNS_BUNDLE_ID,
                     use_sandbox=settings.APNS_SANDBOX
                 )
                 self.logger.info("APNs client initialized successfully with key file")
+                
+            else:
+                self.logger.error(f"APNs key file not found: {settings.APNS_KEY_PATH}")
+                
+                # List files in /etc/secrets to debug
+                secrets_dir = "/etc/secrets"
+                if os.path.exists(secrets_dir):
+                    files = os.listdir(secrets_dir)
+                    self.logger.info(f"Files in {secrets_dir}: {files}")
+                else:
+                    self.logger.error(f"Directory {secrets_dir} does not exist")
+                
+                return
             
         except Exception as e:
             self.logger.error(f"Failed to initialize APNs client: {e}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
             self.apns_client = None
     
     async def send_job_match_notification(
