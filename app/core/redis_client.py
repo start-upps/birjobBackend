@@ -2,6 +2,8 @@ import redis.asyncio as redis
 from typing import Optional, Any
 import json
 import logging
+import aiohttp
+import os
 
 from app.core.config import settings
 
@@ -10,18 +12,29 @@ logger = logging.getLogger(__name__)
 class RedisClient:
     def __init__(self):
         self.redis: Optional[redis.Redis] = None
+        self.upstash_url: Optional[str] = None
+        self.upstash_token: Optional[str] = None
+        self.use_upstash = False
     
     async def init_redis(self):
-        """Initialize Redis connection"""
+        """Initialize Redis connection - try Upstash first, then standard Redis"""
         try:
-            # Debug environment variables
-            import os
-            env_redis_url = os.getenv("REDIS_URL")
-            logger.info(f"Environment REDIS_URL: {env_redis_url}")
-            logger.info(f"Settings REDIS_URL: {settings.REDIS_URL}")
+            # Check for Upstash credentials first
+            self.upstash_url = os.getenv("UPSTASH_REDIS_REST_URL") or settings.UPSTASH_REDIS_REST_URL
+            self.upstash_token = os.getenv("UPSTASH_REDIS_REST_TOKEN") or settings.UPSTASH_REDIS_REST_TOKEN
             
+            if self.upstash_url and self.upstash_token:
+                logger.info("Using Upstash Redis REST API")
+                self.use_upstash = True
+                # Test Upstash connection
+                await self._upstash_request("PING")
+                logger.info("Upstash Redis connection established")
+                return
+            
+            # Fallback to standard Redis
+            env_redis_url = os.getenv("REDIS_URL")
             redis_url = env_redis_url if env_redis_url else settings.REDIS_URL
-            logger.info(f"Using Redis URL: {redis_url}")
+            logger.info(f"Using standard Redis URL: {redis_url}")
             
             self.redis = redis.from_url(
                 redis_url,
@@ -30,15 +43,39 @@ class RedisClient:
             )
             # Test connection
             await self.redis.ping()
-            logger.info("Redis connection established")
+            logger.info("Standard Redis connection established")
+            
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            logger.error(f"Redis URL used: {redis_url}")
             logger.warning("Redis connection failed - continuing without cache")
             self.redis = None
+            self.use_upstash = False
+    
+    async def _upstash_request(self, *args):
+        """Make request to Upstash REST API"""
+        if not self.upstash_url or not self.upstash_token:
+            return None
+        
+        async with aiohttp.ClientSession() as session:
+            headers = {
+                "Authorization": f"Bearer {self.upstash_token}",
+                "Content-Type": "application/json"
+            }
+            data = json.dumps(args)
+            
+            async with session.post(f"{self.upstash_url}/", headers=headers, data=data) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result.get("result")
+                else:
+                    logger.error(f"Upstash request failed: {response.status}")
+                    return None
     
     async def get(self, key: str) -> Optional[str]:
         """Get value by key"""
+        if self.use_upstash:
+            return await self._upstash_request("GET", key)
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:
@@ -47,18 +84,29 @@ class RedisClient:
     
     async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
         """Set key-value pair with optional expiration"""
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value)
+        
+        if self.use_upstash:
+            if expire:
+                result = await self._upstash_request("SETEX", key, expire, value)
+            else:
+                result = await self._upstash_request("SET", key, value)
+            return result == "OK"
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:
             return False
         
-        if isinstance(value, (dict, list)):
-            value = json.dumps(value)
-        
         return await self.redis.set(key, value, ex=expire)
     
     async def delete(self, key: str) -> int:
         """Delete key"""
+        if self.use_upstash:
+            result = await self._upstash_request("DEL", key)
+            return result or 0
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:
@@ -67,6 +115,10 @@ class RedisClient:
     
     async def exists(self, key: str) -> bool:
         """Check if key exists"""
+        if self.use_upstash:
+            result = await self._upstash_request("EXISTS", key)
+            return bool(result)
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:
@@ -75,6 +127,10 @@ class RedisClient:
     
     async def expire(self, key: str, seconds: int) -> bool:
         """Set expiration on key"""
+        if self.use_upstash:
+            result = await self._upstash_request("EXPIRE", key, seconds)
+            return bool(result)
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:
@@ -83,6 +139,10 @@ class RedisClient:
     
     async def increment(self, key: str, amount: int = 1) -> int:
         """Increment key value"""
+        if self.use_upstash:
+            result = await self._upstash_request("INCRBY", key, amount)
+            return result or 0
+        
         if not self.redis:
             await self.init_redis()
         if not self.redis:

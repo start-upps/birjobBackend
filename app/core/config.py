@@ -6,8 +6,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost/birjob_ios"
     
-    # Redis
+    # Redis - Support both standard Redis and Upstash REST
     REDIS_URL: str = "redis://localhost:6379/0"
+    UPSTASH_REDIS_REST_URL: Optional[str] = None
+    UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"

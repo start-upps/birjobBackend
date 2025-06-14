@@ -10,11 +10,10 @@ services:
         fromDatabase:
           name: birjob-postgres
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: birjob-redis
-          type: redis
-          property: connectionString
+      - key: UPSTASH_REDIS_REST_URL
+        value: "https://strong-kiwi-38087.upstash.io"
+      - key: UPSTASH_REDIS_REST_TOKEN
+        value: "AZTHAAIjcDE0MjVmZDQwMmY2MGY0ZDlmYjgwY2EwYzNmZDI5OWFmM3AxMA"
       - key: SECRET_KEY
         generateValue: true
       - key: API_KEY
@@ -37,24 +36,18 @@ services:
         fromDatabase:
           name: birjob-postgres
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: birjob-redis
-          type: redis
-          property: connectionString
+      - key: UPSTASH_REDIS_REST_URL
+        value: "https://strong-kiwi-38087.upstash.io"
+      - key: UPSTASH_REDIS_REST_TOKEN
+        value: "AZTHAAIjcDE0MjVmZDQwMmY2MGY0ZDlmYjgwY2EwYzNmZDI5OWFmM3AxMA"
       - key: SECRET_KEY
         sync: false
       - key: MATCH_ENGINE_INTERVAL_MINUTES
-        value: "5"
+        value: "240"
       - key: LOG_LEVEL
         value: "INFO"
     autoDeploy: false
 
-  # Redis Cache
-  - type: redis
-    name: birjob-redis
-    maxmemoryPolicy: allkeys-lru
-    plan: starter
 
 databases:
   # PostgreSQL Database
