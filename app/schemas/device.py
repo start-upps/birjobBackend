@@ -4,10 +4,13 @@ from datetime import datetime
 import uuid
 
 class DeviceInfo(BaseModel):
-    os_version: str
-    app_version: str
-    device_model: str
+    os_version: str = Field(alias='osVersion')
+    app_version: str = Field(alias='appVersion')
+    device_model: str = Field(alias='deviceModel')
     timezone: str
+    
+    class Config:
+        populate_by_name = True
 
 class DeviceRegisterRequest(BaseModel):
     device_token: str = Field(..., min_length=64, max_length=255)

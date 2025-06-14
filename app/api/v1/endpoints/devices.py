@@ -60,10 +60,12 @@ async def register_device(
             
     except Exception as e:
         logger.error(f"Error registering device: {e}")
+        logger.error(f"Device token: {request.device_token}")
+        logger.error(f"Device info: {request.device_info}")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to register device"
+            detail=f"Failed to register device: {str(e)}"
         )
 
 @router.delete("/{device_id}", response_model=APIResponse)
