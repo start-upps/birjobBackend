@@ -202,6 +202,13 @@ async def trigger_match_engine():
             "matches_created_last_hour": recent_matches,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger match engine: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger match engine: {str(e)}"
+        )
 
 @router.get("/scheduler-status")
 async def get_scheduler_status():
