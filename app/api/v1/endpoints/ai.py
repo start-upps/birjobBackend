@@ -46,7 +46,7 @@ async def analyze_with_gemini(request: AIRequest):
             user_message = f"Context: {request.context}\n\nQuestion: {request.message}"
         
         # Prepare Gemini API request
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={settings.GEMINI_API_KEY}"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
         payload = {
             "contents": [
@@ -145,7 +145,7 @@ async def get_job_advice(request: AIRequest):
             user_message = f"Context: {request.context}\n\nQuestion: {request.message}"
         
         # Prepare Gemini API request
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={settings.GEMINI_API_KEY}"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
         payload = {
             "contents": [
@@ -243,7 +243,7 @@ async def review_resume(request: AIRequest):
             user_message = f"Job/Industry Context: {request.context}\n\n{user_message}"
         
         # Prepare Gemini API request
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={settings.GEMINI_API_KEY}"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
         
         payload = {
             "contents": [
