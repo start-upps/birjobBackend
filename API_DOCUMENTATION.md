@@ -938,6 +938,67 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
 }
 ```
 
+## 8. AI Endpoints
+
+### POST `/api/v1/ai/analyze`
+**Description**: General AI analysis and job search assistance using Google Gemini AI
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "message": "What skills should I focus on for iOS developer positions?",
+  "context": "I am a junior developer with 1 year experience",
+  "job_id": 12345
+}
+```
+
+**Validation Rules**:
+- `message`: Required string, 1-1000 characters
+- `context`: Optional string, max 2000 characters
+- `job_id`: Optional integer for job-specific analysis
+
+**Success Response (200)**:
+```json
+{
+  "response": "For iOS developer roles, prioritize these skills:\n\n* **Swift & Swift UI:** Strong proficiency is crucial. Focus on advanced concepts like concurrency, data structures, and design patterns.\n* **Objective-C (basic understanding):** While Swift is dominant, familiarity with Objective-C can be beneficial for legacy codebases.\n* **Xcode & debugging:** Master Xcode's debugging tools and become proficient in identifying and resolving issues.\n* **API integration (REST, GraphQL):** Experience consuming and interacting with APIs is essential for most applications.\n* **Version control (Git):** Demonstrate proficiency in branching, merging, and resolving conflicts.\n* **Testing (unit, UI):** Show understanding of writing and running tests to ensure code quality.\n* **App Store deployment:** Experience submitting apps to the App Store is a significant plus.\n* **Architectural patterns (MVC, MVVM):** Understanding and implementing common architectural patterns improves code organization and maintainability.\n\nFocus on building a portfolio showcasing your skills with at least one complete app. Highlight these skills in your resume and during interviews.",
+  "timestamp": "2025-06-15T13:15:16.402872",
+  "tokens_used": 313
+}
+```
+
+### POST `/api/v1/ai/job-advice`
+**Description**: Specialized endpoint for job search advice, interview preparation, and career guidance
+**Authentication**: None required
+**Request Body**: Same as `/ai/analyze`
+
+**Success Response (200)**:
+```json
+{
+  "response": "Preparing for an iOS developer interview requires a multifaceted approach. Let's break it down into actionable steps:\n\n**I. Technical Skills Assessment & Preparation:**\n\n* **Data Structures and Algorithms:** This is fundamental. Practice common algorithms (searching, sorting, graph traversal) and data structures (arrays, linked lists, trees, hash tables) using Swift. LeetCode, HackerRank, and Codewars are excellent resources for practice problems.\n\n* **Swift Proficiency:** Demonstrate a deep understanding of Swift's features, including:\n    * **Memory management (ARC):** Explain how ARC works and how to avoid memory leaks.\n    * **Concurrency (GCD, Operations, Async/Await):** Be prepared to discuss different concurrency models and their appropriate uses.\n    * **Protocols and Extensions:** Show you understand their power in creating flexible and reusable code.\n\n**II. Interview Practice:**\n\n* **Mock Interviews:** Practice with friends, colleagues, or use online platforms that offer mock interviews.\n* **Behavioral Questions:** Prepare for behavioral questions using the STAR method (Situation, Task, Action, Result).\n\nRemember, preparation is key. The more you practice, the more confident and successful you'll be in your iOS developer interviews. Good luck!",
+  "timestamp": "2025-06-15T13:15:32.877533",
+  "tokens_used": 1109
+}
+```
+
+### POST `/api/v1/ai/resume-review`
+**Description**: AI-powered resume review and feedback for improvement
+**Authentication**: None required
+**Request Body**: Same as `/ai/analyze`
+
+**Success Response (200)**:
+```json
+{
+  "response": "This resume content needs significant improvement for a senior iOS developer position. Here's actionable feedback:\n\n**1. Structure and Formatting:**\n* **Missing Essential Sections:** The resume is missing crucial sections like Summary/Objective, Skills, Education, and Projects.\n* **Poor Formatting:** Use a professional header with contact information.\n* **Lack of Quantifiable Results:** Need quantifiable results to demonstrate impact.\n\n**2. Content Improvement Recommendations:**\n* **Expand on Experience:** Use the STAR method to describe your contributions.\n* **Add a Summary/Objective:** Start with a compelling summary highlighting your key skills.\n* **Detailed Project Descriptions:** Include technologies used, your role, and quantifiable results.\n\n**3. Keyword Optimization for ATS Systems:**\n* **Research Keywords:** Analyze job descriptions and identify relevant keywords.\n* **Incorporate Keywords:** Naturally integrate keywords throughout your resume.\n\n**4. Skills and Experience Presentation:**\n* **Highlight Senior-Level Skills:** Focus on leadership, mentorship, architecture design.\n* **Use Action Verbs:** Start each bullet point with strong action verbs.\n\nFocus on quantifying your achievements, showcasing leadership skills, and tailoring your resume to each specific job description.",
+  "timestamp": "2025-06-15T13:16:11.707312",
+  "tokens_used": 1008
+}
+```
+
+**Error Responses**:
+- `503`: AI service is not configured
+- `502`: AI service temporarily unavailable
+- `500`: Failed to process AI request
+
 ## API Usage Examples
 
 ### Basic App Flow:
@@ -965,6 +1026,13 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
    ```
    GET /api/v1/analytics/jobs/overview
    GET /api/v1/analytics/jobs/search?keyword=data
+   ```
+
+6. **AI Assistance**:
+   ```
+   POST /api/v1/ai/analyze
+   POST /api/v1/ai/job-advice
+   POST /api/v1/ai/resume-review
    ```
 
 This comprehensive API documentation provides all the information needed to build an iOS app with job matching, analytics, and push notifications through this backend system.

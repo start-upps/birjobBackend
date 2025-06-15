@@ -951,6 +951,144 @@
           }
         }
       }
+    },
+    "/api/v1/ai/analyze": {
+      "post": {
+        "summary": "General AI analysis and job search assistance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000,
+                    "description": "User message to analyze"
+                  },
+                  "context": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Optional context for the AI"
+                  },
+                  "job_id": {
+                    "type": "integer",
+                    "description": "Optional job ID for job-specific analysis"
+                  }
+                },
+                "required": ["message"]
+              },
+              "example": {
+                "message": "What skills should I focus on for iOS developer positions?",
+                "context": "I am a junior developer with 1 year experience",
+                "job_id": 12345
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI analysis response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "response": "For iOS developer roles, prioritize these skills:\n\n* **Swift & Swift UI:** Strong proficiency is crucial. Focus on advanced concepts like concurrency, data structures, and design patterns.\n* **Objective-C (basic understanding):** While Swift is dominant, familiarity with Objective-C can be beneficial for legacy codebases.\n* **Xcode & debugging:** Master Xcode's debugging tools and become proficient in identifying and resolving issues.\n* **API integration (REST, GraphQL):** Experience consuming and interacting with APIs is essential for most applications.\n* **Version control (Git):** Demonstrate proficiency in branching, merging, and resolving conflicts.\n* **Testing (unit, UI):** Show understanding of writing and running tests to ensure code quality.\n* **App Store deployment:** Experience submitting apps to the App Store is a significant plus.\n* **Architectural patterns (MVC, MVVM):** Understanding and implementing common architectural patterns improves code organization and maintainability.\n\nFocus on building a portfolio showcasing your skills with at least one complete app. Highlight these skills in your resume and during interviews.",
+                  "timestamp": "2025-06-15T13:15:16.402872",
+                  "tokens_used": 313
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI service is not configured",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "AI service is not configured"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI service temporarily unavailable",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "AI service temporarily unavailable"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/job-advice": {
+      "post": {
+        "summary": "Specialized job search advice and career guidance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRequest"
+              },
+              "example": {
+                "message": "How should I prepare for an iOS developer interview?",
+                "context": "Senior iOS developer position at a startup"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job advice response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "response": "Preparing for an iOS developer interview requires a multifaceted approach. Let's break it down into actionable steps:\n\n**I. Technical Skills Assessment & Preparation:**\n\n* **Data Structures and Algorithms:** This is fundamental. Practice common algorithms (searching, sorting, graph traversal) and data structures (arrays, linked lists, trees, hash tables) using Swift. LeetCode, HackerRank, and Codewars are excellent resources for practice problems.\n\n* **Swift Proficiency:** Demonstrate a deep understanding of Swift's features, including:\n    * **Memory management (ARC):** Explain how ARC works and how to avoid memory leaks.\n    * **Concurrency (GCD, Operations, Async/Await):** Be prepared to discuss different concurrency models and their appropriate uses.\n    * **Protocols and Extensions:** Show you understand their power in creating flexible and reusable code.\n\n**II. Interview Practice:**\n\n* **Mock Interviews:** Practice with friends, colleagues, or use online platforms that offer mock interviews.\n* **Behavioral Questions:** Prepare for behavioral questions using the STAR method (Situation, Task, Action, Result).\n\nRemember, preparation is key. The more you practice, the more confident and successful you'll be in your iOS developer interviews. Good luck!",
+                  "timestamp": "2025-06-15T13:15:32.877533",
+                  "tokens_used": 1109
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/resume-review": {
+      "post": {
+        "summary": "AI-powered resume review and feedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRequest"
+              },
+              "example": {
+                "message": "John Doe - iOS Developer\nExperience: 2 years developing iOS apps using Swift and UIKit. Built 3 apps published on App Store.",
+                "context": "Applying for senior iOS developer position"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resume review response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "response": "This resume content needs significant improvement for a senior iOS developer position. Here's actionable feedback:\n\n**1. Structure and Formatting:**\n* **Missing Essential Sections:** The resume is missing crucial sections like Summary/Objective, Skills, Education, and Projects.\n* **Poor Formatting:** Use a professional header with contact information.\n* **Lack of Quantifiable Results:** Need quantifiable results to demonstrate impact.\n\n**2. Content Improvement Recommendations:**\n* **Expand on Experience:** Use the STAR method to describe your contributions.\n* **Add a Summary/Objective:** Start with a compelling summary highlighting your key skills.\n* **Detailed Project Descriptions:** Include technologies used, your role, and quantifiable results.\n\n**3. Keyword Optimization for ATS Systems:**\n* **Research Keywords:** Analyze job descriptions and identify relevant keywords.\n* **Incorporate Keywords:** Naturally integrate keywords throughout your resume.\n\n**4. Skills and Experience Presentation:**\n* **Highlight Senior-Level Skills:** Focus on leadership, mentorship, architecture design.\n* **Use Action Verbs:** Start each bullet point with strong action verbs.\n\nFocus on quantifying your achievements, showcasing leadership skills, and tailoring your resume to each specific job description.",
+                  "timestamp": "2025-06-15T13:16:11.707312",
+                  "tokens_used": 1008
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1062,6 +1200,46 @@
             "type": "string"
           }
         }
+      },
+      "AIRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "User message to analyze"
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Optional context for the AI"
+          },
+          "job_id": {
+            "type": "integer",
+            "description": "Optional job ID for job-specific analysis"
+          }
+        },
+        "required": ["message"]
+      },
+      "AIResponse": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "string",
+            "description": "AI-generated response"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp"
+          },
+          "tokens_used": {
+            "type": "integer",
+            "description": "Number of tokens used in the request"
+          }
+        },
+        "required": ["response", "timestamp"]
       }
     }
   },
