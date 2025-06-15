@@ -646,6 +646,311 @@
           }
         }
       }
+    },
+    "/api/v1/health/trigger-matching": {
+      "post": {
+        "summary": "Manually trigger job matching engine",
+        "responses": {
+          "200": {
+            "description": "Matching triggered successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Match engine triggered successfully",
+                  "matches_created_last_hour": 15,
+                  "timestamp": "2025-06-15T12:30:00Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/scheduler-status": {
+      "get": {
+        "summary": "Check background scheduler status",
+        "responses": {
+          "200": {
+            "description": "Scheduler status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "scheduler_running": true,
+                  "interval_minutes": 240,
+                  "timestamp": "2025-06-15T12:30:00Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/overview": {
+      "get": {
+        "summary": "Get overall job statistics",
+        "responses": {
+          "200": {
+            "description": "Job overview statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "total_jobs": 4356,
+                  "jobs_last_24h": 4356,
+                  "jobs_last_week": 4356,
+                  "jobs_last_month": 4356,
+                  "unique_companies": 1715,
+                  "unique_sources": 35,
+                  "timestamp": "2025-06-15T12:25:54.926610"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/by-source": {
+      "get": {
+        "summary": "Get job distribution by source",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Time period for analysis",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs by source statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "period_days": 7,
+                  "sources": [
+                    {
+                      "source": "Glorri",
+                      "job_count": 789,
+                      "percentage": 18.11,
+                      "latest_job": "2025-06-15T10:28:24.397599"
+                    }
+                  ],
+                  "total_sources": 35,
+                  "timestamp": "2025-06-15T12:27:26.021503"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/by-company": {
+      "get": {
+        "summary": "Get top companies by job count",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of companies to return",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Time period for analysis",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top companies statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "period_days": 30,
+                  "companies": [
+                    {
+                      "company": "ABB",
+                      "job_count": 131,
+                      "first_job": "2025-06-15T10:28:24.397599",
+                      "latest_job": "2025-06-15T10:28:24.397599"
+                    }
+                  ],
+                  "timestamp": "2025-06-15T12:27:31.422875"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/trends": {
+      "get": {
+        "summary": "Get job posting trends over time",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Time period for analysis",
+            "schema": {
+              "type": "integer",
+              "minimum": 7,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job trends statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "period_days": 7,
+                  "daily_data": [
+                    {
+                      "date": "2025-06-15",
+                      "job_count": 4356,
+                      "unique_companies": 1715,
+                      "active_sources": 35
+                    }
+                  ],
+                  "avg_jobs_per_day": 4356.0,
+                  "avg_companies_per_day": 1715.0,
+                  "total_days": 1,
+                  "timestamp": "2025-06-15T12:27:43.879555"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/keywords": {
+      "get": {
+        "summary": "Get most popular keywords in job titles",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of keywords to return",
+            "schema": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Time period for analysis",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Popular keywords statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "period_days": 30,
+                  "keywords": [
+                    {
+                      "keyword": "mütəxəssis",
+                      "frequency": 548,
+                      "percentage": 17.0
+                    },
+                    {
+                      "keyword": "engineer",
+                      "frequency": 191,
+                      "percentage": 5.92
+                    }
+                  ],
+                  "total_keywords": 20,
+                  "timestamp": "2025-06-15T12:31:00.978597"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/search": {
+      "get": {
+        "summary": "Search and analyze jobs containing specific keyword",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "description": "Keyword to search for",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Time period for analysis",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keyword search analytics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "keyword": "data",
+                  "period_days": 30,
+                  "total_matches": 80,
+                  "unique_companies": 51,
+                  "unique_sources": 15,
+                  "top_companies": [
+                    {
+                      "company": "ABB",
+                      "job_count": 8
+                    }
+                  ],
+                  "sources": [
+                    {
+                      "source": "Djinni",
+                      "job_count": 23
+                    }
+                  ],
+                  "timestamp": "2025-06-15T12:31:09.969962"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

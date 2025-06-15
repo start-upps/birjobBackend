@@ -39,6 +39,30 @@ The API uses optional JWT-based device authentication for some endpoints:
 }
 ```
 
+#### POST `/api/v1/health/trigger-matching`
+**Description**: Manually trigger the job matching engine for testing
+**Authentication**: None required
+**Response**:
+```json
+{
+  "message": "Match engine triggered successfully",
+  "matches_created_last_hour": 15,
+  "timestamp": "2025-06-15T12:30:00Z"
+}
+```
+
+#### GET `/api/v1/health/scheduler-status`
+**Description**: Check if the background scheduler is running
+**Authentication**: None required
+**Response**:
+```json
+{
+  "scheduler_running": true,
+  "interval_minutes": 240,
+  "timestamp": "2025-06-15T12:30:00Z"
+}
+```
+
 #### GET `/api/v1/health/status/scraper`
 **Description**: Detailed scraper status and statistics
 **Authentication**: None required
@@ -766,4 +790,181 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
    POST /api/v1/matches/{match_id}/read?device_id={device_id}
    ```
 
-This comprehensive API documentation provides all the information needed to build an iOS app that can register devices, manage keyword subscriptions, fetch job listings, receive push notifications, and track job matches through this backend system.
+## 7. Analytics Endpoints
+
+### GET `/api/v1/analytics/jobs/overview`
+**Description**: Get overall job statistics and metrics
+**Authentication**: None required
+**Response**:
+```json
+{
+  "total_jobs": 4356,
+  "jobs_last_24h": 4356,
+  "jobs_last_week": 4356,
+  "jobs_last_month": 4356,
+  "unique_companies": 1715,
+  "unique_sources": 35,
+  "timestamp": "2025-06-15T12:25:54.926610"
+}
+```
+
+### GET `/api/v1/analytics/jobs/by-source`
+**Description**: Get job distribution by source
+**Authentication**: None required
+**Query Parameters**:
+- `days`: Integer (1-365, default: 7) - Time period for analysis
+
+**Response**:
+```json
+{
+  "period_days": 7,
+  "sources": [
+    {
+      "source": "Glorri",
+      "job_count": 789,
+      "percentage": 18.11,
+      "latest_job": "2025-06-15T10:28:24.397599"
+    }
+  ],
+  "total_sources": 35,
+  "timestamp": "2025-06-15T12:27:26.021503"
+}
+```
+
+### GET `/api/v1/analytics/jobs/by-company`
+**Description**: Get top companies by job count
+**Authentication**: None required
+**Query Parameters**:
+- `limit`: Integer (1-100, default: 20) - Number of companies to return
+- `days`: Integer (1-365, default: 30) - Time period for analysis
+
+**Response**:
+```json
+{
+  "period_days": 30,
+  "companies": [
+    {
+      "company": "ABB",
+      "job_count": 131,
+      "first_job": "2025-06-15T10:28:24.397599",
+      "latest_job": "2025-06-15T10:28:24.397599"
+    }
+  ],
+  "timestamp": "2025-06-15T12:27:31.422875"
+}
+```
+
+### GET `/api/v1/analytics/jobs/trends`
+**Description**: Get job posting trends over time
+**Authentication**: None required
+**Query Parameters**:
+- `days`: Integer (7-365, default: 30) - Time period for analysis
+
+**Response**:
+```json
+{
+  "period_days": 7,
+  "daily_data": [
+    {
+      "date": "2025-06-15",
+      "job_count": 4356,
+      "unique_companies": 1715,
+      "active_sources": 35
+    }
+  ],
+  "avg_jobs_per_day": 4356.0,
+  "avg_companies_per_day": 1715.0,
+  "total_days": 1,
+  "timestamp": "2025-06-15T12:27:43.879555"
+}
+```
+
+### GET `/api/v1/analytics/jobs/keywords`
+**Description**: Get most popular keywords in job titles
+**Authentication**: None required
+**Query Parameters**:
+- `limit`: Integer (10-200, default: 50) - Number of keywords to return
+- `days`: Integer (1-365, default: 30) - Time period for analysis
+
+**Response**:
+```json
+{
+  "period_days": 30,
+  "keywords": [
+    {
+      "keyword": "mütəxəssis",
+      "frequency": 548,
+      "percentage": 17.0
+    },
+    {
+      "keyword": "engineer",
+      "frequency": 191,
+      "percentage": 5.92
+    }
+  ],
+  "total_keywords": 20,
+  "timestamp": "2025-06-15T12:31:00.978597"
+}
+```
+
+### GET `/api/v1/analytics/jobs/search`
+**Description**: Search and analyze jobs containing specific keyword
+**Authentication**: None required
+**Query Parameters**:
+- `keyword`: String (required, min: 2 chars) - Keyword to search for
+- `days`: Integer (1-365, default: 30) - Time period for analysis
+
+**Response**:
+```json
+{
+  "keyword": "data",
+  "period_days": 30,
+  "total_matches": 80,
+  "unique_companies": 51,
+  "unique_sources": 15,
+  "top_companies": [
+    {
+      "company": "ABB",
+      "job_count": 8
+    }
+  ],
+  "sources": [
+    {
+      "source": "Djinni",
+      "job_count": 23
+    }
+  ],
+  "timestamp": "2025-06-15T12:31:09.969962"
+}
+```
+
+## API Usage Examples
+
+### Basic App Flow:
+1. **Register Device**:
+   ```
+   POST /api/v1/devices/register
+   ```
+
+2. **Create Keyword Subscription**:
+   ```
+   POST /api/v1/keywords
+   ```
+
+3. **Fetch Jobs**:
+   ```
+   GET /api/v1/jobs/?search=iOS&limit=20
+   ```
+
+4. **Get Job Matches**:
+   ```
+   GET /api/v1/matches/{device_id}
+   ```
+
+5. **Get Analytics**:
+   ```
+   GET /api/v1/analytics/jobs/overview
+   GET /api/v1/analytics/jobs/search?keyword=data
+   ```
+
+This comprehensive API documentation provides all the information needed to build an iOS app with job matching, analytics, and push notifications through this backend system.
