@@ -86,6 +86,11 @@ async def favicon():
     else:
         raise HTTPException(status_code=404, detail="Favicon not found")
 
+@app.get("/manifest.json")
+async def manifest():
+    """Serve web app manifest"""
+    return FileResponse('website/manifest.json', media_type="application/json")
+
 @app.get("/api")
 async def api_root():
     return {"message": "iOS Native App Backend API", "version": "1.0.0"}
