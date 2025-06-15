@@ -76,6 +76,11 @@ async def root():
     """Serve the main website"""
     return FileResponse('website/index.html')
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon at standard location"""
+    return FileResponse('1/web/favicon.ico')
+
 @app.get("/api")
 async def api_root():
     return {"message": "iOS Native App Backend API", "version": "1.0.0"}
