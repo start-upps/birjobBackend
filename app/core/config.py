@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     QUIET_HOURS_START: int = 22  # 10 PM
     QUIET_HOURS_END: int = 8     # 8 AM
     
+    # Gemini AI
+    GEMINI_API_KEY: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
