@@ -73,8 +73,8 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
-    """Serve the main website"""
-    return FileResponse('website/index.html')
+    """API root endpoint"""
+    return {"message": "iOS Native App Backend API", "version": "1.0.0"}
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -85,11 +85,6 @@ async def favicon():
         return FileResponse(favicon_path, media_type="image/x-icon")
     else:
         raise HTTPException(status_code=404, detail="Favicon not found")
-
-@app.get("/manifest.json")
-async def manifest():
-    """Serve web app manifest"""
-    return FileResponse('website/manifest.json', media_type="application/json")
 
 @app.get("/api")
 async def api_root():
