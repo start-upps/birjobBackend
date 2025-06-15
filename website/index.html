@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BirJob API - iOS Job Matching Backend</title>
+    <link rel="icon" type="image/x-icon" href="/1/web/favicon.ico">
+    <link rel="shortcut icon" href="/1/web/favicon.ico">
+    <link rel="apple-touch-icon" href="/1/web/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/1/web/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/1/web/icon-512.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .api-info {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .endpoints {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .endpoint-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .endpoint-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #667eea;
+        }
+        
+        .endpoint-method {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        
+        .method-get { background: #4CAF50; color: white; }
+        .method-post { background: #2196F3; color: white; }
+        .method-delete { background: #f44336; color: white; }
+        
+        .links {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 2rem 0;
+        }
+        
+        .link-btn {
+            background: white;
+            color: #667eea;
+            padding: 0.8rem 1.5rem;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 3rem;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎯 BirJob API</h1>
+            <p>iOS Job Matching Backend with AI-Powered Analytics</p>
+        </header>
+        
+        <div class="api-info">
+            <h2>API Overview</h2>
+            <p>Comprehensive job matching backend for iOS applications with real-time analytics, AI assistance, and push notifications.</p>
+            
+            <div class="stats-grid" id="stats">
+                <div class="stat-card">
+                    <div class="stat-number">4,353</div>
+                    <div class="stat-label">Total Jobs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">1,721</div>
+                    <div class="stat-label">Companies</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">35</div>
+                    <div class="stat-label">Job Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">16</div>
+                    <div class="stat-label">Endpoints</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="api-info">
+            <h2>Key Features</h2>
+            <div class="endpoints">
+                <div class="endpoint-card">
+                    <div class="endpoint-title">🔍 Job Search & Analytics</div>
+                    <p>Advanced job search with real-time analytics and filtering capabilities</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="endpoint-method method-get">GET</span>/api/v1/jobs/
+                        <br><span class="endpoint-method method-get">GET</span>/api/v1/analytics/jobs/overview
+                    </div>
+                </div>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-title">🤖 AI-Powered Assistance</div>
+                    <p>Google Gemini AI for career advice, resume review, and job guidance</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="endpoint-method method-post">POST</span>/api/v1/ai/analyze
+                        <br><span class="endpoint-method method-post">POST</span>/api/v1/ai/job-advice
+                    </div>
+                </div>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-title">📱 iOS Push Notifications</div>
+                    <p>Real-time job matching with Apple Push Notification Service</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="endpoint-method method-post">POST</span>/api/v1/devices/register
+                        <br><span class="endpoint-method method-post">POST</span>/api/v1/keywords
+                    </div>
+                </div>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-title">📊 Real-time Analytics</div>
+                    <p>Current cycle analytics, source distribution, and keyword analysis</p>
+                    <div style="margin-top: 1rem;">
+                        <span class="endpoint-method method-get">GET</span>/api/v1/analytics/jobs/current-cycle
+                        <br><span class="endpoint-method method-get">GET</span>/api/v1/analytics/jobs/search
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="links">
+            <a href="/docs" class="link-btn">📚 Interactive API Docs</a>
+            <a href="/redoc" class="link-btn">📖 ReDoc Documentation</a>
+            <a href="https://github.com/Ismat-Samadov/birjobBackend" class="link-btn">💻 GitHub Repository</a>
+        </div>
+        
+        <footer class="footer">
+            <p>Data refreshed every 4-5 hours • Built with FastAPI & PostgreSQL</p>
+            <p>© 2025 BirJob API - Powering iOS Job Matching</p>
+        </footer>
+    </div>
+    
+    <script>
+        // Update stats dynamically
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/v1/analytics/jobs/overview');
+                const data = await response.json();
+                
+                document.querySelector('.stat-card:nth-child(1) .stat-number').textContent = data.total_jobs?.toLocaleString() || '4,353';
+                document.querySelector('.stat-card:nth-child(2) .stat-number').textContent = data.unique_companies?.toLocaleString() || '1,721';
+                document.querySelector('.stat-card:nth-child(3) .stat-number').textContent = data.unique_sources?.toLocaleString() || '35';
+            } catch (error) {
+                console.log('Using static stats');
+            }
+        }
+        
+        // Update stats on page load
+        updateStats();
+    </script>
+</body>
+</html>

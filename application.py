@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import asyncio
 import logging
@@ -63,11 +65,19 @@ app.add_middleware(
 setup_monitoring(app)
 setup_security_headers(app)
 
+# Mount static files
+app.mount("/1", StaticFiles(directory="1"), name="icons")
+
 # Include routers
 app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
+    """Serve the main website"""
+    return FileResponse('website/index.html')
+
+@app.get("/api")
+async def api_root():
     return {"message": "iOS Native App Backend API", "version": "1.0.0"}
 
 if __name__ == "__main__":
