@@ -10,41 +10,38 @@ logger = logging.getLogger(__name__)
 
 @router.get("/jobs/overview", response_model=Dict[str, Any])
 async def get_jobs_overview():
-    """Get overall job statistics"""
+    """Get overall job statistics from current scraping cycle"""
     try:
-        # Total jobs
+        # Total jobs (current scraping cycle only)
         total_query = "SELECT COUNT(*) as count FROM scraper.jobs_jobpost"
         total_result = await db_manager.execute_query(total_query)
         total_jobs = total_result[0]["count"] if total_result else 0
         
-        # Jobs by time periods
-        periods_query = """
+        # Since data is refreshed every cycle, all jobs are from current cycle
+        # Get scraping cycle info
+        cycle_info_query = """
             SELECT 
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as last_24h,
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as last_week,
-                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as last_month
-            FROM scraper.jobs_jobpost
-        """
-        periods_result = await db_manager.execute_query(periods_query)
-        periods = periods_result[0] if periods_result else {"last_24h": 0, "last_week": 0, "last_month": 0}
-        
-        # Unique companies and sources
-        unique_query = """
-            SELECT 
+                MIN(created_at) as cycle_start,
+                MAX(created_at) as cycle_end,
+                COUNT(*) as total_jobs,
                 COUNT(DISTINCT company) as unique_companies,
                 COUNT(DISTINCT source) as unique_sources
             FROM scraper.jobs_jobpost
         """
-        unique_result = await db_manager.execute_query(unique_query)
-        unique_data = unique_result[0] if unique_result else {"unique_companies": 0, "unique_sources": 0}
+        cycle_result = await db_manager.execute_query(cycle_info_query)
+        cycle_data = cycle_result[0] if cycle_result else {
+            "cycle_start": None, "cycle_end": None, "total_jobs": 0, 
+            "unique_companies": 0, "unique_sources": 0
+        }
         
         return {
-            "total_jobs": total_jobs,
-            "jobs_last_24h": periods["last_24h"],
-            "jobs_last_week": periods["last_week"], 
-            "jobs_last_month": periods["last_month"],
-            "unique_companies": unique_data["unique_companies"],
-            "unique_sources": unique_data["unique_sources"],
+            "total_jobs": cycle_data["total_jobs"],
+            "unique_companies": cycle_data["unique_companies"],
+            "unique_sources": cycle_data["unique_sources"],
+            "cycle_start": cycle_data["cycle_start"].isoformat() if cycle_data["cycle_start"] else None,
+            "cycle_end": cycle_data["cycle_end"].isoformat() if cycle_data["cycle_end"] else None,
+            "data_freshness": "current_cycle_only",
+            "note": "Data is refreshed every 4-5 hours by scraper",
             "timestamp": datetime.now().isoformat()
         }
         
@@ -56,20 +53,20 @@ async def get_jobs_overview():
         )
 
 @router.get("/jobs/by-source", response_model=Dict[str, Any])
-async def get_jobs_by_source(days: int = Query(default=7, ge=1, le=365)):
-    """Get job distribution by source"""
+async def get_jobs_by_source():
+    """Get job distribution by source from current scraping cycle"""
     try:
         query = """
             SELECT 
                 source,
                 COUNT(*) as job_count,
                 COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() as percentage,
+                MIN(created_at) as first_job,
                 MAX(created_at) as latest_job
             FROM scraper.jobs_jobpost 
-            WHERE created_at > NOW() - INTERVAL '%s days'
             GROUP BY source
             ORDER BY job_count DESC
-        """ % days
+        """
         
         result = await db_manager.execute_query(query)
         
@@ -78,14 +75,16 @@ async def get_jobs_by_source(days: int = Query(default=7, ge=1, le=365)):
             sources_data.append({
                 "source": row["source"],
                 "job_count": row["job_count"],
-                "percentage": float(row["percentage"]) if row["percentage"] else 0,
+                "percentage": round(float(row["percentage"]), 2) if row["percentage"] else 0,
+                "first_job": row["first_job"].isoformat() if row["first_job"] else None,
                 "latest_job": row["latest_job"].isoformat() if row["latest_job"] else None
             })
         
         return {
-            "period_days": days,
             "sources": sources_data,
             "total_sources": len(sources_data),
+            "data_freshness": "current_cycle_only",
+            "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
             "timestamp": datetime.now().isoformat()
         }
         
@@ -98,10 +97,9 @@ async def get_jobs_by_source(days: int = Query(default=7, ge=1, le=365)):
 
 @router.get("/jobs/by-company", response_model=Dict[str, Any])
 async def get_top_companies(
-    limit: int = Query(default=20, ge=1, le=100),
-    days: int = Query(default=30, ge=1, le=365)
+    limit: int = Query(default=20, ge=1, le=100)
 ):
-    """Get top companies by job count"""
+    """Get top companies by job count from current scraping cycle"""
     try:
         query = """
             SELECT 
@@ -110,11 +108,10 @@ async def get_top_companies(
                 MIN(created_at) as first_job,
                 MAX(created_at) as latest_job
             FROM scraper.jobs_jobpost 
-            WHERE created_at > NOW() - INTERVAL '%s days'
             GROUP BY company
             ORDER BY job_count DESC
             LIMIT %s
-        """ % (days, limit)
+        """ % limit
         
         result = await db_manager.execute_query(query)
         
@@ -128,8 +125,10 @@ async def get_top_companies(
             })
         
         return {
-            "period_days": days,
             "companies": companies_data,
+            "limit": limit,
+            "data_freshness": "current_cycle_only",
+            "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
             "timestamp": datetime.now().isoformat()
         }
         
@@ -140,62 +139,100 @@ async def get_top_companies(
             detail="Failed to get top companies"
         )
 
-@router.get("/jobs/trends", response_model=Dict[str, Any])
-async def get_job_trends(days: int = Query(default=30, ge=7, le=365)):
-    """Get job posting trends over time"""
+@router.get("/jobs/current-cycle", response_model=Dict[str, Any])
+async def get_current_cycle_analysis():
+    """Get analysis of current scraping cycle (replaces trends since no historical data)"""
     try:
-        query = """
+        # Get cycle overview
+        overview_query = """
             SELECT 
-                DATE(created_at) as date,
-                COUNT(*) as job_count,
+                COUNT(*) as total_jobs,
                 COUNT(DISTINCT company) as unique_companies,
-                COUNT(DISTINCT source) as active_sources
+                COUNT(DISTINCT source) as unique_sources,
+                MIN(created_at) as cycle_start,
+                MAX(created_at) as cycle_end
+            FROM scraper.jobs_jobpost
+        """
+        overview_result = await db_manager.execute_query(overview_query)
+        overview = overview_result[0] if overview_result else {}
+        
+        # Get hourly distribution within current cycle
+        hourly_query = """
+            SELECT 
+                EXTRACT(HOUR FROM created_at) as hour,
+                COUNT(*) as job_count
             FROM scraper.jobs_jobpost 
-            WHERE created_at > NOW() - INTERVAL '%s days'
-            GROUP BY DATE(created_at)
-            ORDER BY date DESC
-        """ % days
+            GROUP BY EXTRACT(HOUR FROM created_at)
+            ORDER BY hour
+        """
+        hourly_result = await db_manager.execute_query(hourly_query)
         
-        result = await db_manager.execute_query(query)
-        
-        trends_data = []
-        for row in result:
-            trends_data.append({
-                "date": row["date"].isoformat() if row["date"] else None,
-                "job_count": row["job_count"],
-                "unique_companies": row["unique_companies"],
-                "active_sources": row["active_sources"]
+        hourly_data = []
+        for row in hourly_result:
+            hourly_data.append({
+                "hour": int(row["hour"]),
+                "job_count": row["job_count"]
             })
         
-        # Calculate averages
-        if trends_data:
-            avg_jobs_per_day = sum(d["job_count"] for d in trends_data) / len(trends_data)
-            avg_companies_per_day = sum(d["unique_companies"] for d in trends_data) / len(trends_data)
-        else:
-            avg_jobs_per_day = avg_companies_per_day = 0
+        # Get top source analysis
+        source_analysis_query = """
+            SELECT 
+                source,
+                COUNT(*) as job_count,
+                COUNT(DISTINCT company) as companies_per_source,
+                MIN(created_at) as first_job,
+                MAX(created_at) as last_job
+            FROM scraper.jobs_jobpost 
+            GROUP BY source
+            ORDER BY job_count DESC
+            LIMIT 10
+        """
+        source_result = await db_manager.execute_query(source_analysis_query)
+        
+        source_analysis = []
+        for row in source_result:
+            source_analysis.append({
+                "source": row["source"],
+                "job_count": row["job_count"],
+                "companies_per_source": row["companies_per_source"],
+                "first_job": row["first_job"].isoformat() if row["first_job"] else None,
+                "last_job": row["last_job"].isoformat() if row["last_job"] else None
+            })
+        
+        # Calculate cycle duration
+        cycle_duration = None
+        if overview.get("cycle_start") and overview.get("cycle_end"):
+            duration = overview["cycle_end"] - overview["cycle_start"]
+            cycle_duration = str(duration)
         
         return {
-            "period_days": days,
-            "daily_data": trends_data,
-            "avg_jobs_per_day": round(avg_jobs_per_day, 2),
-            "avg_companies_per_day": round(avg_companies_per_day, 2),
-            "total_days": len(trends_data),
+            "cycle_overview": {
+                "total_jobs": overview.get("total_jobs", 0),
+                "unique_companies": overview.get("unique_companies", 0),
+                "unique_sources": overview.get("unique_sources", 0),
+                "cycle_start": overview["cycle_start"].isoformat() if overview.get("cycle_start") else None,
+                "cycle_end": overview["cycle_end"].isoformat() if overview.get("cycle_end") else None,
+                "cycle_duration": cycle_duration
+            },
+            "hourly_distribution": hourly_data,
+            "source_analysis": source_analysis,
+            "data_freshness": "current_cycle_only",
+            "note": "Analysis of current scraping cycle. Historical trends not available due to data refresh cycle.",
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Error getting job trends: {e}")
+        logger.error(f"Error getting current cycle analysis: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get job trends"
+            detail="Failed to get current cycle analysis"
         )
 
 @router.get("/jobs/keywords", response_model=Dict[str, Any])
 async def get_popular_keywords(
-    limit: int = Query(default=50, ge=10, le=200),
-    days: int = Query(default=30, ge=1, le=365)
+    limit: int = Query(default=50, ge=10, le=200)
 ):
-    """Get most popular keywords in job titles"""
+    """Get most popular keywords in job titles from current scraping cycle"""
     try:
         query = """
             WITH words AS (
@@ -204,8 +241,7 @@ async def get_popular_keywords(
                     COUNT(*) as frequency
                 FROM scraper.jobs_jobpost,
                 LATERAL unnest(string_to_array(title, ' ')) AS word
-                WHERE created_at > NOW() - INTERVAL '%s days'
-                AND LENGTH(TRIM(word)) > 2
+                WHERE LENGTH(TRIM(word)) > 2
                 AND TRIM(word) !~ '^[0-9]+$'
                 GROUP BY LOWER(TRIM(word))
             )
@@ -214,7 +250,7 @@ async def get_popular_keywords(
             WHERE keyword NOT IN ('və', 'üzrə', 'the', 'and', 'for', 'with', 'at', 'in', 'on', 'to', 'of', 'a', 'an')
             ORDER BY frequency DESC
             LIMIT %s
-        """ % (days, limit)
+        """ % limit
         
         result = await db_manager.execute_query(query)
         
@@ -232,9 +268,11 @@ async def get_popular_keywords(
             item["percentage"] = round((item["frequency"] / total_frequency * 100), 2) if total_frequency > 0 else 0
         
         return {
-            "period_days": days,
             "keywords": keywords_data,
             "total_keywords": len(keywords_data),
+            "total_word_frequency": total_frequency,
+            "data_freshness": "current_cycle_only",
+            "note": "Keywords from current scraping cycle (refreshed every 4-5 hours)",
             "timestamp": datetime.now().isoformat()
         }
         
@@ -247,10 +285,9 @@ async def get_popular_keywords(
 
 @router.get("/jobs/search", response_model=Dict[str, Any])
 async def search_jobs_analytics(
-    keyword: str = Query(..., min_length=2),
-    days: int = Query(default=30, ge=1, le=365)
+    keyword: str = Query(..., min_length=2)
 ):
-    """Search and analyze jobs containing specific keyword"""
+    """Search and analyze jobs containing specific keyword from current scraping cycle"""
     try:
         # Search jobs
         search_query = """
@@ -260,8 +297,7 @@ async def search_jobs_analytics(
                 COUNT(DISTINCT source) as unique_sources
             FROM scraper.jobs_jobpost 
             WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
-            AND created_at > NOW() - INTERVAL '%s days'
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'", days)
+        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
         
         search_result = await db_manager.execute_query(search_query)
         search_data = search_result[0] if search_result else {"total_matches": 0, "unique_companies": 0, "unique_sources": 0}
@@ -271,11 +307,10 @@ async def search_jobs_analytics(
             SELECT company, COUNT(*) as job_count
             FROM scraper.jobs_jobpost 
             WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
-            AND created_at > NOW() - INTERVAL '%s days'
             GROUP BY company
             ORDER BY job_count DESC
             LIMIT 10
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'", days)
+        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
         
         companies_result = await db_manager.execute_query(companies_query)
         companies_data = [{"company": row["company"], "job_count": row["job_count"]} for row in companies_result]
@@ -285,22 +320,31 @@ async def search_jobs_analytics(
             SELECT source, COUNT(*) as job_count
             FROM scraper.jobs_jobpost 
             WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
-            AND created_at > NOW() - INTERVAL '%s days'
             GROUP BY source
             ORDER BY job_count DESC
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'", days)
+        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
         
         sources_result = await db_manager.execute_query(sources_query)
         sources_data = [{"source": row["source"], "job_count": row["job_count"]} for row in sources_result]
         
+        # Calculate match percentage
+        total_jobs_query = "SELECT COUNT(*) as total FROM scraper.jobs_jobpost"
+        total_jobs_result = await db_manager.execute_query(total_jobs_query)
+        total_jobs = total_jobs_result[0]["total"] if total_jobs_result else 0
+        
+        match_percentage = round((search_data["total_matches"] / total_jobs * 100), 2) if total_jobs > 0 else 0
+        
         return {
             "keyword": keyword,
-            "period_days": days,
             "total_matches": search_data["total_matches"],
             "unique_companies": search_data["unique_companies"],
             "unique_sources": search_data["unique_sources"],
+            "match_percentage": match_percentage,
+            "total_jobs_in_cycle": total_jobs,
             "top_companies": companies_data,
             "sources": sources_data,
+            "data_freshness": "current_cycle_only",
+            "note": "Search results from current scraping cycle (refreshed every 4-5 hours)",
             "timestamp": datetime.now().isoformat()
         }
         
