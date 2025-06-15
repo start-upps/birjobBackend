@@ -793,103 +793,114 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
 ## 7. Analytics Endpoints
 
 ### GET `/api/v1/analytics/jobs/overview`
-**Description**: Get overall job statistics and metrics
+**Description**: Get overall job statistics from current scraping cycle
 **Authentication**: None required
 **Response**:
 ```json
 {
-  "total_jobs": 4356,
-  "jobs_last_24h": 4356,
-  "jobs_last_week": 4356,
-  "jobs_last_month": 4356,
-  "unique_companies": 1715,
+  "total_jobs": 4353,
+  "unique_companies": 1721,
   "unique_sources": 35,
-  "timestamp": "2025-06-15T12:25:54.926610"
+  "cycle_start": "2025-06-15T15:25:34.595587",
+  "cycle_end": "2025-06-15T15:25:34.595587",
+  "data_freshness": "current_cycle_only",
+  "note": "Data is refreshed every 4-5 hours by scraper",
+  "timestamp": "2025-06-15T16:15:04.672071"
 }
 ```
 
 ### GET `/api/v1/analytics/jobs/by-source`
-**Description**: Get job distribution by source
+**Description**: Get job distribution by source from current scraping cycle
 **Authentication**: None required
-**Query Parameters**:
-- `days`: Integer (1-365, default: 7) - Time period for analysis
 
 **Response**:
 ```json
 {
-  "period_days": 7,
   "sources": [
     {
       "source": "Glorri",
-      "job_count": 789,
-      "percentage": 18.11,
-      "latest_job": "2025-06-15T10:28:24.397599"
+      "job_count": 786,
+      "percentage": 18.06,
+      "first_job": "2025-06-15T15:25:34.595587",
+      "latest_job": "2025-06-15T15:25:34.595587"
     }
   ],
   "total_sources": 35,
-  "timestamp": "2025-06-15T12:27:26.021503"
+  "data_freshness": "current_cycle_only",
+  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
+  "timestamp": "2025-06-15T16:15:21.825019"
 }
 ```
 
 ### GET `/api/v1/analytics/jobs/by-company`
-**Description**: Get top companies by job count
+**Description**: Get top companies by job count from current scraping cycle
 **Authentication**: None required
 **Query Parameters**:
 - `limit`: Integer (1-100, default: 20) - Number of companies to return
-- `days`: Integer (1-365, default: 30) - Time period for analysis
 
 **Response**:
 ```json
 {
-  "period_days": 30,
   "companies": [
     {
       "company": "ABB",
       "job_count": 131,
-      "first_job": "2025-06-15T10:28:24.397599",
-      "latest_job": "2025-06-15T10:28:24.397599"
+      "first_job": "2025-06-15T15:25:34.595587",
+      "latest_job": "2025-06-15T15:25:34.595587"
     }
   ],
-  "timestamp": "2025-06-15T12:27:31.422875"
+  "limit": 20,
+  "data_freshness": "current_cycle_only",
+  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
+  "timestamp": "2025-06-15T16:15:33.760485"
 }
 ```
 
-### GET `/api/v1/analytics/jobs/trends`
-**Description**: Get job posting trends over time
+### GET `/api/v1/analytics/jobs/current-cycle`
+**Description**: Get analysis of current scraping cycle (replaces trends since no historical data available)
 **Authentication**: None required
-**Query Parameters**:
-- `days`: Integer (7-365, default: 30) - Time period for analysis
 
 **Response**:
 ```json
 {
-  "period_days": 7,
-  "daily_data": [
+  "cycle_overview": {
+    "total_jobs": 4353,
+    "unique_companies": 1721,
+    "unique_sources": 35,
+    "cycle_start": "2025-06-15T15:25:34.595587",
+    "cycle_end": "2025-06-15T15:25:34.595587",
+    "cycle_duration": "0:00:00"
+  },
+  "hourly_distribution": [
     {
-      "date": "2025-06-15",
-      "job_count": 4356,
-      "unique_companies": 1715,
-      "active_sources": 35
+      "hour": 15,
+      "job_count": 4353
     }
   ],
-  "avg_jobs_per_day": 4356.0,
-  "avg_companies_per_day": 1715.0,
-  "total_days": 1,
-  "timestamp": "2025-06-15T12:27:43.879555"
+  "source_analysis": [
+    {
+      "source": "Glorri",
+      "job_count": 786,
+      "companies_per_source": 71,
+      "first_job": "2025-06-15T15:25:34.595587",
+      "last_job": "2025-06-15T15:25:34.595587"
+    }
+  ],
+  "data_freshness": "current_cycle_only",
+  "note": "Analysis of current scraping cycle. Historical trends not available due to data refresh cycle.",
+  "timestamp": "2025-06-15T16:15:13.760485"
 }
 ```
 
 ### GET `/api/v1/analytics/jobs/keywords`
-**Description**: Get most popular keywords in job titles
+**Description**: Get most popular keywords in job titles from current scraping cycle
 **Authentication**: None required
 **Query Parameters**:
 - `limit`: Integer (10-200, default: 50) - Number of keywords to return
-- `days`: Integer (1-365, default: 30) - Time period for analysis
 
 **Response**:
 ```json
 {
-  "period_days": 30,
   "keywords": [
     {
       "keyword": "mütəxəssis",
@@ -903,38 +914,43 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
     }
   ],
   "total_keywords": 20,
-  "timestamp": "2025-06-15T12:31:00.978597"
+  "total_word_frequency": 3224,
+  "data_freshness": "current_cycle_only",
+  "note": "Keywords from current scraping cycle (refreshed every 4-5 hours)",
+  "timestamp": "2025-06-15T16:15:77.978597"
 }
 ```
 
 ### GET `/api/v1/analytics/jobs/search`
-**Description**: Search and analyze jobs containing specific keyword
+**Description**: Search and analyze jobs containing specific keyword from current scraping cycle
 **Authentication**: None required
 **Query Parameters**:
 - `keyword`: String (required, min: 2 chars) - Keyword to search for
-- `days`: Integer (1-365, default: 30) - Time period for analysis
 
 **Response**:
 ```json
 {
-  "keyword": "data",
-  "period_days": 30,
-  "total_matches": 80,
-  "unique_companies": 51,
-  "unique_sources": 15,
+  "keyword": "developer",
+  "total_matches": 174,
+  "unique_companies": 130,
+  "unique_sources": 12,
+  "match_percentage": 4.0,
+  "total_jobs_in_cycle": 4353,
   "top_companies": [
     {
-      "company": "ABB",
-      "job_count": 8
+      "company": "Kapital Bank",
+      "job_count": 13
     }
   ],
   "sources": [
     {
       "source": "Djinni",
-      "job_count": 23
+      "job_count": 126
     }
   ],
-  "timestamp": "2025-06-15T12:31:09.969962"
+  "data_freshness": "current_cycle_only",
+  "note": "Search results from current scraping cycle (refreshed every 4-5 hours)",
+  "timestamp": "2025-06-15T16:15:38.047965"
 }
 ```
 
@@ -1025,7 +1041,8 @@ You can test the API using the provided `/health` and `/api/v1/jobs/stats/summar
 5. **Get Analytics**:
    ```
    GET /api/v1/analytics/jobs/overview
-   GET /api/v1/analytics/jobs/search?keyword=data
+   GET /api/v1/analytics/jobs/current-cycle
+   GET /api/v1/analytics/jobs/search?keyword=developer
    ```
 
 6. **AI Assistance**:

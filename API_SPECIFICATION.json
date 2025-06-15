@@ -22,7 +22,7 @@
               "application/json": {
                 "example": {
                   "status": "healthy",
-                  "timestamp": "2025-06-14T10:30:00Z",
+                  "timestamp": "2025-06-15T16:19:10.270931+00:00",
                   "services": {
                     "database": "healthy",
                     "redis": "healthy",
@@ -30,10 +30,10 @@
                     "scraper": "healthy"
                   },
                   "metrics": {
-                    "active_devices": 150,
-                    "active_subscriptions": 200,
-                    "matches_last_24h": 450,
-                    "notifications_sent_last_24h": 320
+                    "active_devices": 1,
+                    "active_subscriptions": 0,
+                    "matches_last_24h": 0,
+                    "notifications_sent_last_24h": 0
                   }
                 }
               }
@@ -394,29 +394,29 @@
                   "data": {
                     "jobs": [
                       {
-                        "id": 12345,
-                        "title": "Senior iOS Developer",
-                        "company": "Tech Corp",
-                        "apply_link": "https://techcorp.com/jobs/12345",
-                        "source": "linkedin",
-                        "posted_at": "2025-06-14T08:00:00Z"
+                        "id": 426828,
+                        "title": "Sürücü (Gəncə anbarı)",
+                        "company": "Kontakt Home",
+                        "apply_link": "https://jobs.glorri.az/vacancies/abc-telecom/abc-telecom-surucu-gence-anbari-33935/apply",
+                        "source": "Glorri",
+                        "posted_at": "2025-06-15T15:25:34.595587"
                       }
                     ],
                     "pagination": {
-                      "total": 1500,
+                      "total": 4353,
                       "limit": 20,
                       "offset": 0,
                       "current_page": 1,
-                      "total_pages": 75,
+                      "total_pages": 218,
                       "has_more": true,
                       "has_previous": false
                     },
                     "filters": {
-                      "search": "iOS",
+                      "search": null,
                       "company": null,
                       "source": null,
                       "location": null,
-                      "days": 7,
+                      "days": null,
                       "sort_by": "created_at",
                       "sort_order": "desc"
                     }
@@ -476,21 +476,29 @@
                 "example": {
                   "success": true,
                   "data": {
-                    "total_jobs": 15420,
-                    "recent_jobs_24h": 287,
+                    "total_jobs": 4353,
+                    "recent_jobs_24h": 4353,
                     "top_companies": [
                       {
-                        "company": "Google",
-                        "job_count": 45
+                        "company": "ABB",
+                        "job_count": 131
+                      },
+                      {
+                        "company": "dövlət məşğulluq agentliyi",
+                        "job_count": 95
                       }
                     ],
                     "job_sources": [
                       {
-                        "source": "linkedin",
-                        "job_count": 8500
+                        "source": "Glorri",
+                        "job_count": 786
+                      },
+                      {
+                        "source": "Vakansiya.biz",
+                        "job_count": 654
                       }
                     ],
-                    "last_updated": "2025-06-14T10:30:00Z"
+                    "last_updated": "2025-06-15T16:19:00Z"
                   }
                 }
               }
@@ -687,20 +695,21 @@
     },
     "/api/v1/analytics/jobs/overview": {
       "get": {
-        "summary": "Get overall job statistics",
+        "summary": "Get overall job statistics from current scraping cycle",
         "responses": {
           "200": {
             "description": "Job overview statistics",
             "content": {
               "application/json": {
                 "example": {
-                  "total_jobs": 4356,
-                  "jobs_last_24h": 4356,
-                  "jobs_last_week": 4356,
-                  "jobs_last_month": 4356,
-                  "unique_companies": 1715,
+                  "total_jobs": 4353,
+                  "unique_companies": 1721,
                   "unique_sources": 35,
-                  "timestamp": "2025-06-15T12:25:54.926610"
+                  "cycle_start": "2025-06-15T15:25:34.595587",
+                  "cycle_end": "2025-06-15T15:25:34.595587",
+                  "data_freshness": "current_cycle_only",
+                  "note": "Data is refreshed every 4-5 hours by scraper",
+                  "timestamp": "2025-06-15T16:15:04.672071"
                 }
               }
             }
@@ -710,37 +719,26 @@
     },
     "/api/v1/analytics/jobs/by-source": {
       "get": {
-        "summary": "Get job distribution by source",
-        "parameters": [
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Time period for analysis",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365,
-              "default": 7
-            }
-          }
-        ],
+        "summary": "Get job distribution by source from current scraping cycle",
         "responses": {
           "200": {
             "description": "Jobs by source statistics",
             "content": {
               "application/json": {
                 "example": {
-                  "period_days": 7,
                   "sources": [
                     {
                       "source": "Glorri",
-                      "job_count": 789,
-                      "percentage": 18.11,
-                      "latest_job": "2025-06-15T10:28:24.397599"
+                      "job_count": 786,
+                      "percentage": 18.06,
+                      "first_job": "2025-06-15T15:25:34.595587",
+                      "latest_job": "2025-06-15T15:25:34.595587"
                     }
                   ],
                   "total_sources": 35,
-                  "timestamp": "2025-06-15T12:27:26.021503"
+                  "data_freshness": "current_cycle_only",
+                  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
+                  "timestamp": "2025-06-15T16:15:21.825019"
                 }
               }
             }
@@ -750,7 +748,7 @@
     },
     "/api/v1/analytics/jobs/by-company": {
       "get": {
-        "summary": "Get top companies by job count",
+        "summary": "Get top companies by job count from current scraping cycle",
         "parameters": [
           {
             "name": "limit",
@@ -762,17 +760,6 @@
               "maximum": 100,
               "default": 20
             }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Time period for analysis",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365,
-              "default": 30
-            }
           }
         ],
         "responses": {
@@ -781,16 +768,18 @@
             "content": {
               "application/json": {
                 "example": {
-                  "period_days": 30,
                   "companies": [
                     {
                       "company": "ABB",
                       "job_count": 131,
-                      "first_job": "2025-06-15T10:28:24.397599",
-                      "latest_job": "2025-06-15T10:28:24.397599"
+                      "first_job": "2025-06-15T15:25:34.595587",
+                      "latest_job": "2025-06-15T15:25:34.595587"
                     }
                   ],
-                  "timestamp": "2025-06-15T12:27:31.422875"
+                  "limit": 20,
+                  "data_freshness": "current_cycle_only",
+                  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
+                  "timestamp": "2025-06-15T16:15:33.760485"
                 }
               }
             }
@@ -798,41 +787,41 @@
         }
       }
     },
-    "/api/v1/analytics/jobs/trends": {
+    "/api/v1/analytics/jobs/current-cycle": {
       "get": {
-        "summary": "Get job posting trends over time",
-        "parameters": [
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Time period for analysis",
-            "schema": {
-              "type": "integer",
-              "minimum": 7,
-              "maximum": 365,
-              "default": 30
-            }
-          }
-        ],
+        "summary": "Get analysis of current scraping cycle (replaces trends)",
         "responses": {
           "200": {
-            "description": "Job trends statistics",
+            "description": "Current cycle analysis",
             "content": {
               "application/json": {
                 "example": {
-                  "period_days": 7,
-                  "daily_data": [
+                  "cycle_overview": {
+                    "total_jobs": 4353,
+                    "unique_companies": 1721,
+                    "unique_sources": 35,
+                    "cycle_start": "2025-06-15T15:25:34.595587",
+                    "cycle_end": "2025-06-15T15:25:34.595587",
+                    "cycle_duration": "0:00:00"
+                  },
+                  "hourly_distribution": [
                     {
-                      "date": "2025-06-15",
-                      "job_count": 4356,
-                      "unique_companies": 1715,
-                      "active_sources": 35
+                      "hour": 15,
+                      "job_count": 4353
                     }
                   ],
-                  "avg_jobs_per_day": 4356.0,
-                  "avg_companies_per_day": 1715.0,
-                  "total_days": 1,
-                  "timestamp": "2025-06-15T12:27:43.879555"
+                  "source_analysis": [
+                    {
+                      "source": "Glorri",
+                      "job_count": 786,
+                      "companies_per_source": 71,
+                      "first_job": "2025-06-15T15:25:34.595587",
+                      "last_job": "2025-06-15T15:25:34.595587"
+                    }
+                  ],
+                  "data_freshness": "current_cycle_only",
+                  "note": "Analysis of current scraping cycle. Historical trends not available due to data refresh cycle.",
+                  "timestamp": "2025-06-15T16:15:13.760485"
                 }
               }
             }
@@ -842,7 +831,7 @@
     },
     "/api/v1/analytics/jobs/keywords": {
       "get": {
-        "summary": "Get most popular keywords in job titles",
+        "summary": "Get most popular keywords in job titles from current scraping cycle",
         "parameters": [
           {
             "name": "limit",
@@ -854,17 +843,6 @@
               "maximum": 200,
               "default": 50
             }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Time period for analysis",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365,
-              "default": 30
-            }
           }
         ],
         "responses": {
@@ -873,7 +851,6 @@
             "content": {
               "application/json": {
                 "example": {
-                  "period_days": 30,
                   "keywords": [
                     {
                       "keyword": "mütəxəssis",
@@ -887,7 +864,10 @@
                     }
                   ],
                   "total_keywords": 20,
-                  "timestamp": "2025-06-15T12:31:00.978597"
+                  "total_word_frequency": 3224,
+                  "data_freshness": "current_cycle_only",
+                  "note": "Keywords from current scraping cycle (refreshed every 4-5 hours)",
+                  "timestamp": "2025-06-15T16:15:77.978597"
                 }
               }
             }
@@ -897,7 +877,7 @@
     },
     "/api/v1/analytics/jobs/search": {
       "get": {
-        "summary": "Search and analyze jobs containing specific keyword",
+        "summary": "Search and analyze jobs containing specific keyword from current scraping cycle",
         "parameters": [
           {
             "name": "keyword",
@@ -908,17 +888,6 @@
               "type": "string",
               "minLength": 2
             }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Time period for analysis",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365,
-              "default": 30
-            }
           }
         ],
         "responses": {
@@ -927,24 +896,27 @@
             "content": {
               "application/json": {
                 "example": {
-                  "keyword": "data",
-                  "period_days": 30,
-                  "total_matches": 80,
-                  "unique_companies": 51,
-                  "unique_sources": 15,
+                  "keyword": "developer",
+                  "total_matches": 174,
+                  "unique_companies": 130,
+                  "unique_sources": 12,
+                  "match_percentage": 4.0,
+                  "total_jobs_in_cycle": 4353,
                   "top_companies": [
                     {
-                      "company": "ABB",
-                      "job_count": 8
+                      "company": "Kapital Bank",
+                      "job_count": 13
                     }
                   ],
                   "sources": [
                     {
                       "source": "Djinni",
-                      "job_count": 23
+                      "job_count": 126
                     }
                   ],
-                  "timestamp": "2025-06-15T12:31:09.969962"
+                  "data_freshness": "current_cycle_only",
+                  "note": "Search results from current scraping cycle (refreshed every 4-5 hours)",
+                  "timestamp": "2025-06-15T16:15:38.047965"
                 }
               }
             }
