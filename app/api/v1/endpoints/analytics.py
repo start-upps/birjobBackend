@@ -110,10 +110,10 @@ async def get_top_companies(
             FROM scraper.jobs_jobpost 
             GROUP BY company
             ORDER BY job_count DESC
-            LIMIT %s
-        """ % limit
+            LIMIT $1
+        """
         
-        result = await db_manager.execute_query(query)
+        result = await db_manager.execute_query(query, limit)
         
         companies_data = []
         for row in result:
@@ -249,10 +249,10 @@ async def get_popular_keywords(
             FROM words
             WHERE keyword NOT IN ('və', 'üzrə', 'the', 'and', 'for', 'with', 'at', 'in', 'on', 'to', 'of', 'a', 'an')
             ORDER BY frequency DESC
-            LIMIT %s
-        """ % limit
+            LIMIT $1
+        """
         
-        result = await db_manager.execute_query(query)
+        result = await db_manager.execute_query(query, limit)
         
         keywords_data = []
         total_frequency = 0
@@ -296,35 +296,35 @@ async def search_jobs_analytics(
                 COUNT(DISTINCT company) as unique_companies,
                 COUNT(DISTINCT source) as unique_sources
             FROM scraper.jobs_jobpost 
-            WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
+            WHERE (LOWER(title) LIKE $1 OR LOWER(company) LIKE $2)
+        """
         
-        search_result = await db_manager.execute_query(search_query)
+        search_result = await db_manager.execute_query(search_query, f"%{keyword.lower()}%", f"%{keyword.lower()}%")
         search_data = search_result[0] if search_result else {"total_matches": 0, "unique_companies": 0, "unique_sources": 0}
         
         # Top companies for this keyword
         companies_query = """
             SELECT company, COUNT(*) as job_count
             FROM scraper.jobs_jobpost 
-            WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
+            WHERE (LOWER(title) LIKE $1 OR LOWER(company) LIKE $2)
             GROUP BY company
             ORDER BY job_count DESC
             LIMIT 10
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
+        """
         
-        companies_result = await db_manager.execute_query(companies_query)
+        companies_result = await db_manager.execute_query(companies_query, f"%{keyword.lower()}%", f"%{keyword.lower()}%")
         companies_data = [{"company": row["company"], "job_count": row["job_count"]} for row in companies_result]
         
         # Sources for this keyword
         sources_query = """
             SELECT source, COUNT(*) as job_count
             FROM scraper.jobs_jobpost 
-            WHERE (LOWER(title) LIKE %s OR LOWER(company) LIKE %s)
+            WHERE (LOWER(title) LIKE $1 OR LOWER(company) LIKE $2)
             GROUP BY source
             ORDER BY job_count DESC
-        """ % (f"'%{keyword.lower()}%'", f"'%{keyword.lower()}%'")
+        """
         
-        sources_result = await db_manager.execute_query(sources_query)
+        sources_result = await db_manager.execute_query(sources_query, f"%{keyword.lower()}%", f"%{keyword.lower()}%")
         sources_data = [{"source": row["source"], "job_count": row["job_count"]} for row in sources_result]
         
         # Calculate match percentage

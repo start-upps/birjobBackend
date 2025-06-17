@@ -325,9 +325,9 @@ async def get_job_recommendations(request: JobRecommendationRequest):
         
         # Get user profile
         user_query = """
-            SELECT * FROM iosapp.users WHERE device_id = %s
+            SELECT * FROM iosapp.users WHERE device_id = $1
         """
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -351,28 +351,32 @@ async def get_job_recommendations(request: JobRecommendationRequest):
         params = []
         
         # Apply filters
+        param_count = 1
         if filters.get("location"):
-            job_query += " AND LOWER(title) LIKE %s"
+            job_query += f" AND LOWER(title) LIKE ${param_count}"
             params.append(f"%{filters['location'].lower()}%")
+            param_count += 1
         
         if filters.get("jobType"):
-            job_query += " AND LOWER(title) LIKE %s"
+            job_query += f" AND LOWER(title) LIKE ${param_count}"
             params.append(f"%{filters['jobType'].lower()}%")
+            param_count += 1
         
         # Add skill-based matching
         if user_skills:
             skill_conditions = []
             for skill in user_skills:
-                skill_conditions.append("LOWER(title) LIKE %s")
+                skill_conditions.append(f"LOWER(title) LIKE ${param_count}")
                 params.append(f"%{skill.lower()}%")
+                param_count += 1
             
             if skill_conditions:
                 job_query += f" AND ({' OR '.join(skill_conditions)})"
         
-        job_query += " ORDER BY created_at DESC LIMIT %s"
+        job_query += f" ORDER BY created_at DESC LIMIT ${param_count}"
         params.append(limit * 2)  # Get more jobs to calculate match scores
         
-        jobs_result = await db_manager.execute_query(job_query, params)
+        jobs_result = await db_manager.execute_query(job_query, *params)
         
         # Calculate match scores and AI insights for jobs
         recommendations = []
@@ -428,8 +432,8 @@ async def analyze_job_match(request: JobMatchAnalysisRequest):
         job_id = request.jobId
         
         # Get user profile
-        user_query = "SELECT * FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT * FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -440,8 +444,8 @@ async def analyze_job_match(request: JobMatchAnalysisRequest):
         user = user_result[0]
         
         # Get job details
-        job_query = "SELECT * FROM scraper.jobs_jobpost WHERE id = %s"
-        job_result = await db_manager.execute_query(job_query, (job_id,))
+        job_query = "SELECT * FROM scraper.jobs_jobpost WHERE id = $1"
+        job_result = await db_manager.execute_query(job_query, job_id)
         
         if not job_result:
             raise HTTPException(

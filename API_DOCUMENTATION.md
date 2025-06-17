@@ -14,7 +14,418 @@ The API uses optional JWT-based device authentication for some endpoints:
 
 ## API Endpoints
 
-### 1. Health Check Endpoints
+### 1. User Profile Management
+
+#### POST `/api/v1/users/profile`
+**Description**: Create or update user profile
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "string",
+  "personalInfo": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1234567890",
+    "location": "San Francisco, CA",
+    "currentJobTitle": "Software Engineer",
+    "yearsOfExperience": "5-7 years",
+    "linkedInProfile": "https://linkedin.com/in/johndoe",
+    "portfolioURL": "https://johndoe.dev",
+    "bio": "Experienced software engineer with expertise in mobile development"
+  },
+  "jobPreferences": {
+    "desiredJobTypes": ["Full-time", "Remote"],
+    "remoteWorkPreference": "Remote",
+    "skills": ["iOS", "Swift", "Python", "React"],
+    "preferredLocations": ["San Francisco", "Remote"],
+    "salaryRange": {
+      "minSalary": 120000,
+      "maxSalary": 180000,
+      "currency": "USD",
+      "isNegotiable": true
+    }
+  },
+  "notificationSettings": {
+    "jobMatchesEnabled": true,
+    "applicationRemindersEnabled": true,
+    "weeklyDigestEnabled": false,
+    "marketInsightsEnabled": true,
+    "quietHoursEnabled": true,
+    "quietHoursStart": "22:00",
+    "quietHoursEnd": "08:00",
+    "preferredNotificationTime": "09:00"
+  },
+  "privacySettings": {
+    "profileVisibility": "Public",
+    "shareAnalytics": true,
+    "shareJobViewHistory": false,
+    "allowPersonalizedRecommendations": true
+  }
+}
+```
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Profile created/updated successfully",
+  "data": {
+    "userId": "user-uuid",
+    "profileCompleteness": 85,
+    "createdAt": "2025-06-17T12:00:00Z",
+    "lastUpdated": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+#### GET `/api/v1/users/profile/{device_id}`
+**Description**: Retrieve user profile by device ID
+**Authentication**: None required
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user-uuid",
+    "deviceId": "device-123",
+    "personalInfo": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "currentJobTitle": "Software Engineer"
+    },
+    "jobPreferences": {
+      "desiredJobTypes": ["Full-time"],
+      "skills": ["iOS", "Swift"]
+    },
+    "profileCompleteness": 85,
+    "createdAt": "2025-06-17T12:00:00Z",
+    "lastUpdated": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+### 2. AI-Powered Job Recommendations
+
+#### POST `/api/v1/ai/job-recommendations`
+**Description**: Get personalized job recommendations based on user profile
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "device-123",
+  "limit": 20,
+  "filters": {
+    "jobType": "Full-time",
+    "location": "San Francisco",
+    "remoteWork": "Remote"
+  }
+}
+```
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "recommendations": [
+      {
+        "jobId": 123456,
+        "title": "Senior iOS Developer",
+        "companyName": "TechCorp",
+        "location": "San Francisco, CA",
+        "salary": "$140,000 - $180,000",
+        "postedDate": "2025-06-16T10:00:00Z",
+        "matchScore": 92,
+        "aiInsights": {
+          "whyRecommended": "Strong match for iOS expertise and salary expectations",
+          "skillsMatch": ["iOS", "Swift", "Objective-C"],
+          "missingSkills": ["SwiftUI", "Core Data"],
+          "salaryFit": "Within target range",
+          "locationFit": "Perfect match for preferred location"
+        },
+        "matchReasons": ["Skill alignment", "Salary match", "Location preference"]
+      }
+    ],
+    "totalRecommendations": 45,
+    "generatedAt": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+#### POST `/api/v1/ai/job-match-analysis`
+**Description**: Analyze specific job compatibility with user profile
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "device-123",
+  "jobId": 123456
+}
+```
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "matchScore": 88,
+    "analysis": {
+      "overallFit": "Excellent match for your profile",
+      "skillsAnalysis": "90% skills match",
+      "salaryAnalysis": "Within your target range",
+      "locationAnalysis": "Matches your remote work preference",
+      "experienceMatch": "Perfect fit for your 5-7 years experience",
+      "improvementSuggestions": [
+        "Consider learning SwiftUI to be an even stronger candidate",
+        "Core Data experience would be valuable"
+      ]
+    }
+  }
+}
+```
+
+### 3. Saved Jobs Management
+
+#### POST `/api/v1/users/saved-jobs`
+**Description**: Save a job to user's saved jobs list
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "device-123",
+  "jobId": 123456,
+  "notes": "Interesting company culture, good benefits package"
+}
+```
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Job saved successfully",
+  "data": {
+    "savedJobId": "saved-job-uuid",
+    "jobId": 123456,
+    "savedAt": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+#### GET `/api/v1/users/saved-jobs/{device_id}`
+**Description**: Get all saved jobs for a user
+**Authentication**: None required
+**Query Parameters**:
+- `limit` (optional): Number of jobs to return (default: 20, max: 100)
+- `offset` (optional): Pagination offset (default: 0)
+- `status` (optional): Filter by application status
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "savedJobs": [
+      {
+        "savedJobId": "saved-job-uuid",
+        "jobId": 123456,
+        "title": "Senior iOS Developer",
+        "companyName": "TechCorp",
+        "location": "San Francisco, CA",
+        "salary": "$140,000 - $180,000",
+        "postedDate": "2025-06-16T10:00:00Z",
+        "savedAt": "2025-06-17T12:00:00Z",
+        "notes": "Interesting company culture",
+        "applicationStatus": "not_applied"
+      }
+    ],
+    "pagination": {
+      "total": 15,
+      "limit": 20,
+      "offset": 0,
+      "hasMore": false
+    }
+  }
+}
+```
+
+#### PUT `/api/v1/users/saved-jobs/{saved_job_id}`
+**Description**: Update saved job notes and application status
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "notes": "Applied through LinkedIn, waiting for response",
+  "applicationStatus": "applied"
+}
+```
+
+#### DELETE `/api/v1/users/saved-jobs/{saved_job_id}`
+**Description**: Remove job from saved jobs
+**Authentication**: None required
+
+### 4. User Analytics & Insights
+
+#### GET `/api/v1/users/analytics/{device_id}`
+**Description**: Get comprehensive user analytics and insights
+**Authentication**: None required
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "profileInsights": {
+      "profileStrength": 85,
+      "profileCompleteness": 90,
+      "skillsAssessment": "Strong technical profile with modern skills",
+      "marketFit": 78,
+      "improvementAreas": [
+        "Add portfolio projects",
+        "Update LinkedIn profile",
+        "Expand skill set with cloud technologies"
+      ]
+    },
+    "jobActivity": {
+      "totalJobsViewed": 156,
+      "totalJobsSaved": 23,
+      "totalApplications": 8,
+      "averageViewTime": "2m 30s",
+      "mostViewedCategories": ["Software Engineering", "Mobile Development", "Remote Work"],
+      "lastWeekActivity": {
+        "jobsViewed": 15,
+        "jobsSaved": 3,
+        "applications": 1
+      }
+    },
+    "matchingInsights": {
+      "totalMatches": 89,
+      "averageMatchScore": 76,
+      "topMatchingCompanies": ["TechCorp", "Startup Inc", "BigTech Co"],
+      "recommendedSkills": ["SwiftUI", "Combine", "Core Data"]
+    },
+    "marketInsights": [
+      {
+        "insight": "iOS developer salaries have increased 12% in your area",
+        "confidence": 0.9,
+        "category": "salary_trends"
+      },
+      {
+        "insight": "Remote iOS positions are up 45% this quarter",
+        "confidence": 0.85,
+        "category": "job_market"
+      }
+    ],
+    "computedAt": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+#### POST `/api/v1/users/job-view`
+**Description**: Track job view for analytics
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "device-123",
+  "jobId": 123456,
+  "viewDuration": 45,
+  "source": "job_list",
+  "timestamp": "2025-06-17T12:00:00Z"
+}
+```
+
+### 5. Application Tracking
+
+#### POST `/api/v1/users/applications`
+**Description**: Track job application
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "deviceId": "device-123",
+  "jobId": 123456,
+  "applicationSource": "company_website",
+  "notes": "Applied directly, mentioned referral from John Smith"
+}
+```
+
+#### GET `/api/v1/users/applications/{device_id}`
+**Description**: Get application history for user
+**Authentication**: None required
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "applications": [
+      {
+        "applicationId": "app-uuid",
+        "jobId": 123456,
+        "title": "Senior iOS Developer",
+        "companyName": "TechCorp",
+        "appliedAt": "2025-06-17T12:00:00Z",
+        "status": "pending",
+        "notes": "Applied directly",
+        "followUpDate": "2025-06-24T12:00:00Z"
+      }
+    ],
+    "stats": {
+      "totalApplications": 8,
+      "pending": 5,
+      "interviews": 2,
+      "offers": 1,
+      "rejections": 0
+    }
+  }
+}
+```
+
+#### PUT `/api/v1/users/applications/{application_id}`
+**Description**: Update application status
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "status": "interview",
+  "notes": "Phone interview scheduled for Friday",
+  "followUpDate": "2025-06-21T14:00:00Z"
+}
+```
+
+### 6. Profile Synchronization
+
+#### POST `/api/v1/users/sync-profile`
+**Description**: Sync profile data between devices
+**Authentication**: None required
+**Request Body**:
+```json
+{
+  "sourceDeviceId": "device-123",
+  "targetDeviceId": "device-456",
+  "syncData": {
+    "profile": true,
+    "savedJobs": true,
+    "preferences": true,
+    "analytics": false
+  }
+}
+```
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Profile synchronized successfully",
+  "data": {
+    "syncedItems": {
+      "profile": "synced",
+      "savedJobs": "synced (15 jobs)",
+      "preferences": "synced",
+      "analytics": "skipped"
+    },
+    "syncedAt": "2025-06-17T12:00:00Z"
+  }
+}
+```
+
+### 7. Health Check Endpoints
 
 #### GET `/api/v1/health`
 **Description**: System health check endpoint

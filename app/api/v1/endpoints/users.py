@@ -69,9 +69,9 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
         
         # Check if user exists
         existing_user_query = """
-            SELECT id FROM iosapp.users WHERE device_id = %s
+            SELECT id FROM iosapp.users WHERE device_id = $1
         """
-        existing_user = await db_manager.execute_query(existing_user_query, (device_id,))
+        existing_user = await db_manager.execute_query(existing_user_query, device_id)
         
         # Calculate profile completeness
         profile_completeness = calculate_profile_completeness(profile_data.dict())
@@ -82,20 +82,20 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
             
             update_query = """
                 UPDATE iosapp.users SET
-                    first_name = %s, last_name = %s, email = %s, phone = %s,
-                    location = %s, current_job_title = %s, years_of_experience = %s,
-                    linkedin_profile = %s, portfolio_url = %s, bio = %s,
-                    desired_job_types = %s, remote_work_preference = %s,
-                    skills = %s, preferred_locations = %s,
-                    min_salary = %s, max_salary = %s, salary_currency = %s, salary_negotiable = %s,
-                    job_matches_enabled = %s, application_reminders_enabled = %s,
-                    weekly_digest_enabled = %s, market_insights_enabled = %s,
-                    quiet_hours_enabled = %s, quiet_hours_start = %s, quiet_hours_end = %s,
-                    preferred_notification_time = %s,
-                    profile_visibility = %s, share_analytics = %s,
-                    share_job_view_history = %s, allow_personalized_recommendations = %s,
-                    profile_completeness = %s, updated_at = %s
-                WHERE device_id = %s
+                    first_name = $1, last_name = $2, email = $3, phone = $4,
+                    location = $5, current_job_title = $6, years_of_experience = $7,
+                    linkedin_profile = $8, portfolio_url = $9, bio = $10,
+                    desired_job_types = $11, remote_work_preference = $12,
+                    skills = $13, preferred_locations = $14,
+                    min_salary = $15, max_salary = $16, salary_currency = $17, salary_negotiable = $18,
+                    job_matches_enabled = $19, application_reminders_enabled = $20,
+                    weekly_digest_enabled = $21, market_insights_enabled = $22,
+                    quiet_hours_enabled = $23, quiet_hours_start = $24, quiet_hours_end = $25,
+                    preferred_notification_time = $26,
+                    profile_visibility = $27, share_analytics = $28,
+                    share_job_view_history = $29, allow_personalized_recommendations = $30,
+                    profile_completeness = $31, updated_at = $32
+                WHERE device_id = $33
             """
             
             # Extract data with defaults
@@ -122,7 +122,7 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
                 profile_completeness, datetime.utcnow(), device_id
             )
             
-            await db_manager.execute_query(update_query, params)
+            await db_manager.execute_query(update_query, *params)
             
             return UserProfileUpdateResponse(
                 success=True,
@@ -156,9 +156,9 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
                     share_job_view_history, allow_personalized_recommendations,
                     profile_completeness, created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                    $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
+                    $33, $34, $35
                 )
             """
             
@@ -188,7 +188,7 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
                 profile_completeness, now, now
             )
             
-            await db_manager.execute_query(insert_query, params)
+            await db_manager.execute_query(insert_query, *params)
             
             return UserProfileUpdateResponse(
                 success=True,
@@ -213,10 +213,10 @@ async def get_user_profile(device_id: str):
     """Get user profile by device ID"""
     try:
         query = """
-            SELECT * FROM iosapp.users WHERE device_id = %s
+            SELECT * FROM iosapp.users WHERE device_id = $1
         """
         
-        result = await db_manager.execute_query(query, (device_id,))
+        result = await db_manager.execute_query(query, device_id)
         
         if not result:
             raise HTTPException(
@@ -294,8 +294,8 @@ async def save_job(device_id: str, save_data: SaveJobRequest):
     """Save a job to user's saved jobs list"""
     try:
         # Get user ID from device ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -308,9 +308,9 @@ async def save_job(device_id: str, save_data: SaveJobRequest):
         # Check if job already saved
         existing_query = """
             SELECT id FROM iosapp.saved_jobs 
-            WHERE user_id = %s AND job_id = %s
+            WHERE user_id = $1 AND job_id = $2
         """
-        existing = await db_manager.execute_query(existing_query, (user_id, save_data.jobId))
+        existing = await db_manager.execute_query(existing_query, user_id, save_data.jobId)
         
         if existing:
             raise HTTPException(
@@ -324,13 +324,13 @@ async def save_job(device_id: str, save_data: SaveJobRequest):
         
         insert_query = """
             INSERT INTO iosapp.saved_jobs (id, user_id, job_id, notes, created_at)
-            VALUES (%s, %s, %s, %s, %s)
+            VALUES ($1, $2, $3, $4, $5)
         """
         
         now = datetime.utcnow()
         await db_manager.execute_query(
             insert_query, 
-            (saved_job_id, user_id, save_data.jobId, save_data.notes, now)
+            saved_job_id, user_id, save_data.jobId, save_data.notes, now
         )
         
         return {
@@ -361,8 +361,8 @@ async def get_saved_jobs(
     """Get user's saved jobs with pagination"""
     try:
         # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -386,18 +386,18 @@ async def get_saved_jobs(
                 j.created_at as posted_date
             FROM iosapp.saved_jobs sj
             LEFT JOIN scraper.jobs_jobpost j ON sj.job_id = j.id
-            WHERE sj.user_id = %s
+            WHERE sj.user_id = $1
             ORDER BY sj.created_at DESC
-            LIMIT %s OFFSET %s
+            LIMIT $2 OFFSET $3
         """
         
         saved_jobs = await db_manager.execute_query(
-            saved_jobs_query, (user_id, limit, offset)
+            saved_jobs_query, user_id, limit, offset
         )
         
         # Get total count
-        count_query = "SELECT COUNT(*) as total FROM iosapp.saved_jobs WHERE user_id = %s"
-        count_result = await db_manager.execute_query(count_query, (user_id,))
+        count_query = "SELECT COUNT(*) as total FROM iosapp.saved_jobs WHERE user_id = $1"
+        count_result = await db_manager.execute_query(count_query, user_id)
         total_saved_jobs = count_result[0]["total"] if count_result else 0
         
         # Format response
@@ -442,8 +442,8 @@ async def remove_saved_job(device_id: str, job_id: int):
     """Remove a job from user's saved jobs"""
     try:
         # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -456,10 +456,10 @@ async def remove_saved_job(device_id: str, job_id: int):
         # Delete the saved job
         delete_query = """
             DELETE FROM iosapp.saved_jobs 
-            WHERE user_id = %s AND job_id = %s
+            WHERE user_id = $1 AND job_id = $2
         """
         
-        result = await db_manager.execute_query(delete_query, (user_id, job_id))
+        result = await db_manager.execute_query(delete_query, user_id, job_id)
         
         return {
             "success": True,
@@ -480,8 +480,8 @@ async def get_user_analytics(device_id: str):
     """Get user-specific analytics and insights"""
     try:
         # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -499,9 +499,9 @@ async def get_user_analytics(device_id: str):
                 years_of_experience,
                 current_job_title
             FROM iosapp.users 
-            WHERE device_id = %s
+            WHERE device_id = $1
         """
-        profile_result = await db_manager.execute_query(profile_query, (device_id,))
+        profile_result = await db_manager.execute_query(profile_query, device_id)
         user_profile = profile_result[0] if profile_result else {}
         
         # Calculate profile strength (based on completeness and skills)
@@ -511,23 +511,23 @@ async def get_user_analytics(device_id: str):
         
         # Get job activity stats
         activity_queries = {
-            "total_jobs_viewed": "SELECT COUNT(*) as count FROM iosapp.job_views WHERE user_id = %s",
-            "total_jobs_saved": "SELECT COUNT(*) as count FROM iosapp.saved_jobs WHERE user_id = %s",
-            "total_applications": "SELECT COUNT(*) as count FROM iosapp.job_applications WHERE user_id = %s"
+            "total_jobs_viewed": "SELECT COUNT(*) as count FROM iosapp.job_views WHERE user_id = $1",
+            "total_jobs_saved": "SELECT COUNT(*) as count FROM iosapp.saved_jobs WHERE user_id = $1",
+            "total_applications": "SELECT COUNT(*) as count FROM iosapp.job_applications WHERE user_id = $1"
         }
         
         activity_stats = {}
         for stat_name, query in activity_queries.items():
-            result = await db_manager.execute_query(query, (user_id,))
+            result = await db_manager.execute_query(query, user_id)
             activity_stats[stat_name] = result[0]["count"] if result else 0
         
         # Get average view time
         avg_view_query = """
             SELECT AVG(view_duration) as avg_duration 
             FROM iosapp.job_views 
-            WHERE user_id = %s AND view_duration > 0
+            WHERE user_id = $1 AND view_duration > 0
         """
-        avg_view_result = await db_manager.execute_query(avg_view_query, (user_id,))
+        avg_view_result = await db_manager.execute_query(avg_view_query, user_id)
         avg_view_time = avg_view_result[0]["avg_duration"] if avg_view_result and avg_view_result[0]["avg_duration"] else 0
         avg_view_time_str = f"{int(avg_view_time / 60)} minutes" if avg_view_time > 60 else f"{int(avg_view_time)} seconds"
         
@@ -538,21 +538,21 @@ async def get_user_analytics(device_id: str):
         last_week_queries = {
             "jobs_viewed": f"""
                 SELECT COUNT(*) as count FROM iosapp.job_views 
-                WHERE user_id = %s AND viewed_at >= '{last_week.isoformat()}'
+                WHERE user_id = $1 AND viewed_at >= '{last_week.isoformat()}'
             """,
             "jobs_saved": f"""
                 SELECT COUNT(*) as count FROM iosapp.saved_jobs 
-                WHERE user_id = %s AND created_at >= '{last_week.isoformat()}'
+                WHERE user_id = $1 AND created_at >= '{last_week.isoformat()}'
             """,
             "applications": f"""
                 SELECT COUNT(*) as count FROM iosapp.job_applications 
-                WHERE user_id = %s AND applied_at >= '{last_week.isoformat()}'
+                WHERE user_id = $1 AND applied_at >= '{last_week.isoformat()}'
             """
         }
         
         last_week_activity = {}
         for stat_name, query in last_week_queries.items():
-            result = await db_manager.execute_query(query, (user_id,))
+            result = await db_manager.execute_query(query, user_id)
             last_week_activity[stat_name] = result[0]["count"] if result else 0
         
         # Get most viewed categories (based on job titles)
@@ -569,12 +569,12 @@ async def get_user_analytics(device_id: str):
                 COUNT(*) as view_count
             FROM iosapp.job_views jv
             JOIN scraper.jobs_jobpost j ON jv.job_id = j.id
-            WHERE jv.user_id = %s
+            WHERE jv.user_id = $1
             GROUP BY category
             ORDER BY view_count DESC
             LIMIT 5
         """
-        categories_result = await db_manager.execute_query(categories_query, (user_id,))
+        categories_result = await db_manager.execute_query(categories_query, user_id)
         most_viewed_categories = [row["category"] for row in categories_result if row["category"] != "Other"]
         
         # Calculate market fit based on skills and activity
@@ -654,8 +654,8 @@ async def track_job_view(device_id: str, view_data: JobViewRequest):
     """Track when a user views a job"""
     try:
         # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -672,13 +672,13 @@ async def track_job_view(device_id: str, view_data: JobViewRequest):
         insert_query = """
             INSERT INTO iosapp.job_views 
             (id, user_id, job_id, view_duration, source, viewed_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES ($1, $2, $3, $4, $5, $6)
         """
         
         await db_manager.execute_query(
             insert_query,
-            (view_id, user_id, view_data.jobId, view_data.viewDuration, 
-             view_data.source, view_data.timestamp)
+            view_id, user_id, view_data.jobId, view_data.viewDuration, 
+             view_data.source, view_data.timestamp
         )
         
         return {
@@ -704,8 +704,8 @@ async def get_application_history(
     """Get user's job application history"""
     try:
         # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = %s"
-        user_result = await db_manager.execute_query(user_query, (device_id,))
+        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if not user_result:
             raise HTTPException(
@@ -729,28 +729,28 @@ async def get_application_history(
                 j.company
             FROM iosapp.job_applications ja
             LEFT JOIN scraper.jobs_jobpost j ON ja.job_id = j.id
-            WHERE ja.user_id = %s
+            WHERE ja.user_id = $1
             ORDER BY ja.applied_at DESC
-            LIMIT %s OFFSET %s
+            LIMIT $2 OFFSET $3
         """
         
         applications = await db_manager.execute_query(
-            applications_query, (user_id, limit, offset)
+            applications_query, user_id, limit, offset
         )
         
         # Get total count
-        count_query = "SELECT COUNT(*) as total FROM iosapp.job_applications WHERE user_id = %s"
-        count_result = await db_manager.execute_query(count_query, (user_id,))
+        count_query = "SELECT COUNT(*) as total FROM iosapp.job_applications WHERE user_id = $1"
+        count_result = await db_manager.execute_query(count_query, user_id)
         total_applications = count_result[0]["total"] if count_result else 0
         
         # Get status counts
         status_query = """
             SELECT status, COUNT(*) as count 
             FROM iosapp.job_applications 
-            WHERE user_id = %s 
+            WHERE user_id = $1 
             GROUP BY status
         """
-        status_result = await db_manager.execute_query(status_query, (user_id,))
+        status_result = await db_manager.execute_query(status_query, user_id)
         status_counts = {row["status"]: row["count"] for row in status_result}
         
         # Format applications data
