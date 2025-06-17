@@ -105,12 +105,15 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
             notifications = profile_data.notificationSettings or {}
             privacy = profile_data.privacySettings or {}
             
+            import json
             params = (
                 personal.firstName, personal.lastName, personal.email, personal.phone,
                 personal.location, personal.currentJobTitle, personal.yearsOfExperience,
                 personal.linkedInProfile, personal.portfolioURL, personal.bio,
-                job_prefs.desiredJobTypes, job_prefs.remoteWorkPreference,
-                job_prefs.skills, job_prefs.preferredLocations,
+                json.dumps(job_prefs.desiredJobTypes) if job_prefs.desiredJobTypes else None,
+                job_prefs.remoteWorkPreference,
+                json.dumps(job_prefs.skills) if job_prefs.skills else None,
+                json.dumps(job_prefs.preferredLocations) if job_prefs.preferredLocations else None,
                 salary_range.minSalary, salary_range.maxSalary, 
                 salary_range.currency or "USD", salary_range.isNegotiable,
                 notifications.jobMatchesEnabled, notifications.applicationRemindersEnabled,
@@ -175,8 +178,10 @@ async def create_or_update_profile(profile_data: UserProfileCreate):
                 personal.firstName, personal.lastName, personal.email, personal.phone,
                 personal.location, personal.currentJobTitle, personal.yearsOfExperience,
                 personal.linkedInProfile, personal.portfolioURL, personal.bio,
-                job_prefs.desiredJobTypes, job_prefs.remoteWorkPreference,
-                job_prefs.skills, job_prefs.preferredLocations,
+                json.dumps(job_prefs.desiredJobTypes) if job_prefs.desiredJobTypes else None,
+                job_prefs.remoteWorkPreference,
+                json.dumps(job_prefs.skills) if job_prefs.skills else None,
+                json.dumps(job_prefs.preferredLocations) if job_prefs.preferredLocations else None,
                 salary_range.minSalary, salary_range.maxSalary,
                 salary_range.currency or "USD", salary_range.isNegotiable,
                 notifications.jobMatchesEnabled, notifications.applicationRemindersEnabled,
@@ -226,6 +231,12 @@ async def get_user_profile(device_id: str):
         
         user = result[0]
         
+        # Deserialize JSON fields
+        import json
+        desired_job_types = json.loads(user["desired_job_types"]) if user["desired_job_types"] else []
+        skills = json.loads(user["skills"]) if user["skills"] else []
+        preferred_locations = json.loads(user["preferred_locations"]) if user["preferred_locations"] else []
+        
         # Build response data
         response_data = {
             "userId": user["id"],
@@ -243,10 +254,10 @@ async def get_user_profile(device_id: str):
                 "bio": user["bio"]
             },
             "jobPreferences": {
-                "desiredJobTypes": user["desired_job_types"],
+                "desiredJobTypes": desired_job_types,
                 "remoteWorkPreference": user["remote_work_preference"],
-                "skills": user["skills"],
-                "preferredLocations": user["preferred_locations"],
+                "skills": skills,
+                "preferredLocations": preferred_locations,
                 "salaryRange": {
                     "minSalary": user["min_salary"],
                     "maxSalary": user["max_salary"],
