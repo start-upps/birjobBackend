@@ -229,9 +229,9 @@ async def get_scheduler_status():
             detail=f"Failed to get scheduler status: {str(e)}"
         )
 
-@router.post("/migrate-user-tables")
-async def migrate_user_tables():
-    """Create user management tables - run once after deployment"""
+@router.post("/create-user-tables")
+async def create_user_tables():
+    """Create user management tables in production database"""
     try:
         # Users table
         users_table = """
@@ -370,7 +370,7 @@ async def migrate_user_tables():
         
         # Execute table creation
         for table_name, sql in tables:
-            await db_manager.execute_query(sql)
+            await db_manager.execute_command(sql)
             created_tables.append(f"iosapp.{table_name}")
         
         # Create indexes
@@ -390,7 +390,7 @@ async def migrate_user_tables():
         
         created_indexes = 0
         for index_sql in indexes:
-            await db_manager.execute_query(index_sql)
+            await db_manager.execute_command(index_sql)
             created_indexes += 1
         
         return {
@@ -406,4 +406,36 @@ async def migrate_user_tables():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user tables: {str(e)}"
+        )
+
+@router.get("/check-user-tables")
+async def check_user_tables():
+    """Check if user management tables exist"""
+    try:
+        # Check if tables exist
+        check_query = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'iosapp' 
+            AND table_name IN ('users', 'saved_jobs', 'job_views', 'job_applications', 'user_analytics')
+        """
+        
+        result = await db_manager.execute_query(check_query)
+        existing_tables = [row['table_name'] for row in result] if result else []
+        
+        required_tables = ['users', 'saved_jobs', 'job_views', 'job_applications', 'user_analytics']
+        missing_tables = [table for table in required_tables if table not in existing_tables]
+        
+        return {
+            "existing_tables": existing_tables,
+            "missing_tables": missing_tables,
+            "all_tables_exist": len(missing_tables) == 0,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking user tables: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check user tables: {str(e)}"
         )
