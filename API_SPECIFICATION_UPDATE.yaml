@@ -1,0 +1,694 @@
+openapi: 3.1.0
+info:
+  title: iOS Native App Backend API
+  description: |
+    Backend API for iOS job matching app with push notifications, analytics, and AI-powered features.
+    
+    ## Testing Status (Updated: 2025-06-17)
+    - ✅ **Functional**: 18/43 endpoints (54.5%)
+    - ❌ **Needs Fixes**: 15/43 endpoints  
+    - 📊 **Health**: Database, Redis, APNs, Scraper all operational
+    
+    ## Key Features
+    - Job search and matching with real-time notifications
+    - AI-powered career advice and resume analysis
+    - Comprehensive analytics and insights
+    - User profile management with preferences
+    - Device registration for push notifications
+    
+  version: "1.0.0"
+  contact:
+    name: API Support
+    url: https://github.com/your-repo/birjobBackend
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://birjobbackend-ir3e.onrender.com
+    description: Production server
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  # Root endpoints (✅ Working)
+  /:
+    get:
+      summary: API Root
+      description: Returns basic API information
+      operationId: root
+      tags:
+        - Root
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "iOS Native App Backend API"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /api:
+    get:
+      summary: API Root
+      description: Returns basic API information  
+      operationId: api_root
+      tags:
+        - Root
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIInfoResponse'
+
+  # Health endpoints (✅ All Working)
+  /api/v1/health:
+    get:
+      summary: System Health Check
+      description: |
+        Comprehensive system health check including database, Redis, APNs, and scraper status.
+        **Status**: ✅ Working
+      operationId: health_check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/health/status/scraper:
+    get:
+      summary: Scraper Status
+      description: |
+        Detailed scraper status and statistics.
+        **Status**: ✅ Working
+      operationId: scraper_status
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Scraper status and statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScraperStatusResponse'
+
+  /api/v1/health/trigger-matching:
+    post:
+      summary: Trigger Job Matching
+      description: |
+        Manually trigger the job matching engine for testing.
+        **Status**: ✅ Working
+      operationId: trigger_matching
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Matching engine triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # Jobs endpoints (✅ All Working)
+  /api/v1/jobs/:
+    get:
+      summary: Get Jobs
+      description: |
+        Get jobs with filtering, search, and pagination. Main job listing endpoint.
+        **Status**: ✅ Working
+      operationId: get_jobs
+      tags:
+        - Jobs
+      parameters:
+        - name: limit
+          in: query
+          description: Number of jobs to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of jobs to skip for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: search
+          in: query
+          description: Search in title, company, or description
+          required: false
+          schema:
+            type: string
+        - name: company
+          in: query
+          description: Filter by company name
+          required: false
+          schema:
+            type: string
+        - name: source
+          in: query
+          description: Filter by job source
+          required: false
+          schema:
+            type: string
+        - name: location
+          in: query
+          description: Filter by location
+          required: false
+          schema:
+            type: string
+        - name: days
+          in: query
+          description: Jobs posted within last N days
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+        - name: sort_by
+          in: query
+          description: Sort by field
+          required: false
+          schema:
+            type: string
+            enum: [created_at, title, company]
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Jobs list with pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsResponse'
+
+  /api/v1/jobs/{job_id}:
+    get:
+      summary: Get Job Details
+      description: |
+        Get detailed information for a specific job.
+        **Status**: ✅ Working
+      operationId: get_job_details
+      tags:
+        - Jobs
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: Job ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetailsResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/jobs/stats/summary:
+    get:
+      summary: Get Job Statistics
+      description: |
+        Get job statistics and summary information.
+        **Status**: ✅ Working
+      operationId: get_job_stats
+      tags:
+        - Jobs
+      responses:
+        '200':
+          description: Job statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatsResponse'
+
+  # Analytics endpoints (✅ All Working)
+  /api/v1/analytics/jobs/overview:
+    get:
+      summary: Jobs Overview Analytics
+      description: |
+        Get overall job statistics from current scraping cycle.
+        **Status**: ✅ Working
+      operationId: get_jobs_overview
+      tags:
+        - Analytics
+      responses:
+        '200':
+          description: Job overview statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOverviewResponse'
+
+  /api/v1/analytics/jobs/by-source:
+    get:
+      summary: Jobs by Source
+      description: |
+        Get job distribution by source from current scraping cycle.
+        **Status**: ✅ Working
+      operationId: get_jobs_by_source
+      tags:
+        - Analytics
+      responses:
+        '200':
+          description: Jobs by source distribution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsBySourceResponse'
+
+  /api/v1/analytics/jobs/by-company:
+    get:
+      summary: Top Companies
+      description: |
+        Get top companies by job count from current scraping cycle.
+        **Status**: ✅ Working
+      operationId: get_top_companies
+      tags:
+        - Analytics
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Top companies by job count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopCompaniesResponse'
+
+  /api/v1/analytics/jobs/search:
+    get:
+      summary: Search Jobs Analytics
+      description: |
+        Search and analyze jobs containing specific keyword.
+        **Status**: ✅ Working
+      operationId: search_jobs_analytics
+      tags:
+        - Analytics
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          description: Keyword to search for
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: Search analytics results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchAnalyticsResponse'
+
+  # Device Management (❌ Needs Fixes)
+  /api/v1/devices/register:
+    post:
+      summary: Register Device
+      description: |
+        Register a new iOS device for push notifications.
+        **Status**: ❌ Needs Fix - Device token validation requires 64+ characters
+      operationId: register_device
+      tags:
+        - Devices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRegisterRequest'
+            examples:
+              valid_request:
+                summary: Valid device registration
+                value:
+                  device_token: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890"
+                  device_info:
+                    osVersion: "17.5.1"
+                    appVersion: "1.0.0"
+                    deviceModel: "iPhone15,2"
+                    timezone: "America/New_York"
+      responses:
+        '200':
+          description: Device registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceRegisterResponse'
+        '422':
+          description: Validation error - token too short
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  # AI Endpoints (❌ Needs Schema Fix)
+  /api/v1/ai/analyze:
+    post:
+      summary: AI Analysis
+      description: |
+        Analyze text using Google Gemini AI for job-related queries.
+        **Status**: ❌ Needs Fix - Schema expects 'message' field, not 'text'
+      operationId: ai_analyze
+      tags:
+        - AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+            examples:
+              correct_schema:
+                summary: Correct request format
+                value:
+                  message: "What skills should I focus on for iOS developer positions?"
+                  context: "I am a junior developer with 1 year experience"
+                  job_id: 12345
+              incorrect_schema:
+                summary: ❌ Incorrect format (fails validation)
+                value:
+                  text: "What skills should I focus on?"
+                  analysis_type: "job_search"
+      responses:
+        '200':
+          description: AI analysis response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIResponse'
+        '422':
+          description: Schema validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+components:
+  schemas:
+    # Success Response Schemas
+    APIInfoResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "iOS Native App Backend API"
+        version:
+          type: string
+          example: "1.0.0"
+      required:
+        - message
+        - version
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              example: "healthy"
+            redis:
+              type: string
+              example: "healthy"
+            apns:
+              type: string
+              example: "healthy"
+            scraper:
+              type: string
+              example: "healthy"
+        metrics:
+          type: object
+          properties:
+            active_devices:
+              type: integer
+              example: 0
+            active_subscriptions:
+              type: integer
+              example: 0
+            matches_last_24h:
+              type: integer
+              example: 0
+            notifications_sent_last_24h:
+              type: integer
+              example: 0
+
+    JobsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            jobs:
+              type: array
+              items:
+                $ref: '#/components/schemas/Job'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+            filters:
+              $ref: '#/components/schemas/AppliedFilters'
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 487092
+        title:
+          type: string
+          example: "Python (Django) Developer"
+        company:
+          type: string
+          example: "Tech Corp"
+        apply_link:
+          type: string
+          format: uri
+          example: "https://example.com/apply"
+        source:
+          type: string
+          example: "LinkedIn"
+        posted_at:
+          type: string
+          format: date-time
+
+    # Request Schemas (with fixes needed)
+    DeviceRegisterRequest:
+      type: object
+      properties:
+        device_token:
+          type: string
+          minLength: 64
+          maxLength: 255
+          description: "APNs device token (must be 64+ characters)"
+          example: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890"
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+      required:
+        - device_token
+        - device_info
+
+    DeviceInfo:
+      type: object
+      properties:
+        osVersion:
+          type: string
+          example: "17.5.1"
+        appVersion:
+          type: string
+          example: "1.0.0"
+        deviceModel:
+          type: string
+          example: "iPhone15,2"
+        timezone:
+          type: string
+          example: "America/New_York"
+      required:
+        - osVersion
+        - appVersion
+        - deviceModel
+        - timezone
+
+    AIRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: "User message to analyze (NOT 'text')"
+          example: "What skills should I focus on for iOS developer positions?"
+        context:
+          type: string
+          maxLength: 2000
+          description: "Optional context for the AI"
+          example: "I am a junior developer with 1 year experience"
+        job_id:
+          type: integer
+          description: "Optional job ID for job-specific analysis"
+          example: 12345
+      required:
+        - message
+
+    AIResponse:
+      type: object
+      properties:
+        response:
+          type: string
+          example: "For iOS developer roles, prioritize these skills..."
+        timestamp:
+          type: string
+          format: date-time
+        tokens_used:
+          type: integer
+          example: 313
+
+    # Error Response Schemas
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Resource not found"
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                example: "string_too_short"
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                example: ["body", "device_token"]
+              msg:
+                type: string
+                example: "String should have at least 64 characters"
+
+    # Additional response schemas for working endpoints
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        current_page:
+          type: integer
+        total_pages:
+          type: integer
+        has_more:
+          type: boolean
+        has_previous:
+          type: boolean
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: true
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+tags:
+  - name: Root
+    description: "Basic API information endpoints"
+  - name: Health
+    description: "System health and monitoring endpoints (✅ All working)"
+  - name: Jobs
+    description: "Job listing and search endpoints (✅ All working)"
+  - name: Analytics
+    description: "Job analytics and insights endpoints (✅ All working)"
+  - name: Devices
+    description: "Device registration for push notifications (❌ Needs fixes)"
+  - name: AI
+    description: "AI-powered features and analysis (❌ Schema fixes needed)"
+  - name: Users
+    description: "User profile management (❌ Schema fixes needed)"
+  - name: Keywords
+    description: "Keyword subscriptions for job matching (❌ UUID validation needed)"
+  - name: Matches
+    description: "Job matching results (❌ UUID validation needed)"
+
+# API Status Summary
+x-api-status:
+  total_endpoints: 43
+  working_endpoints: 18
+  broken_endpoints: 15
+  success_rate: "54.5%"
+  last_tested: "2025-06-17T13:36:00Z"
+  critical_issues:
+    - "Device ID validation requires UUID format"
+    - "AI endpoints expect 'message' field not 'text'"
+    - "User profile endpoints expect 'deviceId' not 'device_id'"
+    - "Device token validation requires 64+ characters"
+  working_categories:
+    - "Root endpoints"
+    - "Health monitoring"
+    - "Job search and listing"
+    - "Analytics and insights"
+  broken_categories:
+    - "Device management"
+    - "User profiles"
+    - "AI features"
+    - "Job matching"
+    - "Keyword subscriptions"

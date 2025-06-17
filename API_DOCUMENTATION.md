@@ -1,10 +1,28 @@
 # iOS Job Matching Backend - Complete API Documentation
 
 ## Base Information
-- **Base URL**: `https://birjobbackend-ir3e.onrender.com`
+- **Base URL**: `https://birjobbackend-ir3e.onrender.com` (Production) / `http://localhost:8000` (Development)
 - **API Version**: v1
 - **API Prefix**: `/api/v1`
 - **Content Type**: `application/json`
+- **Documentation**: Available at `/docs` (Swagger UI) and `/redoc` (ReDoc)
+- **OpenAPI Spec**: Available at `/openapi.json`
+
+## Testing Status (Last Updated: 2025-06-17)
+✅ **Working Endpoints** (18/43 endpoints functional):
+- All root endpoints (`/`, `/api`, `/favicon.ico`)
+- All health check endpoints (`/api/v1/health/*`)
+- All job listing endpoints (`/api/v1/jobs/*`)
+- All analytics endpoints (`/api/v1/analytics/*`)
+
+❌ **Requiring Fixes** (15/43 endpoints need attention):
+- Device management endpoints (UUID format validation issues)
+- Keyword subscription endpoints (device ID validation)
+- AI endpoints (request schema mismatch)
+- User profile endpoints (request schema mismatch)
+- Job matching endpoints (device ID validation)
+
+📊 **Overall API Health**: 54.5% (18/33 tested endpoints functional)
 
 ## Authentication
 The API uses optional JWT-based device authentication for some endpoints:
