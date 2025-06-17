@@ -65,9 +65,9 @@ class NotificationSettings(BaseModel):
     weeklyDigestEnabled: Optional[bool] = False
     marketInsightsEnabled: Optional[bool] = True
     quietHoursEnabled: Optional[bool] = True
-    quietHoursStart: Optional[str] = Field("22:00", regex=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
-    quietHoursEnd: Optional[str] = Field("08:00", regex=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
-    preferredNotificationTime: Optional[str] = Field("09:00", regex=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
+    quietHoursStart: Optional[str] = Field("22:00", pattern=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
+    quietHoursEnd: Optional[str] = Field("08:00", pattern=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
+    preferredNotificationTime: Optional[str] = Field("09:00", pattern=r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
 
 class PrivacySettings(BaseModel):
     profileVisibility: Optional[ProfileVisibility] = ProfileVisibility.PUBLIC
