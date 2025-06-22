@@ -13,6 +13,9 @@ This is a FastAPI backend for an iOS job matching application. The system has **
 3. **Job Database** - Browse all available jobs with search/filtering
 4. **Job Matching** - System finds jobs matching user keywords
 5. **Push Notifications** - Apple Push Notifications when matches found
+6. **User Profile Management** - Complete user profiles with skills, preferences, and saved jobs
+7. **AI-Powered Features** - Job advice, resume review, and personalized recommendations
+8. **Analytics & Insights** - Job market analysis, keyword trends, and user analytics
 
 ## Database Structure
 
@@ -22,6 +25,10 @@ This is a FastAPI backend for an iOS job matching application. The system has **
 - `job_matches` - Jobs that matched user keywords
 - `push_notifications` - Notification delivery tracking
 - `processed_jobs` - Prevents duplicate notifications
+- `user_profiles` - Complete user profiles with skills and preferences
+- `saved_jobs` - User's favorite/saved jobs
+- `job_applications` - Application history tracking
+- `user_analytics` - User activity and engagement metrics
 
 ### Existing Job Data (`scraper` schema)
 - `jobs_jobpost` - 4,427 jobs from 36+ sources (Glorri, Djinni, etc.)
@@ -155,6 +162,158 @@ Mark match as read.
 #### `GET /api/v1/matches/{device_id}/unread-count`
 Get count of unread matches.
 
+### Analytics & Insights
+
+#### `GET /api/v1/analytics/jobs/overview`
+Get overall job market statistics.
+**Response**: Total jobs, recent additions, growth trends, source distribution.
+
+#### `GET /api/v1/analytics/jobs/by-source`
+Get job distribution by source/job board.
+**Response**: Job counts per source with percentages.
+
+#### `GET /api/v1/analytics/jobs/by-company`
+Get top companies by job count.
+**Query Parameters**: `limit` (default 10)
+**Response**: List of companies with job counts.
+
+#### `GET /api/v1/analytics/jobs/current-cycle`
+Get current scraping cycle analysis.
+**Response**: Current cycle status, recent jobs, processing metrics.
+
+#### `GET /api/v1/analytics/jobs/keywords`
+Get popular keywords in job titles.
+**Query Parameters**: `limit` (default 20)
+**Response**: Most frequently used keywords with counts.
+
+#### `GET /api/v1/analytics/jobs/search`
+Search analytics for specific keywords.
+**Query Parameters**: `keyword` (required)
+**Response**: Jobs matching keyword with relevance scores.
+
+### AI-Powered Features
+
+#### `POST /api/v1/ai/analyze`
+General AI analysis endpoint.
+```json
+{
+  "message": "Analyze job market trends for Python developers"
+}
+```
+**Response**: AI-generated analysis and insights.
+
+#### `POST /api/v1/ai/job-advice`
+Get AI-powered job search advice.
+```json
+{
+  "message": "How can I improve my chances as a junior developer?"
+}
+```
+**Response**: Personalized job search recommendations.
+
+#### `POST /api/v1/ai/resume-review`
+AI resume review and improvement suggestions.
+```json
+{
+  "message": "Review my resume: [resume content]"
+}
+```
+**Response**: Resume feedback and improvement suggestions.
+
+#### `POST /api/v1/ai/job-recommendations`
+Get AI job recommendations based on profile.
+```json
+{
+  "message": "Recommend jobs for my Python and React skills"
+}
+```
+**Response**: Personalized job recommendations with explanations.
+
+#### `POST /api/v1/ai/job-match-analysis`
+Analyze job compatibility with user profile.
+```json
+{
+  "message": "How well do I match this job: [job description]"
+}
+```
+**Response**: Compatibility analysis with improvement suggestions.
+
+### User Profile Management
+
+#### `POST /api/v1/users/profile`
+Create or update user profile.
+```json
+{
+  "deviceId": "uuid-from-registration",
+  "profile": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "skills": ["Python", "React", "Node.js"],
+    "experience": "3-5 years",
+    "location": "Baku, Azerbaijan",
+    "resume_url": "https://...",
+    "preferences": {
+      "remote_work": true,
+      "salary_min": 2000,
+      "job_types": ["full-time", "contract"]
+    }
+  }
+}
+```
+**Response**: Created profile with ID and confirmation.
+
+#### `GET /api/v1/users/profile/{device_id}`
+Get user profile by device ID.
+**Response**: Complete user profile with all saved data.
+
+#### `POST /api/v1/users/{device_id}/saved-jobs`
+Save a job to user's favorites.
+```json
+{
+  "job_id": 123456
+}
+```
+**Response**: Confirmation of saved job.
+
+#### `GET /api/v1/users/{device_id}/saved-jobs`
+Get user's saved/favorite jobs.
+**Query Parameters**: `limit`, `offset`
+**Response**: List of saved jobs with details.
+
+#### `DELETE /api/v1/users/{device_id}/saved-jobs/{job_id}`
+Remove job from saved list.
+**Response**: Confirmation of removal.
+
+#### `GET /api/v1/users/{device_id}/analytics`
+Get user analytics and activity insights.
+**Response**: User activity stats, application history, match performance.
+
+#### `POST /api/v1/users/{device_id}/job-views`
+Track job view for analytics.
+```json
+{
+  "job_id": 123456,
+  "view_duration": 30,
+  "source": "search"
+}
+```
+**Response**: View recorded confirmation.
+
+#### `GET /api/v1/users/{device_id}/applications`
+Get user's job application history.
+**Query Parameters**: `limit`, `offset`, `status`
+**Response**: List of job applications with status tracking.
+
+#### `POST /api/v1/users/profile/sync`
+Sync user profile between devices.
+```json
+{
+  "primary_device_id": "uuid1",
+  "secondary_device_id": "uuid2"
+}
+```
+**Response**: Profile synchronization confirmation.
+
 ### Health & Monitoring
 
 #### `GET /api/v1/health`
@@ -180,6 +339,23 @@ System health check.
 
 #### `GET /api/v1/health/status/scraper`
 Detailed scraper statistics.
+**Response**: Scraper performance metrics, recent activity, source status.
+
+#### `POST /api/v1/health/trigger-matching`
+Manually trigger the job matching engine.
+**Response**: Matching process initiated confirmation.
+
+#### `GET /api/v1/health/scheduler-status`
+Get background scheduler status.
+**Response**: Scheduler health, next runs, recent activity.
+
+#### `POST /api/v1/health/create-user-tables`
+Create user management database tables (production setup).
+**Response**: Table creation status and results.
+
+#### `GET /api/v1/health/check-user-tables`
+Check if user management tables exist.
+**Response**: Table existence status for each required table.
 
 ### Root Endpoint
 
@@ -264,10 +440,14 @@ APNS_SANDBOX=true
 
 ### Typical User Flow:
 1. **Register Device**: `POST /api/v1/devices/register`
-2. **Subscribe to Keywords**: `POST /api/v1/keywords`  
-3. **Browse Jobs**: `GET /api/v1/jobs/` (for main job feed)
-4. **View Matches**: `GET /api/v1/matches/{device_id}` (personalized matches)
-5. **Handle Push Notifications**: Deep link to job details
+2. **Create Profile**: `POST /api/v1/users/profile` (skills, preferences, experience)
+3. **Subscribe to Keywords**: `POST /api/v1/keywords`  
+4. **Browse Jobs**: `GET /api/v1/jobs/` (for main job feed)
+5. **View Matches**: `GET /api/v1/matches/{device_id}` (personalized matches)
+6. **Save Jobs**: `POST /api/v1/users/{device_id}/saved-jobs`
+7. **Get AI Advice**: `POST /api/v1/ai/job-advice` or `POST /api/v1/ai/resume-review`
+8. **Track Applications**: `GET /api/v1/users/{device_id}/applications`
+9. **Handle Push Notifications**: Deep link to job details
 
 ### Deep Linking:
 - `birjob://job/{job_id}` - Open specific job

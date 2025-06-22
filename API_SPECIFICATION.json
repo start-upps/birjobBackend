@@ -103,6 +103,42 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"},
+                "example": {
+                  "detail": "Invalid email format"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ValidationError"},
+                "example": {
+                  "detail": [
+                    {
+                      "loc": ["deviceId"],
+                      "msg": "field required",
+                      "type": "value_error.missing"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
+              }
+            }
           }
         }
       }
@@ -141,6 +177,25 @@
                     "lastUpdated": "2025-06-17T12:00:00Z"
                   }
                 }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile not found",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"},
+                "example": {
+                  "detail": "Profile not found for device ID"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
               }
             }
           }
@@ -200,6 +255,30 @@
                     "totalRecommendations": 45
                   }
                 }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
+              }
+            }
+          },
+          "404": {
+            "description": "User profile not found",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
+              }
+            }
+          },
+          "503": {
+            "description": "AI service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
               }
             }
           }
@@ -487,6 +566,98 @@
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/profile/{device_id}": {
+      "delete": {
+        "summary": "Delete user profile and all associated data",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile deleted successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Profile and all associated data deleted successfully",
+                  "data": {
+                    "deletedAt": "2025-06-17T12:00:00Z",
+                    "itemsDeleted": {
+                      "profile": true,
+                      "savedJobs": 15,
+                      "applications": 8,
+                      "analytics": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile not found",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/saved-jobs/{saved_job_id}": {
+      "delete": {
+        "summary": "Remove a saved job",
+        "parameters": [
+          {
+            "name": "saved_job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved job removed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Saved job removed successfully",
+                  "data": {
+                    "removedAt": "2025-06-17T12:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Saved job not found",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"}
               }
             }
           }
@@ -1174,6 +1345,135 @@
         }
       }
     },
+    "/api/v1/health/detailed": {
+      "get": {
+        "summary": "Detailed system health diagnostics",
+        "responses": {
+          "200": {
+            "description": "Detailed health diagnostics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "healthy",
+                  "timestamp": "2025-06-15T16:19:10.270931+00:00",
+                  "services": {
+                    "database": {
+                      "status": "healthy",
+                      "response_time_ms": 45,
+                      "connection_pool": {
+                        "active": 5,
+                        "idle": 10,
+                        "max": 20
+                      }
+                    },
+                    "redis": {
+                      "status": "healthy",
+                      "response_time_ms": 12,
+                      "memory_usage": "128MB",
+                      "connected_clients": 3
+                    },
+                    "apns": {
+                      "status": "healthy",
+                      "certificate_valid": true,
+                      "certificate_expires": "2025-12-31T23:59:59Z"
+                    },
+                    "scraper": {
+                      "status": "healthy",
+                      "last_run": "2025-06-15T15:25:34Z",
+                      "next_run": "2025-06-15T19:25:34Z"
+                    }
+                  },
+                  "system_metrics": {
+                    "cpu_usage": 45.2,
+                    "memory_usage": 68.8,
+                    "disk_usage": 32.1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/users/activity": {
+      "get": {
+        "summary": "Get user activity analytics across the platform",
+        "responses": {
+          "200": {
+            "description": "User activity analytics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "activeUsers": {
+                      "last24h": 45,
+                      "last7days": 156,
+                      "last30days": 423
+                    },
+                    "deviceRegistrations": {
+                      "total": 1247,
+                      "new_last24h": 12,
+                      "new_last7days": 45
+                    },
+                    "userEngagement": {
+                      "avgSessionDuration": "8.5 minutes",
+                      "avgJobsViewedPerSession": 12.3,
+                      "avgJobsSavedPerSession": 2.1
+                    },
+                    "profileCompleteness": {
+                      "avg": 78.5,
+                      "high_completeness": 234,
+                      "medium_completeness": 156,
+                      "low_completeness": 89
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/platform/performance": {
+      "get": {
+        "summary": "Get platform performance metrics",
+        "responses": {
+          "200": {
+            "description": "Platform performance metrics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "api_performance": {
+                      "avg_response_time_ms": 145,
+                      "requests_per_minute": 234,
+                      "error_rate": 0.02
+                    },
+                    "matching_engine": {
+                      "avg_matches_per_cycle": 1247,
+                      "avg_processing_time_seconds": 12.5,
+                      "last_cycle_matches": 1156
+                    },
+                    "notification_delivery": {
+                      "sent_last24h": 423,
+                      "delivered_last24h": 401,
+                      "delivery_rate": 94.8
+                    },
+                    "scraper_performance": {
+                      "jobs_scraped_last_cycle": 4353,
+                      "sources_active": 35,
+                      "avg_cycle_duration_minutes": 45
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analytics/jobs/overview": {
       "get": {
         "summary": "Get overall job statistics from current scraping cycle",
@@ -1542,6 +1842,158 @@
           }
         }
       }
+    },
+    "/api/v1/ai/salary-insights": {
+      "post": {
+        "summary": "AI-powered salary insights and negotiation advice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {"type": "string"},
+                  "jobTitle": {"type": "string"},
+                  "location": {"type": "string"},
+                  "experience": {"type": "string"},
+                  "skills": {"type": "array", "items": {"type": "string"}},
+                  "currentSalary": {"type": "integer", "description": "Optional current salary"}
+                },
+                "required": ["deviceId", "jobTitle", "location", "experience"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Salary insights and recommendations",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "salaryRange": {
+                      "min": 120000,
+                      "max": 180000,
+                      "median": 150000,
+                      "currency": "USD"
+                    },
+                    "insights": {
+                      "marketPosition": "competitive",
+                      "growthPotential": "high",
+                      "demandLevel": "high"
+                    },
+                    "negotiationTips": [
+                      "Highlight your iOS expertise and published apps",
+                      "Emphasize experience with latest Swift features",
+                      "Mention any leadership or mentoring experience"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/preferences/{device_id}": {
+      "get": {
+        "summary": "Get user notification and privacy preferences",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User preferences",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "notificationSettings": {
+                      "jobMatchesEnabled": true,
+                      "applicationRemindersEnabled": true,
+                      "weeklyDigestEnabled": false,
+                      "quietHoursEnabled": true,
+                      "quietHoursStart": "22:00",
+                      "quietHoursEnd": "08:00"
+                    },
+                    "privacySettings": {
+                      "profileVisibility": "Private",
+                      "shareAnalytics": false,
+                      "allowPersonalizedRecommendations": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update user notification and privacy preferences",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "notificationSettings": {
+                    "type": "object",
+                    "properties": {
+                      "jobMatchesEnabled": {"type": "boolean"},
+                      "applicationRemindersEnabled": {"type": "boolean"},
+                      "weeklyDigestEnabled": {"type": "boolean"},
+                      "quietHoursEnabled": {"type": "boolean"},
+                      "quietHoursStart": {"type": "string"},
+                      "quietHoursEnd": {"type": "string"}
+                    }
+                  },
+                  "privacySettings": {
+                    "type": "object",
+                    "properties": {
+                      "profileVisibility": {"type": "string", "enum": ["Public", "Private"]},
+                      "shareAnalytics": {"type": "boolean"},
+                      "allowPersonalizedRecommendations": {"type": "boolean"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preferences updated successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Preferences updated successfully",
+                  "data": {
+                    "updatedAt": "2025-06-17T12:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1693,6 +2145,57 @@
           }
         },
         "required": ["response", "timestamp"]
+      },
+      "ValidationError": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "loc": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {"type": "string"},
+                      {"type": "integer"}
+                    ]
+                  },
+                  "description": "Location of the error"
+                },
+                "msg": {
+                  "type": "string",
+                  "description": "Error message"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Error type"
+                }
+              },
+              "required": ["loc", "msg", "type"]
+            }
+          }
+        },
+        "required": ["detail"]
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "data": {
+            "type": "object",
+            "description": "Response data"
+          }
+        },
+        "required": ["success"]
       }
     }
   },
