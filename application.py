@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import asyncio
 import logging
@@ -66,7 +64,7 @@ setup_monitoring(app)
 setup_security_headers(app)
 
 # Mount static files
-app.mount("/1", StaticFiles(directory="1"), name="icons")
+# app.mount("/1", StaticFiles(directory="1"), name="icons")  # Removed as directory doesn't exist
 
 # Include routers
 app.include_router(api_router, prefix="/api/v1")
@@ -79,12 +77,7 @@ async def root():
 @app.get("/favicon.ico")
 async def favicon():
     """Serve favicon at standard location"""
-    import os
-    favicon_path = os.path.join("1", "web", "favicon.ico")
-    if os.path.exists(favicon_path):
-        return FileResponse(favicon_path, media_type="image/x-icon")
-    else:
-        raise HTTPException(status_code=404, detail="Favicon not found")
+    raise HTTPException(status_code=404, detail="Favicon not found")
 
 @app.get("/api")
 async def api_root():

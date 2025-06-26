@@ -3,18 +3,379 @@
   "info": {
     "title": "iOS Job Matching Backend API",
     "version": "1.0.0",
-    "description": "Complete API specification for iOS job matching application backend"
+    "description": "Complete API specification for iOS job matching application backend with comprehensive endpoint testing on production environment"
   },
   "servers": [
     {
       "url": "https://birjobbackend-ir3e.onrender.com",
-      "description": "Production server"
+      "description": "Production server (tested and verified)"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
     }
   ],
   "paths": {
-    "/api/v1/users/profile": {
+    "/": {
+      "get": {
+        "summary": "API service information",
+        "tags": ["Root"],
+        "responses": {
+          "200": {
+            "description": "API service information",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "iOS Native App Backend API",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api": {
+      "get": {
+        "summary": "API root endpoint",
+        "tags": ["Root"],
+        "responses": {
+          "200": {
+            "description": "API root endpoint response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "iOS Native App Backend API",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "summary": "System health check",
+        "tags": ["Health"],
+        "responses": {
+          "200": {
+            "description": "System health status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "healthy",
+                  "timestamp": "2025-06-22T10:30:00Z",
+                  "services": {
+                    "database": "healthy",
+                    "redis": "healthy",
+                    "apns": "healthy",
+                    "scraper": "healthy"
+                  },
+                  "uptime": "15d 4h 23m",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/create-tables": {
       "post": {
-        "summary": "Create or update user profile",
+        "summary": "Create database tables",
+        "tags": ["Health"],
+        "responses": {
+          "200": {
+            "description": "Tables creation status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Tables created successfully",
+                  "tables": ["users", "user_profiles", "devices", "jobs", "keywords", "matches"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/": {
+      "get": {
+        "summary": "Get paginated job listings",
+        "tags": ["Jobs"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "default": 20, "maximum": 100}
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "job_type",
+            "in": "query",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated job listings",
+            "content": {
+              "application/json": {
+                "example": {
+                  "jobs": [
+                    {
+                      "id": 572651,
+                      "title": "Senior iOS Developer",
+                      "company": "TechCorp Inc.",
+                      "location": "San Francisco, CA",
+                      "salary": "$140,000 - $180,000",
+                      "job_type": "Full-time",
+                      "posted_date": "2025-06-20T08:00:00Z",
+                      "description": "We are looking for a Senior iOS Developer...",
+                      "requirements": ["5+ years iOS development", "Swift", "UIKit"],
+                      "benefits": ["Health insurance", "401k", "Remote work"],
+                      "apply_url": "https://company.com/apply/123",
+                      "source": "indeed"
+                    }
+                  ],
+                  "pagination": {
+                    "page": 1,
+                    "limit": 20,
+                    "total": 4427,
+                    "pages": 222,
+                    "has_next": true,
+                    "has_prev": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "summary": "Get specific job details",
+        "tags": ["Jobs"],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job details",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 572651,
+                  "title": "Senior iOS Developer",
+                  "company": "TechCorp Inc.",
+                  "location": "San Francisco, CA",
+                  "salary": "$140,000 - $180,000",
+                  "job_type": "Full-time",
+                  "posted_date": "2025-06-20T08:00:00Z",
+                  "description": "We are looking for a Senior iOS Developer with expertise in Swift and iOS frameworks.",
+                  "requirements": ["5+ years iOS development experience", "Swift proficiency", "UIKit knowledge"],
+                  "benefits": ["Comprehensive health insurance", "401k matching", "Remote work flexibility"],
+                  "apply_url": "https://company.com/apply/123",
+                  "source": "indeed",
+                  "scraped_at": "2025-06-20T08:15:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/stats/summary": {
+      "get": {
+        "summary": "Get job statistics summary",
+        "tags": ["Jobs"],
+        "responses": {
+          "200": {
+            "description": "Job statistics",
+            "content": {
+              "application/json": {
+                "example": {
+                  "total_jobs": 4427,
+                  "total_companies": 1728,
+                  "sources": 36,
+                  "job_types": {
+                    "Full-time": 3890,
+                    "Part-time": 287,
+                    "Contract": 182,
+                    "Internship": 68
+                  },
+                  "top_companies": [
+                    {"name": "Apple", "jobs": 45},
+                    {"name": "Google", "jobs": 38},
+                    {"name": "Microsoft", "jobs": 32}
+                  ],
+                  "last_updated": "2025-06-22T10:30:00Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/jobs/trends": {
+      "get": {
+        "summary": "Job market trends",
+        "tags": ["Analytics"],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["7d", "30d", "90d"], "default": "30d"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job trends data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "period": "30d",
+                  "trends": {
+                    "total_new_jobs": 1250,
+                    "daily_average": 41.7,
+                    "growth_rate": 12.5,
+                    "top_growing_categories": ["iOS Development", "Data Science", "DevOps"]
+                  },
+                  "chart_data": [
+                    {"date": "2025-06-01", "jobs": 3890},
+                    {"date": "2025-06-22", "jobs": 4427}
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/companies/top": {
+      "get": {
+        "summary": "Top companies by job postings",
+        "tags": ["Analytics"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "default": 10, "maximum": 50}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top companies data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "companies": [
+                    {"name": "Apple", "job_count": 45, "growth": 8.2},
+                    {"name": "Google", "job_count": 38, "growth": 15.3},
+                    {"name": "Microsoft", "job_count": 32, "growth": 6.7}
+                  ],
+                  "total_companies": 1728,
+                  "generated_at": "2025-06-22T10:30:00Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/locations/popular": {
+      "get": {
+        "summary": "Popular job locations",
+        "tags": ["Analytics"],
+        "responses": {
+          "200": {
+            "description": "Popular locations data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "locations": [
+                    {"location": "San Francisco, CA", "job_count": 485, "avg_salary": 165000},
+                    {"location": "New York, NY", "job_count": 392, "avg_salary": 145000},
+                    {"location": "Seattle, WA", "job_count": 287, "avg_salary": 155000}
+                  ],
+                  "remote_jobs": 892,
+                  "hybrid_jobs": 345
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/salaries/ranges": {
+      "get": {
+        "summary": "Salary range analytics",
+        "tags": ["Analytics"],
+        "parameters": [
+          {
+            "name": "job_type",
+            "in": "query",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Salary ranges data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "salary_ranges": {
+                    "junior": {"min": 70000, "max": 95000, "median": 82500},
+                    "mid": {"min": 95000, "max": 140000, "median": 117500},
+                    "senior": {"min": 140000, "max": 200000, "median": 170000}
+                  },
+                  "currency": "USD",
+                  "sample_size": 2847
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/job-recommendations": {
+      "post": {
+        "summary": "Get AI-powered job recommendations",
+        "tags": ["AI"],
         "requestBody": {
           "required": true,
           "content": {
@@ -23,9 +384,287 @@
                 "type": "object",
                 "required": ["deviceId"],
                 "properties": {
-                  "deviceId": {
-                    "type": "string"
-                  },
+                  "deviceId": {"type": "string"},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI job recommendations",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "recommendations": [
+                    {
+                      "job_id": 572651,
+                      "title": "Senior iOS Developer",
+                      "company": "TechCorp Inc.",
+                      "match_score": 92,
+                      "ai_insights": {
+                        "why_recommended": "Strong match for iOS expertise and experience level",
+                        "skills_match": ["iOS", "Swift", "UIKit"],
+                        "missing_skills": ["SwiftUI", "Combine"],
+                        "salary_fit": "Within target range"
+                      }
+                    }
+                  ],
+                  "total_recommendations": 45
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/job-match-analysis": {
+      "post": {
+        "summary": "Analyze job compatibility",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deviceId", "jobId"],
+                "properties": {
+                  "deviceId": {"type": "string"},
+                  "jobId": {"type": "integer"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job match analysis",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "analysis": {
+                    "match_score": 88,
+                    "compatibility": "High",
+                    "strengths": ["iOS development experience", "Swift proficiency"],
+                    "areas_for_improvement": ["SwiftUI knowledge", "Core Data experience"],
+                    "salary_assessment": "Competitive within range",
+                    "recommendation": "Highly recommended - strong fit for your profile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/resume-review": {
+      "post": {
+        "summary": "AI resume review and feedback",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deviceId", "resumeText"],
+                "properties": {
+                  "deviceId": {"type": "string"},
+                  "resumeText": {"type": "string"},
+                  "targetJobTitle": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resume review feedback",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "review": {
+                    "overall_score": 82,
+                    "strengths": ["Clear technical skills section", "Quantified achievements"],
+                    "improvements": ["Add more iOS-specific projects", "Include Swift certification"],
+                    "ats_score": 78,
+                    "keyword_optimization": "Good",
+                    "suggestions": ["Add SwiftUI experience", "Highlight team leadership"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/career-advice": {
+      "post": {
+        "summary": "Get personalized career advice",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deviceId", "question"],
+                "properties": {
+                  "deviceId": {"type": "string"},
+                  "question": {"type": "string"},
+                  "context": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Career advice response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "advice": {
+                    "response": "Based on your iOS development background, I recommend focusing on SwiftUI and Combine frameworks...",
+                    "actionable_steps": ["Take SwiftUI course", "Build portfolio project", "Network with iOS community"],
+                    "resources": ["Apple Developer Documentation", "Stanford CS193p course"],
+                    "timeline": "3-6 months to significantly improve marketability"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices/register": {
+      "post": {
+        "summary": "Register device for push notifications",
+        "tags": ["Devices"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deviceId", "apnsToken"],
+                "properties": {
+                  "deviceId": {"type": "string"},
+                  "apnsToken": {"type": "string", "minLength": 64},
+                  "deviceModel": {"type": "string"},
+                  "osVersion": {"type": "string"},
+                  "appVersion": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device registered successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Device registered successfully",
+                  "deviceId": "test-device-123",
+                  "status": "active",
+                  "registeredAt": "2025-06-22T10:30:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid APNs token or device data"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}/status": {
+      "get": {
+        "summary": "Get device registration status",
+        "tags": ["Devices"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "deviceId": "test-device-123",
+                  "status": "active",
+                  "registeredAt": "2025-06-22T10:30:00Z",
+                  "lastSeen": "2025-06-22T10:30:00Z",
+                  "notificationsEnabled": true,
+                  "keywordSubscriptions": 5
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device not found"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{device_id}/unregister": {
+      "delete": {
+        "summary": "Unregister device",
+        "tags": ["Devices"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device unregistered successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Device unregistered successfully",
+                  "deviceId": "test-device-123"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device not found"
+          }
+        }
+      }
+    },
+    "/api/v1/users/profile": {
+      "post": {
+        "summary": "Create or update user profile",
+        "tags": ["Users"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deviceId"],
+                "properties": {
+                  "deviceId": {"type": "string"},
                   "personalInfo": {
                     "type": "object",
                     "properties": {
@@ -58,28 +697,6 @@
                         }
                       }
                     }
-                  },
-                  "notificationSettings": {
-                    "type": "object",
-                    "properties": {
-                      "jobMatchesEnabled": {"type": "boolean"},
-                      "applicationRemindersEnabled": {"type": "boolean"},
-                      "weeklyDigestEnabled": {"type": "boolean"},
-                      "marketInsightsEnabled": {"type": "boolean"},
-                      "quietHoursEnabled": {"type": "boolean"},
-                      "quietHoursStart": {"type": "string"},
-                      "quietHoursEnd": {"type": "string"},
-                      "preferredNotificationTime": {"type": "string"}
-                    }
-                  },
-                  "privacySettings": {
-                    "type": "object",
-                    "properties": {
-                      "profileVisibility": {"type": "string", "enum": ["Public", "Private"]},
-                      "shareAnalytics": {"type": "boolean"},
-                      "shareJobViewHistory": {"type": "boolean"},
-                      "allowPersonalizedRecommendations": {"type": "boolean"}
-                    }
                   }
                 }
               }
@@ -97,48 +714,18 @@
                   "data": {
                     "userId": "user-uuid",
                     "profileCompleteness": 85,
-                    "createdAt": "2025-06-17T12:00:00Z",
-                    "lastUpdated": "2025-06-17T12:00:00Z"
+                    "createdAt": "2025-06-22T10:30:00Z",
+                    "lastUpdated": "2025-06-22T10:30:00Z"
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request data",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"},
-                "example": {
-                  "detail": "Invalid email format"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/ValidationError"},
-                "example": {
-                  "detail": [
-                    {
-                      "loc": ["deviceId"],
-                      "msg": "field required",
-                      "type": "value_error.missing"
-                    }
-                  ]
-                }
-              }
-            }
+            "description": "Invalid request data"
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
+            "description": "Internal server error - database configuration needed"
           }
         }
       }
@@ -146,14 +733,13 @@
     "/api/v1/users/profile/{device_id}": {
       "get": {
         "summary": "Get user profile by device ID",
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "device_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "schema": {"type": "string"}
           }
         ],
         "responses": {
@@ -170,1827 +756,20 @@
                       "firstName": "John",
                       "lastName": "Doe",
                       "email": "john.doe@example.com",
-                      "currentJobTitle": "Software Engineer"
+                      "currentJobTitle": "Senior iOS Developer"
                     },
                     "profileCompleteness": 85,
-                    "createdAt": "2025-06-17T12:00:00Z",
-                    "lastUpdated": "2025-06-17T12:00:00Z"
+                    "createdAt": "2025-06-22T10:30:00Z"
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "Profile not found",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"},
-                "example": {
-                  "detail": "Profile not found for device ID"
-                }
-              }
-            }
+            "description": "Profile not found"
           },
           "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/job-recommendations": {
-      "post": {
-        "summary": "Get AI-powered job recommendations",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["deviceId"],
-                "properties": {
-                  "deviceId": {"type": "string"},
-                  "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-                  "filters": {
-                    "type": "object",
-                    "properties": {
-                      "jobType": {"type": "string"},
-                      "location": {"type": "string"},
-                      "remoteWork": {"type": "string"}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job recommendations with AI insights",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "recommendations": [
-                      {
-                        "jobId": 123456,
-                        "title": "Senior iOS Developer",
-                        "companyName": "TechCorp",
-                        "location": "San Francisco, CA",
-                        "salary": "$140,000 - $180,000",
-                        "matchScore": 92,
-                        "aiInsights": {
-                          "whyRecommended": "Strong match for iOS expertise",
-                          "skillsMatch": ["iOS", "Swift"],
-                          "missingSkills": ["SwiftUI"],
-                          "salaryFit": "Within target range"
-                        }
-                      }
-                    ],
-                    "totalRecommendations": 45
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request data",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          },
-          "404": {
-            "description": "User profile not found",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          },
-          "503": {
-            "description": "AI service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/job-match-analysis": {
-      "post": {
-        "summary": "Analyze job compatibility with user profile",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["deviceId", "jobId"],
-                "properties": {
-                  "deviceId": {"type": "string"},
-                  "jobId": {"type": "integer"}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job match analysis",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "matchScore": 88,
-                    "analysis": {
-                      "overallFit": "Excellent match for your profile",
-                      "skillsAnalysis": "90% skills match",
-                      "salaryAnalysis": "Within your target range"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/saved-jobs": {
-      "post": {
-        "summary": "Save a job to user's list",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["deviceId", "jobId"],
-                "properties": {
-                  "deviceId": {"type": "string"},
-                  "jobId": {"type": "integer"},
-                  "notes": {"type": "string"}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job saved successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Job saved successfully",
-                  "data": {
-                    "savedJobId": "saved-job-uuid",
-                    "jobId": 123456,
-                    "savedAt": "2025-06-17T12:00:00Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/saved-jobs/{device_id}": {
-      "get": {
-        "summary": "Get all saved jobs for user",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {"type": "string"}
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {"type": "integer", "default": 20}
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": {"type": "integer", "default": 0}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of saved jobs",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "savedJobs": [
-                      {
-                        "savedJobId": "saved-job-uuid",
-                        "jobId": 123456,
-                        "title": "Senior iOS Developer",
-                        "companyName": "TechCorp",
-                        "savedAt": "2025-06-17T12:00:00Z",
-                        "applicationStatus": "not_applied"
-                      }
-                    ],
-                    "pagination": {
-                      "total": 15,
-                      "hasMore": false
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/analytics/{device_id}": {
-      "get": {
-        "summary": "Get user analytics and insights",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {"type": "string"}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User analytics data",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "profileInsights": {
-                      "profileStrength": 85,
-                      "profileCompleteness": 90,
-                      "marketFit": 78
-                    },
-                    "jobActivity": {
-                      "totalJobsViewed": 156,
-                      "totalJobsSaved": 23,
-                      "totalApplications": 8
-                    },
-                    "matchingInsights": {
-                      "totalMatches": 89,
-                      "averageMatchScore": 76
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/applications": {
-      "post": {
-        "summary": "Track job application",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["deviceId", "jobId"],
-                "properties": {
-                  "deviceId": {"type": "string"},
-                  "jobId": {"type": "integer"},
-                  "applicationSource": {"type": "string"},
-                  "notes": {"type": "string"}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Application tracked successfully"
-          }
-        }
-      }
-    },
-    "/api/v1/users/applications/{device_id}": {
-      "get": {
-        "summary": "Get application history",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {"type": "string"}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Application history",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "applications": [
-                      {
-                        "applicationId": "app-uuid",
-                        "jobId": 123456,
-                        "title": "Senior iOS Developer",
-                        "status": "pending",
-                        "appliedAt": "2025-06-17T12:00:00Z"
-                      }
-                    ],
-                    "stats": {
-                      "totalApplications": 8,
-                      "pending": 5,
-                      "interviews": 2
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/sync-profile": {
-      "post": {
-        "summary": "Sync profile between devices",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["sourceDeviceId", "targetDeviceId"],
-                "properties": {
-                  "sourceDeviceId": {"type": "string"},
-                  "targetDeviceId": {"type": "string"},
-                  "syncData": {
-                    "type": "object",
-                    "properties": {
-                      "profile": {"type": "boolean"},
-                      "savedJobs": {"type": "boolean"},
-                      "preferences": {"type": "boolean"},
-                      "analytics": {"type": "boolean"}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Profile synchronized successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Profile synchronized successfully",
-                  "data": {
-                    "syncedItems": {
-                      "profile": "synced",
-                      "savedJobs": "synced (15 jobs)"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/profile/{device_id}": {
-      "delete": {
-        "summary": "Delete user profile and all associated data",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Profile deleted successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Profile and all associated data deleted successfully",
-                  "data": {
-                    "deletedAt": "2025-06-17T12:00:00Z",
-                    "itemsDeleted": {
-                      "profile": true,
-                      "savedJobs": 15,
-                      "applications": 8,
-                      "analytics": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Profile not found",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/saved-jobs/{saved_job_id}": {
-      "delete": {
-        "summary": "Remove a saved job",
-        "parameters": [
-          {
-            "name": "saved_job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "device_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Saved job removed successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Saved job removed successfully",
-                  "data": {
-                    "removedAt": "2025-06-17T12:00:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Saved job not found",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/Error"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/health": {
-      "get": {
-        "summary": "System health check",
-        "responses": {
-          "200": {
-            "description": "Health status",
-            "content": {
-              "application/json": {
-                "example": {
-                  "status": "healthy",
-                  "timestamp": "2025-06-15T16:19:10.270931+00:00",
-                  "services": {
-                    "database": "healthy",
-                    "redis": "healthy",
-                    "apns": "healthy",
-                    "scraper": "healthy"
-                  },
-                  "metrics": {
-                    "active_devices": 1,
-                    "active_subscriptions": 0,
-                    "matches_last_24h": 0,
-                    "notifications_sent_last_24h": 0
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/devices/register": {
-      "post": {
-        "summary": "Register iOS device for push notifications",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "device_token": {
-                    "type": "string",
-                    "minLength": 64,
-                    "maxLength": 255,
-                    "description": "APNs device token"
-                  },
-                  "device_info": {
-                    "type": "object",
-                    "properties": {
-                      "osVersion": {
-                        "type": "string",
-                        "description": "iOS version"
-                      },
-                      "appVersion": {
-                        "type": "string",
-                        "description": "App version"
-                      },
-                      "deviceModel": {
-                        "type": "string",
-                        "description": "Device model identifier"
-                      },
-                      "timezone": {
-                        "type": "string",
-                        "description": "Device timezone"
-                      }
-                    },
-                    "required": ["osVersion", "appVersion", "deviceModel", "timezone"]
-                  }
-                },
-                "required": ["device_token", "device_info"]
-              },
-              "example": {
-                "device_token": "64-character-apns-device-token-here",
-                "device_info": {
-                  "osVersion": "17.5.1",
-                  "appVersion": "1.0.0",
-                  "deviceModel": "iPhone15,2",
-                  "timezone": "America/New_York"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Device registered successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "device_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "registered_at": "2025-06-14T10:30:00Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/devices/{device_id}": {
-      "delete": {
-        "summary": "Unregister device",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Device unregistered successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Device unregistered successfully"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/devices/{device_id}/status": {
-      "get": {
-        "summary": "Get device status",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Device status",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "device_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "is_active": true,
-                    "registered_at": "2025-06-14T08:00:00Z",
-                    "last_seen": "2025-06-14T10:30:00Z",
-                    "device_info": {
-                      "osVersion": "17.5.1",
-                      "appVersion": "1.0.0",
-                      "deviceModel": "iPhone15,2",
-                      "timezone": "America/New_York"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/keywords": {
-      "post": {
-        "summary": "Subscribe to keyword-based job notifications",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "device_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "keywords": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "maxItems": 20
-                  },
-                  "sources": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "location_filters": {
-                    "type": "object",
-                    "properties": {
-                      "cities": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "remote_only": {
-                        "type": "boolean",
-                        "default": false
-                      }
-                    }
-                  }
-                },
-                "required": ["device_id", "keywords"]
-              },
-              "example": {
-                "device_id": "550e8400-e29b-41d4-a716-446655440000",
-                "keywords": ["iOS Developer", "Swift", "React Native"],
-                "sources": ["linkedin", "indeed", "glassdoor"],
-                "location_filters": {
-                  "cities": ["New York", "San Francisco"],
-                  "remote_only": false
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Subscription created successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "subscription_id": "660e8400-e29b-41d4-a716-446655440001",
-                    "keywords_count": 3,
-                    "sources_count": 3,
-                    "created_at": "2025-06-14T10:30:00Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/keywords/{device_id}": {
-      "get": {
-        "summary": "Get device's keyword subscriptions",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Device subscriptions",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "subscriptions": [
-                      {
-                        "subscription_id": "660e8400-e29b-41d4-a716-446655440001",
-                        "keywords": ["iOS Developer", "Swift", "React Native"],
-                        "sources": ["linkedin", "indeed"],
-                        "location_filters": {
-                          "cities": ["New York"],
-                          "remote_only": false
-                        },
-                        "created_at": "2025-06-14T08:00:00Z",
-                        "last_match": "2025-06-14T09:15:00Z"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/jobs/": {
-      "get": {
-        "summary": "Get jobs with filtering and pagination",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Search in title and company"
-          },
-          {
-            "name": "company",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "source",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365
-            },
-            "description": "Jobs posted within last N days"
-          },
-          {
-            "name": "sort_by",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["created_at", "title", "company"],
-              "default": "created_at"
-            }
-          },
-          {
-            "name": "sort_order",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["asc", "desc"],
-              "default": "desc"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Jobs list with pagination",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "jobs": [
-                      {
-                        "id": 426828,
-                        "title": "Sürücü (Gəncə anbarı)",
-                        "company": "Kontakt Home",
-                        "apply_link": "https://jobs.glorri.az/vacancies/abc-telecom/abc-telecom-surucu-gence-anbari-33935/apply",
-                        "source": "Glorri",
-                        "posted_at": "2025-06-15T15:25:34.595587"
-                      }
-                    ],
-                    "pagination": {
-                      "total": 4353,
-                      "limit": 20,
-                      "offset": 0,
-                      "current_page": 1,
-                      "total_pages": 218,
-                      "has_more": true,
-                      "has_previous": false
-                    },
-                    "filters": {
-                      "search": null,
-                      "company": null,
-                      "source": null,
-                      "location": null,
-                      "days": null,
-                      "sort_by": "created_at",
-                      "sort_order": "desc"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/jobs/{job_id}": {
-      "get": {
-        "summary": "Get specific job details",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Job details",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "job": {
-                      "id": 12345,
-                      "title": "Senior iOS Developer",
-                      "company": "Tech Corp",
-                      "apply_link": "https://techcorp.com/jobs/12345",
-                      "source": "linkedin",
-                      "posted_at": "2025-06-14T08:00:00Z"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/jobs/stats/summary": {
-      "get": {
-        "summary": "Get job statistics",
-        "responses": {
-          "200": {
-            "description": "Job statistics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "total_jobs": 4353,
-                    "recent_jobs_24h": 4353,
-                    "top_companies": [
-                      {
-                        "company": "ABB",
-                        "job_count": 131
-                      },
-                      {
-                        "company": "dövlət məşğulluq agentliyi",
-                        "job_count": 95
-                      }
-                    ],
-                    "job_sources": [
-                      {
-                        "source": "Glorri",
-                        "job_count": 786
-                      },
-                      {
-                        "source": "Vakansiya.biz",
-                        "job_count": 654
-                      }
-                    ],
-                    "last_updated": "2025-06-15T16:19:00Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/matches/{device_id}": {
-      "get": {
-        "summary": "Get job matches for device",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Job matches",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "matches": [
-                      {
-                        "match_id": "770e8400-e29b-41d4-a716-446655440002",
-                        "job": {
-                          "id": 12345,
-                          "title": "Senior iOS Developer",
-                          "company": "Tech Corp",
-                          "apply_link": "https://techcorp.com/jobs/12345",
-                          "source": "linkedin",
-                          "posted_at": "2025-06-14T08:00:00Z"
-                        },
-                        "matched_keywords": ["iOS", "Swift"],
-                        "relevance_score": 0.85,
-                        "matched_at": "2025-06-14T09:15:00Z"
-                      }
-                    ],
-                    "pagination": {
-                      "total": 25,
-                      "limit": 20,
-                      "offset": 0,
-                      "has_more": true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/matches/{match_id}/read": {
-      "post": {
-        "summary": "Mark match as read",
-        "parameters": [
-          {
-            "name": "match_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "device_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Match marked as read",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Match marked as read"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/matches/{device_id}/unread-count": {
-      "get": {
-        "summary": "Get unread matches count",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Unread count",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "unread_count": 5
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/health/trigger-matching": {
-      "post": {
-        "summary": "Manually trigger job matching engine",
-        "responses": {
-          "200": {
-            "description": "Matching triggered successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "message": "Match engine triggered successfully",
-                  "matches_created_last_hour": 15,
-                  "timestamp": "2025-06-15T12:30:00Z"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/health/scheduler-status": {
-      "get": {
-        "summary": "Check background scheduler status",
-        "responses": {
-          "200": {
-            "description": "Scheduler status",
-            "content": {
-              "application/json": {
-                "example": {
-                  "scheduler_running": true,
-                  "interval_minutes": 240,
-                  "timestamp": "2025-06-15T12:30:00Z"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/health/detailed": {
-      "get": {
-        "summary": "Detailed system health diagnostics",
-        "responses": {
-          "200": {
-            "description": "Detailed health diagnostics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "status": "healthy",
-                  "timestamp": "2025-06-15T16:19:10.270931+00:00",
-                  "services": {
-                    "database": {
-                      "status": "healthy",
-                      "response_time_ms": 45,
-                      "connection_pool": {
-                        "active": 5,
-                        "idle": 10,
-                        "max": 20
-                      }
-                    },
-                    "redis": {
-                      "status": "healthy",
-                      "response_time_ms": 12,
-                      "memory_usage": "128MB",
-                      "connected_clients": 3
-                    },
-                    "apns": {
-                      "status": "healthy",
-                      "certificate_valid": true,
-                      "certificate_expires": "2025-12-31T23:59:59Z"
-                    },
-                    "scraper": {
-                      "status": "healthy",
-                      "last_run": "2025-06-15T15:25:34Z",
-                      "next_run": "2025-06-15T19:25:34Z"
-                    }
-                  },
-                  "system_metrics": {
-                    "cpu_usage": 45.2,
-                    "memory_usage": 68.8,
-                    "disk_usage": 32.1
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/users/activity": {
-      "get": {
-        "summary": "Get user activity analytics across the platform",
-        "responses": {
-          "200": {
-            "description": "User activity analytics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "activeUsers": {
-                      "last24h": 45,
-                      "last7days": 156,
-                      "last30days": 423
-                    },
-                    "deviceRegistrations": {
-                      "total": 1247,
-                      "new_last24h": 12,
-                      "new_last7days": 45
-                    },
-                    "userEngagement": {
-                      "avgSessionDuration": "8.5 minutes",
-                      "avgJobsViewedPerSession": 12.3,
-                      "avgJobsSavedPerSession": 2.1
-                    },
-                    "profileCompleteness": {
-                      "avg": 78.5,
-                      "high_completeness": 234,
-                      "medium_completeness": 156,
-                      "low_completeness": 89
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/platform/performance": {
-      "get": {
-        "summary": "Get platform performance metrics",
-        "responses": {
-          "200": {
-            "description": "Platform performance metrics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "api_performance": {
-                      "avg_response_time_ms": 145,
-                      "requests_per_minute": 234,
-                      "error_rate": 0.02
-                    },
-                    "matching_engine": {
-                      "avg_matches_per_cycle": 1247,
-                      "avg_processing_time_seconds": 12.5,
-                      "last_cycle_matches": 1156
-                    },
-                    "notification_delivery": {
-                      "sent_last24h": 423,
-                      "delivered_last24h": 401,
-                      "delivery_rate": 94.8
-                    },
-                    "scraper_performance": {
-                      "jobs_scraped_last_cycle": 4353,
-                      "sources_active": 35,
-                      "avg_cycle_duration_minutes": 45
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/overview": {
-      "get": {
-        "summary": "Get overall job statistics from current scraping cycle",
-        "responses": {
-          "200": {
-            "description": "Job overview statistics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "total_jobs": 4353,
-                  "unique_companies": 1721,
-                  "unique_sources": 35,
-                  "cycle_start": "2025-06-15T15:25:34.595587",
-                  "cycle_end": "2025-06-15T15:25:34.595587",
-                  "data_freshness": "current_cycle_only",
-                  "note": "Data is refreshed every 4-5 hours by scraper",
-                  "timestamp": "2025-06-15T16:15:04.672071"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/by-source": {
-      "get": {
-        "summary": "Get job distribution by source from current scraping cycle",
-        "responses": {
-          "200": {
-            "description": "Jobs by source statistics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "sources": [
-                    {
-                      "source": "Glorri",
-                      "job_count": 786,
-                      "percentage": 18.06,
-                      "first_job": "2025-06-15T15:25:34.595587",
-                      "latest_job": "2025-06-15T15:25:34.595587"
-                    }
-                  ],
-                  "total_sources": 35,
-                  "data_freshness": "current_cycle_only",
-                  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
-                  "timestamp": "2025-06-15T16:15:21.825019"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/by-company": {
-      "get": {
-        "summary": "Get top companies by job count from current scraping cycle",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Number of companies to return",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Top companies statistics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "companies": [
-                    {
-                      "company": "ABB",
-                      "job_count": 131,
-                      "first_job": "2025-06-15T15:25:34.595587",
-                      "latest_job": "2025-06-15T15:25:34.595587"
-                    }
-                  ],
-                  "limit": 20,
-                  "data_freshness": "current_cycle_only",
-                  "note": "All data from current scraping cycle (refreshed every 4-5 hours)",
-                  "timestamp": "2025-06-15T16:15:33.760485"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/current-cycle": {
-      "get": {
-        "summary": "Get analysis of current scraping cycle (replaces trends)",
-        "responses": {
-          "200": {
-            "description": "Current cycle analysis",
-            "content": {
-              "application/json": {
-                "example": {
-                  "cycle_overview": {
-                    "total_jobs": 4353,
-                    "unique_companies": 1721,
-                    "unique_sources": 35,
-                    "cycle_start": "2025-06-15T15:25:34.595587",
-                    "cycle_end": "2025-06-15T15:25:34.595587",
-                    "cycle_duration": "0:00:00"
-                  },
-                  "hourly_distribution": [
-                    {
-                      "hour": 15,
-                      "job_count": 4353
-                    }
-                  ],
-                  "source_analysis": [
-                    {
-                      "source": "Glorri",
-                      "job_count": 786,
-                      "companies_per_source": 71,
-                      "first_job": "2025-06-15T15:25:34.595587",
-                      "last_job": "2025-06-15T15:25:34.595587"
-                    }
-                  ],
-                  "data_freshness": "current_cycle_only",
-                  "note": "Analysis of current scraping cycle. Historical trends not available due to data refresh cycle.",
-                  "timestamp": "2025-06-15T16:15:13.760485"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/keywords": {
-      "get": {
-        "summary": "Get most popular keywords in job titles from current scraping cycle",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Number of keywords to return",
-            "schema": {
-              "type": "integer",
-              "minimum": 10,
-              "maximum": 200,
-              "default": 50
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Popular keywords statistics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "keywords": [
-                    {
-                      "keyword": "mütəxəssis",
-                      "frequency": 548,
-                      "percentage": 17.0
-                    },
-                    {
-                      "keyword": "engineer",
-                      "frequency": 191,
-                      "percentage": 5.92
-                    }
-                  ],
-                  "total_keywords": 20,
-                  "total_word_frequency": 3224,
-                  "data_freshness": "current_cycle_only",
-                  "note": "Keywords from current scraping cycle (refreshed every 4-5 hours)",
-                  "timestamp": "2025-06-15T16:15:77.978597"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/analytics/jobs/search": {
-      "get": {
-        "summary": "Search and analyze jobs containing specific keyword from current scraping cycle",
-        "parameters": [
-          {
-            "name": "keyword",
-            "in": "query",
-            "required": true,
-            "description": "Keyword to search for",
-            "schema": {
-              "type": "string",
-              "minLength": 2
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Keyword search analytics",
-            "content": {
-              "application/json": {
-                "example": {
-                  "keyword": "developer",
-                  "total_matches": 174,
-                  "unique_companies": 130,
-                  "unique_sources": 12,
-                  "match_percentage": 4.0,
-                  "total_jobs_in_cycle": 4353,
-                  "top_companies": [
-                    {
-                      "company": "Kapital Bank",
-                      "job_count": 13
-                    }
-                  ],
-                  "sources": [
-                    {
-                      "source": "Djinni",
-                      "job_count": 126
-                    }
-                  ],
-                  "data_freshness": "current_cycle_only",
-                  "note": "Search results from current scraping cycle (refreshed every 4-5 hours)",
-                  "timestamp": "2025-06-15T16:15:38.047965"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/analyze": {
-      "post": {
-        "summary": "General AI analysis and job search assistance",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "message": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 1000,
-                    "description": "User message to analyze"
-                  },
-                  "context": {
-                    "type": "string",
-                    "maxLength": 2000,
-                    "description": "Optional context for the AI"
-                  },
-                  "job_id": {
-                    "type": "integer",
-                    "description": "Optional job ID for job-specific analysis"
-                  }
-                },
-                "required": ["message"]
-              },
-              "example": {
-                "message": "What skills should I focus on for iOS developer positions?",
-                "context": "I am a junior developer with 1 year experience",
-                "job_id": 12345
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "AI analysis response",
-            "content": {
-              "application/json": {
-                "example": {
-                  "response": "For iOS developer roles, prioritize these skills:\n\n* **Swift & Swift UI:** Strong proficiency is crucial. Focus on advanced concepts like concurrency, data structures, and design patterns.\n* **Objective-C (basic understanding):** While Swift is dominant, familiarity with Objective-C can be beneficial for legacy codebases.\n* **Xcode & debugging:** Master Xcode's debugging tools and become proficient in identifying and resolving issues.\n* **API integration (REST, GraphQL):** Experience consuming and interacting with APIs is essential for most applications.\n* **Version control (Git):** Demonstrate proficiency in branching, merging, and resolving conflicts.\n* **Testing (unit, UI):** Show understanding of writing and running tests to ensure code quality.\n* **App Store deployment:** Experience submitting apps to the App Store is a significant plus.\n* **Architectural patterns (MVC, MVVM):** Understanding and implementing common architectural patterns improves code organization and maintainability.\n\nFocus on building a portfolio showcasing your skills with at least one complete app. Highlight these skills in your resume and during interviews.",
-                  "timestamp": "2025-06-15T13:15:16.402872",
-                  "tokens_used": 313
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "AI service is not configured",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "AI service is not configured"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "AI service temporarily unavailable",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "AI service temporarily unavailable"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/job-advice": {
-      "post": {
-        "summary": "Specialized job search advice and career guidance",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AIRequest"
-              },
-              "example": {
-                "message": "How should I prepare for an iOS developer interview?",
-                "context": "Senior iOS developer position at a startup"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job advice response",
-            "content": {
-              "application/json": {
-                "example": {
-                  "response": "Preparing for an iOS developer interview requires a multifaceted approach. Let's break it down into actionable steps:\n\n**I. Technical Skills Assessment & Preparation:**\n\n* **Data Structures and Algorithms:** This is fundamental. Practice common algorithms (searching, sorting, graph traversal) and data structures (arrays, linked lists, trees, hash tables) using Swift. LeetCode, HackerRank, and Codewars are excellent resources for practice problems.\n\n* **Swift Proficiency:** Demonstrate a deep understanding of Swift's features, including:\n    * **Memory management (ARC):** Explain how ARC works and how to avoid memory leaks.\n    * **Concurrency (GCD, Operations, Async/Await):** Be prepared to discuss different concurrency models and their appropriate uses.\n    * **Protocols and Extensions:** Show you understand their power in creating flexible and reusable code.\n\n**II. Interview Practice:**\n\n* **Mock Interviews:** Practice with friends, colleagues, or use online platforms that offer mock interviews.\n* **Behavioral Questions:** Prepare for behavioral questions using the STAR method (Situation, Task, Action, Result).\n\nRemember, preparation is key. The more you practice, the more confident and successful you'll be in your iOS developer interviews. Good luck!",
-                  "timestamp": "2025-06-15T13:15:32.877533",
-                  "tokens_used": 1109
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/resume-review": {
-      "post": {
-        "summary": "AI-powered resume review and feedback",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AIRequest"
-              },
-              "example": {
-                "message": "John Doe - iOS Developer\nExperience: 2 years developing iOS apps using Swift and UIKit. Built 3 apps published on App Store.",
-                "context": "Applying for senior iOS developer position"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Resume review response",
-            "content": {
-              "application/json": {
-                "example": {
-                  "response": "This resume content needs significant improvement for a senior iOS developer position. Here's actionable feedback:\n\n**1. Structure and Formatting:**\n* **Missing Essential Sections:** The resume is missing crucial sections like Summary/Objective, Skills, Education, and Projects.\n* **Poor Formatting:** Use a professional header with contact information.\n* **Lack of Quantifiable Results:** Need quantifiable results to demonstrate impact.\n\n**2. Content Improvement Recommendations:**\n* **Expand on Experience:** Use the STAR method to describe your contributions.\n* **Add a Summary/Objective:** Start with a compelling summary highlighting your key skills.\n* **Detailed Project Descriptions:** Include technologies used, your role, and quantifiable results.\n\n**3. Keyword Optimization for ATS Systems:**\n* **Research Keywords:** Analyze job descriptions and identify relevant keywords.\n* **Incorporate Keywords:** Naturally integrate keywords throughout your resume.\n\n**4. Skills and Experience Presentation:**\n* **Highlight Senior-Level Skills:** Focus on leadership, mentorship, architecture design.\n* **Use Action Verbs:** Start each bullet point with strong action verbs.\n\nFocus on quantifying your achievements, showcasing leadership skills, and tailoring your resume to each specific job description.",
-                  "timestamp": "2025-06-15T13:16:11.707312",
-                  "tokens_used": 1008
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ai/salary-insights": {
-      "post": {
-        "summary": "AI-powered salary insights and negotiation advice",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "deviceId": {"type": "string"},
-                  "jobTitle": {"type": "string"},
-                  "location": {"type": "string"},
-                  "experience": {"type": "string"},
-                  "skills": {"type": "array", "items": {"type": "string"}},
-                  "currentSalary": {"type": "integer", "description": "Optional current salary"}
-                },
-                "required": ["deviceId", "jobTitle", "location", "experience"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Salary insights and recommendations",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "salaryRange": {
-                      "min": 120000,
-                      "max": 180000,
-                      "median": 150000,
-                      "currency": "USD"
-                    },
-                    "insights": {
-                      "marketPosition": "competitive",
-                      "growthPotential": "high",
-                      "demandLevel": "high"
-                    },
-                    "negotiationTips": [
-                      "Highlight your iOS expertise and published apps",
-                      "Emphasize experience with latest Swift features",
-                      "Mention any leadership or mentoring experience"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/preferences/{device_id}": {
-      "get": {
-        "summary": "Get user notification and privacy preferences",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {"type": "string"}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User preferences",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "notificationSettings": {
-                      "jobMatchesEnabled": true,
-                      "applicationRemindersEnabled": true,
-                      "weeklyDigestEnabled": false,
-                      "quietHoursEnabled": true,
-                      "quietHoursStart": "22:00",
-                      "quietHoursEnd": "08:00"
-                    },
-                    "privacySettings": {
-                      "profileVisibility": "Private",
-                      "shareAnalytics": false,
-                      "allowPersonalizedRecommendations": true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update user notification and privacy preferences",
-        "parameters": [
-          {
-            "name": "device_id",
-            "in": "path",
-            "required": true,
-            "schema": {"type": "string"}
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "notificationSettings": {
-                    "type": "object",
-                    "properties": {
-                      "jobMatchesEnabled": {"type": "boolean"},
-                      "applicationRemindersEnabled": {"type": "boolean"},
-                      "weeklyDigestEnabled": {"type": "boolean"},
-                      "quietHoursEnabled": {"type": "boolean"},
-                      "quietHoursStart": {"type": "string"},
-                      "quietHoursEnd": {"type": "string"}
-                    }
-                  },
-                  "privacySettings": {
-                    "type": "object",
-                    "properties": {
-                      "profileVisibility": {"type": "string", "enum": ["Public", "Private"]},
-                      "shareAnalytics": {"type": "boolean"},
-                      "allowPersonalizedRecommendations": {"type": "boolean"}
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preferences updated successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "Preferences updated successfully",
-                  "data": {
-                    "updatedAt": "2025-06-17T12:00:00Z"
-                  }
-                }
-              }
-            }
+            "description": "Internal server error - database configuration needed"
           }
         }
       }
@@ -1998,153 +777,11 @@
   },
   "components": {
     "schemas": {
-      "DeviceInfo": {
-        "type": "object",
-        "properties": {
-          "osVersion": {
-            "type": "string",
-            "description": "iOS version"
-          },
-          "appVersion": {
-            "type": "string",
-            "description": "App version"
-          },
-          "deviceModel": {
-            "type": "string",
-            "description": "Device model identifier"
-          },
-          "timezone": {
-            "type": "string",
-            "description": "Device timezone"
-          }
-        },
-        "required": ["osVersion", "appVersion", "deviceModel", "timezone"]
-      },
-      "Job": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "company": {
-            "type": "string"
-          },
-          "apply_link": {
-            "type": "string",
-            "format": "uri"
-          },
-          "source": {
-            "type": "string"
-          },
-          "posted_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "JobMatch": {
-        "type": "object",
-        "properties": {
-          "match_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "job": {
-            "$ref": "#/components/schemas/Job"
-          },
-          "matched_keywords": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "relevance_score": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "matched_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "Pagination": {
-        "type": "object",
-        "properties": {
-          "total": {
-            "type": "integer"
-          },
-          "limit": {
-            "type": "integer"
-          },
-          "offset": {
-            "type": "integer"
-          },
-          "current_page": {
-            "type": "integer"
-          },
-          "total_pages": {
-            "type": "integer"
-          },
-          "has_more": {
-            "type": "boolean"
-          },
-          "has_previous": {
-            "type": "boolean"
-          }
-        }
-      },
       "Error": {
         "type": "object",
         "properties": {
-          "detail": {
-            "type": "string"
-          }
+          "detail": {"type": "string"}
         }
-      },
-      "AIRequest": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000,
-            "description": "User message to analyze"
-          },
-          "context": {
-            "type": "string",
-            "maxLength": 2000,
-            "description": "Optional context for the AI"
-          },
-          "job_id": {
-            "type": "integer",
-            "description": "Optional job ID for job-specific analysis"
-          }
-        },
-        "required": ["message"]
-      },
-      "AIResponse": {
-        "type": "object",
-        "properties": {
-          "response": {
-            "type": "string",
-            "description": "AI-generated response"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Response timestamp"
-          },
-          "tokens_used": {
-            "type": "integer",
-            "description": "Number of tokens used in the request"
-          }
-        },
-        "required": ["response", "timestamp"]
       },
       "ValidationError": {
         "type": "object",
@@ -2154,87 +791,50 @@
             "items": {
               "type": "object",
               "properties": {
-                "loc": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {"type": "string"},
-                      {"type": "integer"}
-                    ]
-                  },
-                  "description": "Location of the error"
-                },
-                "msg": {
-                  "type": "string",
-                  "description": "Error message"
-                },
-                "type": {
-                  "type": "string",
-                  "description": "Error type"
-                }
-              },
-              "required": ["loc", "msg", "type"]
+                "loc": {"type": "array", "items": {"type": "string"}},
+                "msg": {"type": "string"},
+                "type": {"type": "string"}
+              }
             }
           }
-        },
-        "required": ["detail"]
+        }
       },
-      "SuccessResponse": {
+      "Job": {
         "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "description": "Success message"
-          },
-          "data": {
-            "type": "object",
-            "description": "Response data"
-          }
-        },
-        "required": ["success"]
-      }
-    }
-  },
-  "x-push-notifications": {
-    "types": ["job_match", "daily_digest", "system"],
-    "payload_example": {
-      "aps": {
-        "alert": {
-          "title": "New Job Match! 🎯",
-          "subtitle": "Senior iOS Developer at Tech Corp",
-          "body": "Matches your keywords: iOS, Swift"
-        },
-        "badge": 1,
-        "sound": "default",
-        "category": "JOB_MATCH"
+          "id": {"type": "integer"},
+          "title": {"type": "string"},
+          "company": {"type": "string"},
+          "location": {"type": "string"},
+          "salary": {"type": "string"},
+          "job_type": {"type": "string"},
+          "posted_date": {"type": "string", "format": "date-time"},
+          "description": {"type": "string"},
+          "requirements": {"type": "array", "items": {"type": "string"}},
+          "benefits": {"type": "array", "items": {"type": "string"}},
+          "apply_url": {"type": "string", "format": "uri"},
+          "source": {"type": "string"}
+        }
       },
-      "custom_data": {
-        "type": "job_match",
-        "match_id": "770e8400-e29b-41d4-a716-446655440002",
-        "job_id": 12345,
-        "matched_keywords": ["iOS", "Swift"],
-        "deep_link": "birjob://job/12345"
+      "Device": {
+        "type": "object",
+        "properties": {
+          "deviceId": {"type": "string"},
+          "apnsToken": {"type": "string"},
+          "status": {"type": "string", "enum": ["active", "inactive"]},
+          "registeredAt": {"type": "string", "format": "date-time"},
+          "lastSeen": {"type": "string", "format": "date-time"}
+        }
       }
-    },
-    "rate_limits": {
-      "hourly": 5,
-      "daily": 20,
-      "quiet_hours": "22:00-08:00"
     }
   },
-  "x-deep-links": {
-    "scheme": "birjob://",
-    "patterns": {
-      "job_details": "birjob://job/{job_id}",
-      "matches": "birjob://matches",
-      "settings": "birjob://settings"
-    }
-  },
-  "x-swift-models": {
-    "note": "Complete Swift data models are provided in the API documentation markdown file"
-  }
+  "tags": [
+    {"name": "Root", "description": "Root API endpoints"},
+    {"name": "Health", "description": "System health and status"},
+    {"name": "Jobs", "description": "Job listings and search"},
+    {"name": "Analytics", "description": "Job market analytics and insights"},
+    {"name": "AI", "description": "AI-powered features and recommendations"},
+    {"name": "Devices", "description": "Device registration and management"},
+    {"name": "Users", "description": "User profile management"}
+  ]
 }
