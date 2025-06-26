@@ -3,9 +3,10 @@ from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
 
-from app.core.database import db_manager, check_db_health
+from app.core.database import db_manager, check_db_health, engine, AsyncSessionLocal
 from app.core.redis_client import redis_client
 from app.services.match_engine import JobMatchEngine
+from sqlalchemy import text
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -449,7 +450,7 @@ async def debug_database_connection():
         engine_test = None
         try:
             async with engine.begin() as conn:
-                result = await conn.execute("SELECT 1 as test, NOW() as current_time")
+                result = await conn.execute(text("SELECT 1 as test, NOW() as current_time"))
                 row = await result.fetchone()
                 engine_test = {
                     "status": "success",
@@ -463,7 +464,7 @@ async def debug_database_connection():
         session_test = None
         try:
             async with AsyncSessionLocal() as session:
-                result = await session.execute("SELECT version() as db_version")
+                result = await session.execute(text("SELECT version() as db_version"))
                 row = result.fetchone()
                 session_test = {
                     "status": "success",

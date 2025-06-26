@@ -2,6 +2,7 @@ import asyncpg
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.exc import DisconnectionError, OperationalError
+from sqlalchemy import text
 from typing import AsyncGenerator
 import logging
 import asyncio
@@ -67,7 +68,7 @@ async def check_db_health():
     """Check database health and connection status"""
     try:
         async with engine.begin() as conn:
-            result = await conn.execute("SELECT 1")
+            result = await conn.execute(text("SELECT 1"))
             await result.fetchone()
             return {"status": "healthy", "message": "Database connection is working"}
     except Exception as e:
