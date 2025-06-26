@@ -437,3 +437,60 @@ async def check_user_tables():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to check user tables: {str(e)}"
         )
+
+@router.get("/db-debug")
+async def debug_database_connection():
+    """Debug database connection issues with detailed information"""
+    try:
+        from app.core.database import engine, AsyncSessionLocal
+        import sqlalchemy
+        
+        # Test engine connection
+        engine_test = None
+        try:
+            async with engine.begin() as conn:
+                result = await conn.execute("SELECT 1 as test, NOW() as current_time")
+                row = await result.fetchone()
+                engine_test = {
+                    "status": "success",
+                    "test_value": row.test if row else None,
+                    "server_time": row.current_time.isoformat() if row and row.current_time else None
+                }
+        except Exception as e:
+            engine_test = {"status": "failed", "error": str(e), "error_type": type(e).__name__}
+        
+        # Test session creation
+        session_test = None
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute("SELECT version() as db_version")
+                row = result.fetchone()
+                session_test = {
+                    "status": "success",
+                    "db_version": row.db_version if row else None
+                }
+        except Exception as e:
+            session_test = {"status": "failed", "error": str(e), "error_type": type(e).__name__}
+        
+        # Get connection pool info
+        pool_info = {
+            "size": engine.pool.size(),
+            "checked_in": engine.pool.checkedin(),
+            "checked_out": engine.pool.checkedout(),
+        }
+        
+        return {
+            "database_url_status": "configured" if settings.DATABASE_URL else "missing",
+            "sqlalchemy_version": sqlalchemy.__version__,
+            "engine_test": engine_test,
+            "session_test": session_test,
+            "pool_info": pool_info,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Database debug failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database debug failed: {str(e)}"
+        )

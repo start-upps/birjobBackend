@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
@@ -49,6 +50,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add HTTPS redirect middleware for production
+if os.getenv("RENDER") or os.getenv("PRODUCTION"):
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 # Setup CORS
 app.add_middleware(
