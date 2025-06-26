@@ -62,11 +62,23 @@ async def register_device(
         logger.error(f"Error registering device: {e}")
         logger.error(f"Device token: {request.device_token}")
         logger.error(f"Device info: {request.device_info}")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to register device: {str(e)}"
-        )
+        try:
+            await db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {rollback_error}")
+        
+        # Check if it's a connection error
+        error_msg = str(e).lower()
+        if "connection" in error_msg and ("closed" in error_msg or "lost" in error_msg):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database connection temporarily unavailable. Please try again."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to register device: {str(e)}"
+            )
 
 @router.delete("/{device_id}", response_model=APIResponse)
 async def unregister_device(

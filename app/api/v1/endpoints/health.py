@@ -3,7 +3,7 @@ from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
 
-from app.core.database import db_manager
+from app.core.database import db_manager, check_db_health
 from app.core.redis_client import redis_client
 from app.services.match_engine import JobMatchEngine
 
@@ -14,13 +14,11 @@ logger = logging.getLogger(__name__)
 async def health_check():
     """System health check endpoint"""
     try:
-        # Check database connection
-        db_healthy = True
-        try:
-            await db_manager.execute_query("SELECT 1")
-        except Exception as e:
-            logger.error(f"Database health check failed: {e}")
-            db_healthy = False
+        # Check database connection using improved health check
+        db_health_result = await check_db_health()
+        db_healthy = db_health_result["status"] == "healthy"
+        if not db_healthy:
+            logger.error(f"Database health check failed: {db_health_result['message']}")
         
         # Check Redis connection
         redis_healthy = True

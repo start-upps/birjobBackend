@@ -31,8 +31,10 @@ if original_url and 'sslmode=require' in original_url:
 engine = create_async_engine(
     database_url,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600,
     connect_args=connect_args,
 )
 
@@ -56,6 +58,17 @@ async def init_db():
     except Exception as e:
         logger.error(f"Failed to connect to database: {e}")
         raise e
+
+async def check_db_health():
+    """Check database health and connection status"""
+    try:
+        async with engine.begin() as conn:
+            result = await conn.execute("SELECT 1")
+            await result.fetchone()
+            return {"status": "healthy", "message": "Database connection is working"}
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return {"status": "unhealthy", "message": f"Database connection failed: {str(e)}"}
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session"""
