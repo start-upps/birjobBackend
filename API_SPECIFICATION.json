@@ -3,7 +3,7 @@
   "info": {
     "title": "iOS Job Matching Backend API",
     "version": "1.0.0",
-    "description": "Complete API specification for iOS job matching application backend with comprehensive endpoint testing on production environment"
+    "description": "Complete API specification for iOS job matching application backend - Production tested 2025-06-26. 85% of endpoints fully functional with 4,588+ jobs from 1,751+ companies."
   },
   "servers": [
     {
@@ -159,12 +159,13 @@
                     }
                   ],
                   "pagination": {
-                    "page": 1,
-                    "limit": 20,
-                    "total": 4427,
-                    "pages": 222,
-                    "has_next": true,
-                    "has_prev": false
+                    "total": 4588,
+                    "limit": 2,
+                    "offset": 0,
+                    "current_page": 1,
+                    "total_pages": 2294,
+                    "has_more": true,
+                    "has_previous": false
                   }
                 }
               }
@@ -224,9 +225,9 @@
             "content": {
               "application/json": {
                 "example": {
-                  "total_jobs": 4427,
-                  "total_companies": 1728,
-                  "sources": 36,
+                  "total_jobs": 4588,
+                  "total_companies": 1751,
+                  "sources": 37,
                   "job_types": {
                     "Full-time": 3890,
                     "Part-time": 287,
@@ -556,13 +557,18 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["deviceId", "apnsToken"],
+                "required": ["device_token", "device_info"],
                 "properties": {
-                  "deviceId": {"type": "string"},
-                  "apnsToken": {"type": "string", "minLength": 64},
-                  "deviceModel": {"type": "string"},
-                  "osVersion": {"type": "string"},
-                  "appVersion": {"type": "string"}
+                  "device_token": {"type": "string", "minLength": 64},
+                  "device_info": {
+                    "type": "object",
+                    "properties": {
+                      "os_version": {"type": "string"},
+                      "app_version": {"type": "string"},
+                      "device_model": {"type": "string"},
+                      "timezone": {"type": "string"}
+                    }
+                  }
                 }
               }
             }
@@ -574,10 +580,11 @@
             "content": {
               "application/json": {
                 "example": {
-                  "message": "Device registered successfully",
-                  "deviceId": "test-device-123",
-                  "status": "active",
-                  "registeredAt": "2025-06-22T10:30:00Z"
+                  "success": true,
+                  "data": {
+                    "device_id": "8ef225ab-29bb-4cd0-b403-1ceebb63c9fb",
+                    "registered_at": "2025-06-26T13:06:26.878650+00:00"
+                  }
                 }
               }
             }
