@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from app.core.database import db_manager, check_db_health, engine, AsyncSessionLocal
 from app.core.redis_client import redis_client
 from app.services.match_engine import JobMatchEngine
+from app.core.config import settings
 from sqlalchemy import text
 
 router = APIRouter()
