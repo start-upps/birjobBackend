@@ -396,6 +396,71 @@ class BirJobAPITester:
         )
         self.add_result("/api/v1/users/profile/sync", "POST", status, data, time_taken)
 
+    def test_profile_keyword_endpoints(self):
+        """Test new profile-based keyword management endpoints"""
+        print("Testing Profile Keyword Endpoints...")
+        
+        # 1. Get profile keywords (should be empty initially)
+        status, data, time_taken = self.make_request("GET", f"/api/v1/users/{self.test_device_id}/profile/keywords")
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords", "GET", status, data, time_taken)
+        
+        # 2. Add a single keyword
+        keyword_data = {"keyword": "python"}
+        status, data, time_taken = self.make_request(
+            "POST", f"/api/v1/users/{self.test_device_id}/profile/keywords/add",
+            json=keyword_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords/add", "POST", status, data, time_taken)
+        
+        # 3. Add another keyword
+        keyword_data = {"keyword": "javascript"}
+        status, data, time_taken = self.make_request(
+            "POST", f"/api/v1/users/{self.test_device_id}/profile/keywords/add",
+            json=keyword_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords/add (2)", "POST", status, data, time_taken)
+        
+        # 4. Update entire keywords list
+        keywords_data = {"matchKeywords": ["python", "react", "docker", "aws"]}
+        status, data, time_taken = self.make_request(
+            "POST", f"/api/v1/users/{self.test_device_id}/profile/keywords",
+            json=keywords_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords", "POST", status, data, time_taken)
+        
+        # 5. Get profile keywords again (should show updated list)
+        status, data, time_taken = self.make_request("GET", f"/api/v1/users/{self.test_device_id}/profile/keywords")
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords (updated)", "GET", status, data, time_taken)
+        
+        # 6. Get profile-based matches
+        status, data, time_taken = self.make_request("GET", f"/api/v1/users/{self.test_device_id}/profile/matches?limit=5")
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/matches", "GET", status, data, time_taken)
+        
+        # 7. Remove a keyword
+        status, data, time_taken = self.make_request("DELETE", f"/api/v1/users/{self.test_device_id}/profile/keywords/docker")
+        self.add_result(f"/api/v1/users/{self.test_device_id}/profile/keywords/docker", "DELETE", status, data, time_taken)
+        
+        # 8. Test validation: Add empty keyword (should fail)
+        keyword_data = {"keyword": ""}
+        status, data, time_taken = self.make_request(
+            "POST", f"/api/v1/users/{self.test_device_id}/profile/keywords/add",
+            json=keyword_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.add_result("/api/v1/users/{device_id}/profile/keywords/add (validation)", "POST", status, data, time_taken)
+        
+        # 9. Test validation: Update with invalid data (should fail)
+        invalid_data = {"matchKeywords": "not_an_array"}
+        status, data, time_taken = self.make_request(
+            "POST", f"/api/v1/users/{self.test_device_id}/profile/keywords",
+            json=invalid_data,
+            headers={"Content-Type": "application/json"}
+        )
+        self.add_result("/api/v1/users/{device_id}/profile/keywords (validation)", "POST", status, data, time_taken)
+
     def run_all_tests(self):
         """Run all endpoint tests"""
         print(f"🚀 Starting comprehensive API test for BirJob Backend")
@@ -413,6 +478,7 @@ class BirJobAPITester:
         self.test_keywords_endpoints()
         self.test_matches_endpoints()
         self.test_ai_endpoints()
+        self.test_profile_keyword_endpoints()
         
         self.generate_report()
 

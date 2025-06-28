@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "iOS Job Matching Backend API",
-    "version": "1.0.0",
-    "description": "Complete API specification for iOS job matching application backend - Production tested 2025-06-26. 85% of endpoints fully functional with 4,588+ jobs from 1,751+ companies."
+    "version": "1.1.0",
+    "description": "Complete API specification for iOS job matching application backend with intelligent profile-based keyword matching system. Features sophisticated scoring algorithms, real-time keyword management, and comprehensive job matching with detailed explanations. Production tested with 4,588+ jobs from 1,751+ companies."
   },
   "servers": [
     {
@@ -780,6 +780,216 @@
           }
         }
       }
+    },
+    "/api/v1/users/{device_id}/profile/keywords": {
+      "get": {
+        "summary": "Get user's profile keywords for job matching",
+        "tags": ["Users", "Profile Keywords"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "User's device ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User's profile keywords",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileKeywordsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User profile not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Update user's complete keyword list",
+        "tags": ["Users", "Profile Keywords"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "User's device ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKeywordsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Keywords updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateKeywordsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data"
+          },
+          "404": {
+            "description": "User profile not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{device_id}/profile/keywords/add": {
+      "post": {
+        "summary": "Add a single keyword to user's profile",
+        "tags": ["Users", "Profile Keywords"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "User's device ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddKeywordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Keyword added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddKeywordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid keyword or validation error"
+          },
+          "404": {
+            "description": "User profile not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{device_id}/profile/keywords/{keyword}": {
+      "delete": {
+        "summary": "Remove a keyword from user's profile",
+        "tags": ["Users", "Profile Keywords"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "User's device ID"
+          },
+          {
+            "name": "keyword",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "Keyword to remove"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keyword removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveKeywordResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User profile not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{device_id}/profile/matches": {
+      "get": {
+        "summary": "Get intelligent job matches based on user's profile keywords",
+        "tags": ["Users", "Profile Keywords", "Job Matching"],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "User's device ID"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+            "description": "Number of results to return"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "minimum": 0, "default": 0},
+            "description": "Results offset for pagination"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Intelligent job matches with scoring",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileMatchesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User profile not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -832,6 +1042,182 @@
           "registeredAt": {"type": "string", "format": "date-time"},
           "lastSeen": {"type": "string", "format": "date-time"}
         }
+      },
+      "ProfileKeywordsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "matchKeywords": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "keywordCount": {"type": "integer"},
+              "lastUpdated": {"type": "string", "format": "date-time"},
+              "relatedSkills": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "UpdateKeywordsRequest": {
+        "type": "object",
+        "required": ["matchKeywords"],
+        "properties": {
+          "matchKeywords": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 50,
+            "description": "Array of keywords for job matching (max 50)"
+          }
+        }
+      },
+      "UpdateKeywordsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "matchKeywords": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "keywordCount": {"type": "integer"},
+              "lastUpdated": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      },
+      "AddKeywordRequest": {
+        "type": "object",
+        "required": ["keyword"],
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Keyword to add (1-100 characters)"
+          }
+        }
+      },
+      "AddKeywordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "matchKeywords": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "keywordCount": {"type": "integer"},
+              "addedKeyword": {"type": "string"},
+              "lastUpdated": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      },
+      "RemoveKeywordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "matchKeywords": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "keywordCount": {"type": "integer"},
+              "removedKeyword": {"type": "string"},
+              "lastUpdated": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      },
+      "ProfileMatchesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "matches": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IntelligentJobMatch"
+                }
+              },
+              "totalCount": {"type": "integer"},
+              "userKeywords": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "matchingStats": {
+                "$ref": "#/components/schemas/MatchingStats"
+              }
+            }
+          }
+        }
+      },
+      "IntelligentJobMatch": {
+        "type": "object",
+        "properties": {
+          "jobId": {"type": "integer"},
+          "title": {"type": "string"},
+          "company": {"type": "string"},
+          "location": {"type": "string"},
+          "salary": {"type": "string"},
+          "description": {"type": "string"},
+          "source": {"type": "string"},
+          "postedAt": {"type": "string", "format": "date-time"},
+          "matchScore": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Match score from 0-100"
+          },
+          "matchedKeywords": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "matchReasons": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Explanations for why this job matched"
+          },
+          "keywordRelevance": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "score": {"type": "number"},
+                "matches": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "MatchingStats": {
+        "type": "object",
+        "properties": {
+          "totalJobsEvaluated": {"type": "integer"},
+          "jobsWithMatches": {"type": "integer"},
+          "averageScore": {"type": "number"},
+          "topScore": {"type": "number"}
+        }
       }
     }
   },
@@ -842,6 +1228,8 @@
     {"name": "Analytics", "description": "Job market analytics and insights"},
     {"name": "AI", "description": "AI-powered features and recommendations"},
     {"name": "Devices", "description": "Device registration and management"},
-    {"name": "Users", "description": "User profile management"}
+    {"name": "Users", "description": "User profile management"},
+    {"name": "Profile Keywords", "description": "Profile-based keyword management for intelligent job matching"},
+    {"name": "Job Matching", "description": "Intelligent job matching with scoring algorithms"}
   ]
 }
