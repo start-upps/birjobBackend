@@ -814,12 +814,12 @@ async def get_profile_keywords(device_id: str):
     try:
         # Get user profile
         profile_query = """
-            SELECT match_keywords, job_preferences
+            SELECT match_keywords, job_preferences, last_updated
             FROM iosapp.user_profiles 
             WHERE device_id = $1
         """
         
-        profile_result = await db_manager.execute_query(profile_query, [device_id])
+        profile_result = await db_manager.execute_query(profile_query, device_id)
         
         if not profile_result:
             raise HTTPException(
@@ -828,21 +828,26 @@ async def get_profile_keywords(device_id: str):
             )
         
         profile = profile_result[0]
-        match_keywords = profile.get("match_keywords", [])
-        job_preferences = profile.get("job_preferences", {})
+        match_keywords = profile["match_keywords"] if profile["match_keywords"] else []
+        job_preferences = profile["job_preferences"] if profile["job_preferences"] else {}
         
         # Ensure match_keywords is a list
         if isinstance(match_keywords, str):
             import json
             match_keywords = json.loads(match_keywords)
         
+        # Ensure job_preferences is a dict
+        if isinstance(job_preferences, str):
+            import json
+            job_preferences = json.loads(job_preferences)
+        
         return {
             "success": True,
             "data": {
                 "matchKeywords": match_keywords or [],
                 "keywordCount": len(match_keywords) if match_keywords else 0,
-                "lastUpdated": profile.get("last_updated"),
-                "relatedSkills": job_preferences.get("skills", []) if job_preferences else []
+                "lastUpdated": profile["last_updated"].isoformat() if profile["last_updated"] else None,
+                "relatedSkills": job_preferences.get("skills", []) if isinstance(job_preferences, dict) else []
             }
         }
         
@@ -905,7 +910,7 @@ async def update_profile_keywords(
         import json
         result = await db_manager.execute_query(
             update_query, 
-            [json.dumps(unique_keywords), device_id]
+            json.dumps(unique_keywords), device_id
         )
         
         if not result:
@@ -961,7 +966,7 @@ async def add_profile_keyword(
             WHERE device_id = $1
         """
         
-        current_result = await db_manager.execute_query(current_query, [device_id])
+        current_result = await db_manager.execute_query(current_query, device_id)
         
         if not current_result:
             raise HTTPException(
@@ -969,7 +974,7 @@ async def add_profile_keyword(
                 detail="User profile not found"
             )
         
-        current_keywords = current_result[0].get("match_keywords", [])
+        current_keywords = current_result[0]["match_keywords"] if current_result[0]["match_keywords"] else []
         
         # Ensure it's a list
         if isinstance(current_keywords, str):
@@ -1012,7 +1017,7 @@ async def add_profile_keyword(
         import json
         result = await db_manager.execute_query(
             update_query, 
-            [json.dumps(updated_keywords), device_id]
+            json.dumps(updated_keywords), device_id
         )
         
         return {
@@ -1048,7 +1053,7 @@ async def remove_profile_keyword(device_id: str, keyword: str):
             WHERE device_id = $1
         """
         
-        current_result = await db_manager.execute_query(current_query, [device_id])
+        current_result = await db_manager.execute_query(current_query, device_id)
         
         if not current_result:
             raise HTTPException(
@@ -1056,7 +1061,7 @@ async def remove_profile_keyword(device_id: str, keyword: str):
                 detail="User profile not found"
             )
         
-        current_keywords = current_result[0].get("match_keywords", [])
+        current_keywords = current_result[0]["match_keywords"] if current_result[0]["match_keywords"] else []
         
         # Ensure it's a list
         if isinstance(current_keywords, str):
@@ -1129,7 +1134,7 @@ async def get_profile_based_matches(
             WHERE device_id = $1
         """
         
-        keywords_result = await db_manager.execute_query(keywords_query, [device_id])
+        keywords_result = await db_manager.execute_query(keywords_query, device_id)
         
         if not keywords_result:
             raise HTTPException(
@@ -1137,7 +1142,7 @@ async def get_profile_based_matches(
                 detail="User profile not found"
             )
         
-        match_keywords = keywords_result[0].get("match_keywords", [])
+        match_keywords = keywords_result[0]["match_keywords"] if keywords_result[0]["match_keywords"] else []
         
         if isinstance(match_keywords, str):
             import json
