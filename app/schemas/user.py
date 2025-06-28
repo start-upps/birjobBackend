@@ -58,6 +58,7 @@ class JobPreferences(BaseModel):
     skills: Optional[List[str]] = []
     preferredLocations: Optional[List[str]] = []
     salaryRange: Optional[SalaryRange] = None
+    matchKeywords: Optional[List[str]] = []  # New field for profile-based keyword matching
 
 class NotificationSettings(BaseModel):
     jobMatchesEnabled: Optional[bool] = True

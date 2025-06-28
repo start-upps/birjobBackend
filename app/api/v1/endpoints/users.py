@@ -807,6 +807,432 @@ async def get_application_history(
             detail="Failed to get application history"
         )
 
+# Profile Keyword Management Endpoints
+@router.get("/{device_id}/profile/keywords", response_model=Dict[str, Any])
+async def get_profile_keywords(device_id: str):
+    """Get user's profile keywords for job matching"""
+    try:
+        # Get user profile
+        profile_query = """
+            SELECT match_keywords, job_preferences
+            FROM iosapp.user_profiles 
+            WHERE device_id = $1
+        """
+        
+        profile_result = await db_manager.execute_query(profile_query, [device_id])
+        
+        if not profile_result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        profile = profile_result[0]
+        match_keywords = profile.get("match_keywords", [])
+        job_preferences = profile.get("job_preferences", {})
+        
+        # Ensure match_keywords is a list
+        if isinstance(match_keywords, str):
+            import json
+            match_keywords = json.loads(match_keywords)
+        
+        return {
+            "success": True,
+            "data": {
+                "matchKeywords": match_keywords or [],
+                "keywordCount": len(match_keywords) if match_keywords else 0,
+                "lastUpdated": profile.get("last_updated"),
+                "relatedSkills": job_preferences.get("skills", []) if job_preferences else []
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting profile keywords: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get profile keywords"
+        )
+
+@router.post("/{device_id}/profile/keywords", response_model=Dict[str, Any])
+async def update_profile_keywords(
+    device_id: str,
+    keywords_data: Dict[str, Any]
+):
+    """Update user's profile keywords for job matching"""
+    try:
+        keywords = keywords_data.get("matchKeywords", [])
+        
+        # Validate keywords
+        if not isinstance(keywords, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="matchKeywords must be an array"
+            )
+        
+        # Limit to reasonable number of keywords
+        if len(keywords) > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 50 keywords allowed"
+            )
+        
+        # Clean and validate keywords
+        cleaned_keywords = []
+        for keyword in keywords:
+            if isinstance(keyword, str) and len(keyword.strip()) > 0:
+                cleaned_keywords.append(keyword.strip().lower())
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_keywords = []
+        for keyword in cleaned_keywords:
+            if keyword not in seen:
+                seen.add(keyword)
+                unique_keywords.append(keyword)
+        
+        # Update user profile
+        update_query = """
+            UPDATE iosapp.user_profiles 
+            SET 
+                match_keywords = $1::jsonb,
+                last_updated = CURRENT_TIMESTAMP
+            WHERE device_id = $2
+            RETURNING user_id, last_updated
+        """
+        
+        import json
+        result = await db_manager.execute_query(
+            update_query, 
+            [json.dumps(unique_keywords), device_id]
+        )
+        
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        return {
+            "success": True,
+            "message": "Profile keywords updated successfully",
+            "data": {
+                "matchKeywords": unique_keywords,
+                "keywordCount": len(unique_keywords),
+                "lastUpdated": result[0]["last_updated"].isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating profile keywords: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile keywords"
+        )
+
+@router.post("/{device_id}/profile/keywords/add", response_model=Dict[str, Any])
+async def add_profile_keyword(
+    device_id: str,
+    keyword_data: Dict[str, Any]
+):
+    """Add a single keyword to user's profile"""
+    try:
+        new_keyword = keyword_data.get("keyword", "").strip().lower()
+        
+        if not new_keyword:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Keyword cannot be empty"
+            )
+        
+        if len(new_keyword) > 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Keyword too long (max 100 characters)"
+            )
+        
+        # Get current keywords
+        current_query = """
+            SELECT match_keywords 
+            FROM iosapp.user_profiles 
+            WHERE device_id = $1
+        """
+        
+        current_result = await db_manager.execute_query(current_query, [device_id])
+        
+        if not current_result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        current_keywords = current_result[0].get("match_keywords", [])
+        
+        # Ensure it's a list
+        if isinstance(current_keywords, str):
+            import json
+            current_keywords = json.loads(current_keywords)
+        
+        current_keywords = current_keywords or []
+        
+        # Check if keyword already exists
+        if new_keyword in current_keywords:
+            return {
+                "success": True,
+                "message": "Keyword already exists",
+                "data": {
+                    "matchKeywords": current_keywords,
+                    "keywordCount": len(current_keywords)
+                }
+            }
+        
+        # Check keyword limit
+        if len(current_keywords) >= 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 50 keywords allowed"
+            )
+        
+        # Add new keyword
+        updated_keywords = current_keywords + [new_keyword]
+        
+        # Update database
+        update_query = """
+            UPDATE iosapp.user_profiles 
+            SET 
+                match_keywords = $1::jsonb,
+                last_updated = CURRENT_TIMESTAMP
+            WHERE device_id = $2
+            RETURNING last_updated
+        """
+        
+        import json
+        result = await db_manager.execute_query(
+            update_query, 
+            [json.dumps(updated_keywords), device_id]
+        )
+        
+        return {
+            "success": True,
+            "message": "Keyword added successfully",
+            "data": {
+                "matchKeywords": updated_keywords,
+                "keywordCount": len(updated_keywords),
+                "addedKeyword": new_keyword,
+                "lastUpdated": result[0]["last_updated"].isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding profile keyword: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add profile keyword"
+        )
+
+@router.delete("/{device_id}/profile/keywords/{keyword}", response_model=Dict[str, Any])
+async def remove_profile_keyword(device_id: str, keyword: str):
+    """Remove a keyword from user's profile"""
+    try:
+        keyword = keyword.strip().lower()
+        
+        # Get current keywords
+        current_query = """
+            SELECT match_keywords 
+            FROM iosapp.user_profiles 
+            WHERE device_id = $1
+        """
+        
+        current_result = await db_manager.execute_query(current_query, [device_id])
+        
+        if not current_result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        current_keywords = current_result[0].get("match_keywords", [])
+        
+        # Ensure it's a list
+        if isinstance(current_keywords, str):
+            import json
+            current_keywords = json.loads(current_keywords)
+        
+        current_keywords = current_keywords or []
+        
+        # Remove keyword if it exists
+        if keyword in current_keywords:
+            updated_keywords = [k for k in current_keywords if k != keyword]
+            
+            # Update database
+            update_query = """
+                UPDATE iosapp.user_profiles 
+                SET 
+                    match_keywords = $1::jsonb,
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE device_id = $2
+                RETURNING last_updated
+            """
+            
+            import json
+            result = await db_manager.execute_query(
+                update_query, 
+                [json.dumps(updated_keywords), device_id]
+            )
+            
+            return {
+                "success": True,
+                "message": "Keyword removed successfully",
+                "data": {
+                    "matchKeywords": updated_keywords,
+                    "keywordCount": len(updated_keywords),
+                    "removedKeyword": keyword,
+                    "lastUpdated": result[0]["last_updated"].isoformat()
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "message": "Keyword not found in profile",
+                "data": {
+                    "matchKeywords": current_keywords,
+                    "keywordCount": len(current_keywords)
+                }
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing profile keyword: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to remove profile keyword"
+        )
+
+@router.get("/{device_id}/profile/matches", response_model=Dict[str, Any])
+async def get_profile_based_matches(
+    device_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """Get job matches based on user's profile keywords"""
+    try:
+        # Get user's keywords
+        keywords_query = """
+            SELECT match_keywords 
+            FROM iosapp.user_profiles 
+            WHERE device_id = $1
+        """
+        
+        keywords_result = await db_manager.execute_query(keywords_query, [device_id])
+        
+        if not keywords_result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        match_keywords = keywords_result[0].get("match_keywords", [])
+        
+        if isinstance(match_keywords, str):
+            import json
+            match_keywords = json.loads(match_keywords)
+        
+        if not match_keywords:
+            return {
+                "success": True,
+                "data": {
+                    "matches": [],
+                    "totalCount": 0,
+                    "message": "No keywords set for matching"
+                }
+            }
+        
+        # Build dynamic query for keyword matching
+        keyword_conditions = []
+        for i, keyword in enumerate(match_keywords):
+            keyword_conditions.append(f"""
+                (title ILIKE ${i+2} OR 
+                 description ILIKE ${i+2} OR 
+                 requirements ILIKE ${i+2})
+            """)
+        
+        matches_query = f"""
+            WITH keyword_matches AS (
+                SELECT DISTINCT
+                    id,
+                    title,
+                    company,
+                    location,
+                    salary,
+                    description,
+                    requirements,
+                    source,
+                    created_at,
+                    (
+                        {' + '.join([f"CASE WHEN (title ILIKE ${i+2} OR description ILIKE ${i+2} OR requirements ILIKE ${i+2}) THEN 1 ELSE 0 END" for i in range(len(match_keywords))])}
+                    ) as match_count
+                FROM scraper.jobs_jobpost
+                WHERE ({' OR '.join(keyword_conditions)})
+            )
+            SELECT 
+                *,
+                ROUND((match_count::FLOAT / {len(match_keywords)}) * 100) as match_score
+            FROM keyword_matches
+            ORDER BY match_count DESC, created_at DESC
+            LIMIT $1 OFFSET ${len(match_keywords) + 2}
+        """
+        
+        # Prepare parameters
+        params = [limit] + [f"%{keyword}%" for keyword in match_keywords] + [offset]
+        
+        matches_result = await db_manager.execute_query(matches_query, params)
+        
+        # Format matches
+        matches = []
+        for match in matches_result:
+            matches.append({
+                "jobId": match["id"],
+                "title": match["title"],
+                "company": match["company"],
+                "location": match["location"],
+                "salary": match["salary"],
+                "description": match["description"][:200] + "..." if len(match["description"]) > 200 else match["description"],
+                "source": match["source"],
+                "postedAt": match["created_at"].isoformat(),
+                "matchScore": int(match["match_score"]),
+                "matchCount": match["match_count"],
+                "matchedKeywords": [kw for kw in match_keywords if 
+                                   kw.lower() in match["title"].lower() or 
+                                   kw.lower() in match["description"].lower() or 
+                                   kw.lower() in (match["requirements"] or "").lower()]
+            })
+        
+        return {
+            "success": True,
+            "data": {
+                "matches": matches,
+                "totalCount": len(matches),
+                "userKeywords": match_keywords,
+                "limit": limit,
+                "offset": offset
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting profile-based matches: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get profile-based matches"
+        )
+
 @router.post("/profile/sync")
 async def sync_profile(sync_request):
     """Sync profile across devices - placeholder implementation"""

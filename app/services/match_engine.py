@@ -8,6 +8,8 @@ from app.core.database import db_manager
 from app.core.redis_client import redis_client
 from app.core.monitoring import metrics
 from app.services.push_notifications import PushNotificationService
+import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -314,5 +316,299 @@ class JobMatchScheduler:
         self.running = False
         self.logger.info("Job match scheduler stopped")
 
+class ProfileBasedJobMatcher:
+    """Enhanced job matching using user profile keywords with intelligent scoring"""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+    
+    def calculate_match_score(self, job: Dict[str, Any], user_keywords: List[str]) -> Dict[str, Any]:
+        """
+        Calculate sophisticated match score between job and user keywords
+        Returns match details with score, matched keywords, and reasons
+        """
+        if not user_keywords:
+            return {
+                "score": 0,
+                "matched_keywords": [],
+                "match_reasons": [],
+                "keyword_relevance": {}
+            }
+        
+        # Job content to search
+        job_title = (job.get("title", "") or "").lower()
+        job_description = (job.get("description", "") or "").lower()
+        job_requirements = (job.get("requirements", "") or "").lower()
+        job_company = (job.get("company", "") or "").lower()
+        
+        # Combine all job text for comprehensive matching
+        job_text = f"{job_title} {job_description} {job_requirements} {job_company}"
+        
+        matched_keywords = []
+        keyword_relevance = {}
+        match_reasons = []
+        total_score = 0
+        
+        for keyword in user_keywords:
+            keyword_lower = keyword.lower().strip()
+            if not keyword_lower:
+                continue
+                
+            keyword_score = 0
+            keyword_matches = []
+            
+            # 1. Title matching (highest weight - 40 points)
+            if keyword_lower in job_title:
+                title_score = self._calculate_keyword_relevance(keyword_lower, job_title)
+                keyword_score += title_score * 40
+                keyword_matches.append(f"title ({title_score:.1f}x)")
+            
+            # 2. Requirements matching (high weight - 30 points)
+            if keyword_lower in job_requirements:
+                req_score = self._calculate_keyword_relevance(keyword_lower, job_requirements)
+                keyword_score += req_score * 30
+                keyword_matches.append(f"requirements ({req_score:.1f}x)")
+            
+            # 3. Description matching (medium weight - 20 points)
+            if keyword_lower in job_description:
+                desc_score = self._calculate_keyword_relevance(keyword_lower, job_description)
+                keyword_score += desc_score * 20
+                keyword_matches.append(f"description ({desc_score:.1f}x)")
+            
+            # 4. Company matching (low weight - 10 points)
+            if keyword_lower in job_company:
+                company_score = self._calculate_keyword_relevance(keyword_lower, job_company)
+                keyword_score += company_score * 10
+                keyword_matches.append(f"company ({company_score:.1f}x)")
+            
+            # 5. Fuzzy/partial matching (bonus points)
+            fuzzy_score = self._calculate_fuzzy_match(keyword_lower, job_text)
+            if fuzzy_score > 0:
+                keyword_score += fuzzy_score * 5
+                keyword_matches.append(f"related terms ({fuzzy_score:.1f}x)")
+            
+            if keyword_score > 0:
+                matched_keywords.append(keyword)
+                keyword_relevance[keyword] = {
+                    "score": round(keyword_score, 2),
+                    "matches": keyword_matches
+                }
+                total_score += keyword_score
+                
+                # Add specific match reasons
+                if keyword_score >= 30:
+                    match_reasons.append(f"Strong match for '{keyword}' in job requirements")
+                elif keyword_score >= 20:
+                    match_reasons.append(f"Good match for '{keyword}' in job title/description")
+                else:
+                    match_reasons.append(f"Relevant match for '{keyword}'")
+        
+        # Normalize score to 0-100 range
+        max_possible_score = len(user_keywords) * 100  # Each keyword can score max 100 points
+        normalized_score = min(100, (total_score / max_possible_score) * 100) if max_possible_score > 0 else 0
+        
+        # Add bonus for multiple keyword matches
+        if len(matched_keywords) > 1:
+            bonus = min(20, len(matched_keywords) * 2)  # Up to 20 bonus points
+            normalized_score = min(100, normalized_score + bonus)
+            match_reasons.append(f"Bonus for matching {len(matched_keywords)} keywords")
+        
+        return {
+            "score": round(normalized_score, 1),
+            "matched_keywords": matched_keywords,
+            "match_reasons": match_reasons[:5],  # Limit to top 5 reasons
+            "keyword_relevance": keyword_relevance,
+            "total_keywords": len(user_keywords),
+            "matched_count": len(matched_keywords)
+        }
+    
+    def _calculate_keyword_relevance(self, keyword: str, text: str) -> float:
+        """Calculate how relevant a keyword is in the given text"""
+        if not keyword or not text:
+            return 0.0
+        
+        # Count occurrences
+        occurrences = text.lower().count(keyword.lower())
+        if occurrences == 0:
+            return 0.0
+        
+        # Base score for presence
+        score = 1.0
+        
+        # Bonus for multiple occurrences (diminishing returns)
+        if occurrences > 1:
+            score += min(0.5, (occurrences - 1) * 0.2)
+        
+        # Bonus for word boundaries (exact word match vs substring)
+        word_pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+        if re.search(word_pattern, text.lower()):
+            score += 0.3
+        
+        # Bonus for position (early appearance in text)
+        first_occurrence = text.lower().find(keyword.lower())
+        if first_occurrence >= 0:
+            # Earlier appearance gets higher bonus
+            position_bonus = max(0, 0.2 - (first_occurrence / len(text)) * 0.2)
+            score += position_bonus
+        
+        return min(2.0, score)  # Cap at 2.0x multiplier
+    
+    def _calculate_fuzzy_match(self, keyword: str, text: str) -> float:
+        """Calculate fuzzy matching score for related terms"""
+        if not keyword or not text or len(keyword) < 3:
+            return 0.0
+        
+        # Simple fuzzy matching - look for related terms
+        fuzzy_score = 0.0
+        
+        # Partial word matching
+        if len(keyword) >= 4:
+            # Look for keyword as substring in words
+            words = re.findall(r'\b\w+\b', text.lower())
+            for word in words:
+                if keyword in word or word in keyword:
+                    if abs(len(word) - len(keyword)) <= 2:  # Similar length
+                        fuzzy_score += 0.3
+        
+        # Common programming variations
+        variations = self._get_keyword_variations(keyword)
+        for variation in variations:
+            if variation in text.lower():
+                fuzzy_score += 0.4
+        
+        return min(1.0, fuzzy_score)
+    
+    def _get_keyword_variations(self, keyword: str) -> List[str]:
+        """Get common variations of a keyword"""
+        variations = []
+        keyword_lower = keyword.lower()
+        
+        # Common tech variations
+        tech_variations = {
+            "javascript": ["js", "node", "nodejs", "frontend", "backend"],
+            "python": ["py", "django", "flask", "fastapi", "backend"],
+            "java": ["spring", "backend", "enterprise"],
+            "react": ["reactjs", "frontend", "ui", "web"],
+            "angular": ["angularjs", "frontend", "typescript"],
+            "vue": ["vuejs", "frontend"],
+            "docker": ["containerization", "devops"],
+            "kubernetes": ["k8s", "devops", "orchestration"],
+            "aws": ["amazon", "cloud", "devops"],
+            "azure": ["microsoft", "cloud"],
+            "gcp": ["google", "cloud"],
+            "sql": ["database", "mysql", "postgresql", "oracle"],
+            "nosql": ["mongodb", "redis", "elasticsearch"],
+            "api": ["rest", "graphql", "microservices"],
+            "frontend": ["ui", "ux", "web", "client"],
+            "backend": ["server", "api", "database"],
+            "fullstack": ["full-stack", "frontend", "backend"],
+            "devops": ["ci", "cd", "infrastructure", "deployment"],
+            "mobile": ["ios", "android", "app"],
+            "ios": ["swift", "mobile", "app"],
+            "android": ["kotlin", "java", "mobile", "app"]
+        }
+        
+        if keyword_lower in tech_variations:
+            variations.extend(tech_variations[keyword_lower])
+        
+        # Check reverse mapping
+        for key, values in tech_variations.items():
+            if keyword_lower in values:
+                variations.append(key)
+        
+        return list(set(variations))  # Remove duplicates
+    
+    async def get_profile_matches(self, device_id: str, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+        """Get job matches for a user based on their profile keywords"""
+        try:
+            # Get user's profile keywords
+            profile_query = """
+                SELECT match_keywords, job_preferences
+                FROM iosapp.user_profiles 
+                WHERE device_id = $1
+            """
+            
+            profile_result = await db_manager.execute_query(profile_query, [device_id])
+            
+            if not profile_result:
+                return {
+                    "matches": [],
+                    "total_count": 0,
+                    "error": "User profile not found"
+                }
+            
+            profile = profile_result[0]
+            match_keywords = profile.get("match_keywords", [])
+            
+            # Handle JSON parsing
+            if isinstance(match_keywords, str):
+                match_keywords = json.loads(match_keywords)
+            
+            if not match_keywords:
+                return {
+                    "matches": [],
+                    "total_count": 0,
+                    "message": "No keywords set for matching"
+                }
+            
+            # Get all jobs for matching
+            jobs_query = """
+                SELECT id, title, company, location, salary, description, 
+                       requirements, source, created_at
+                FROM scraper.jobs_jobpost
+                ORDER BY created_at DESC
+                LIMIT $1 OFFSET $2
+            """
+            
+            jobs_result = await db_manager.execute_query(jobs_query, [limit * 3, offset])  # Get more jobs for better filtering
+            
+            # Score and rank jobs
+            scored_jobs = []
+            for job in jobs_result:
+                match_details = self.calculate_match_score(job, match_keywords)
+                
+                if match_details["score"] > 0:  # Only include jobs with some relevance
+                    scored_jobs.append({
+                        "job_id": job["id"],
+                        "title": job["title"],
+                        "company": job["company"],
+                        "location": job["location"],
+                        "salary": job["salary"],
+                        "description": job["description"][:300] + "..." if len(job["description"]) > 300 else job["description"],
+                        "source": job["source"],
+                        "posted_at": job["created_at"].isoformat(),
+                        "match_score": match_details["score"],
+                        "matched_keywords": match_details["matched_keywords"],
+                        "match_reasons": match_details["match_reasons"],
+                        "keyword_relevance": match_details["keyword_relevance"]
+                    })
+            
+            # Sort by match score and take requested limit
+            scored_jobs.sort(key=lambda x: x["match_score"], reverse=True)
+            final_matches = scored_jobs[:limit]
+            
+            return {
+                "matches": final_matches,
+                "total_count": len(final_matches),
+                "user_keywords": match_keywords,
+                "matching_stats": {
+                    "total_jobs_evaluated": len(jobs_result),
+                    "jobs_with_matches": len(scored_jobs),
+                    "average_score": round(sum(job["match_score"] for job in scored_jobs) / len(scored_jobs), 1) if scored_jobs else 0,
+                    "top_score": max(job["match_score"] for job in scored_jobs) if scored_jobs else 0
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting profile matches: {e}")
+            return {
+                "matches": [],
+                "total_count": 0,
+                "error": str(e)
+            }
+
 # Global scheduler instance
 job_scheduler = JobMatchScheduler()
+
+# Global profile matcher instance
+profile_matcher = ProfileBasedJobMatcher()
