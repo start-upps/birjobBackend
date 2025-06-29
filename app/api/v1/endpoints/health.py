@@ -452,7 +452,7 @@ async def debug_database_connection():
         try:
             async with engine.begin() as conn:
                 result = await conn.execute(text("SELECT 1 as test, NOW() as current_time"))
-                row = await result.fetchone()
+                row = result.fetchone()  # Remove await - fetchone() is not async for Result objects
                 engine_test = {
                     "status": "success",
                     "test_value": row.test if row else None,

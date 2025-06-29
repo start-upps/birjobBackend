@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "passed": 22,
+    "failed": 0,
+    "total": 22,
+    "success_rate": 100.0,
+    "duration": 38.0
+  },
+  "details": [
+    {
+      "test": "Health Check",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:28.762290"
+    },
+    {
+      "test": "Scraper Status",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:29.897018"
+    },
+    {
+      "test": "Jobs List",
+      "status": "PASS",
+      "details": "5 jobs retrieved",
+      "timestamp": "2025-06-29T15:58:31.063274"
+    },
+    {
+      "test": "Job Stats",
+      "status": "PASS",
+      "details": "4438 total jobs",
+      "timestamp": "2025-06-29T15:58:33.043071"
+    },
+    {
+      "test": "Analytics Overview",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:33.883929"
+    },
+    {
+      "test": "Analytics By Source",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:34.894841"
+    },
+    {
+      "test": "Analytics By Company",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:35.451341"
+    },
+    {
+      "test": "Analytics Current Cycle",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:36.667339"
+    },
+    {
+      "test": "Analytics Keywords",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:37.353873"
+    },
+    {
+      "test": "Analytics Search",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:39.201272"
+    },
+    {
+      "test": "Create Profile",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:39.975335"
+    },
+    {
+      "test": "Get Profile",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:40.689269"
+    },
+    {
+      "test": "Get Keywords",
+      "status": "PASS",
+      "details": "3 keywords",
+      "timestamp": "2025-06-29T15:58:41.365762"
+    },
+    {
+      "test": "Add Keyword",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:42.502010"
+    },
+    {
+      "test": "Update Keywords",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:43.129031"
+    },
+    {
+      "test": "Remove Keyword",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:44.168327"
+    },
+    {
+      "test": "Job Matches",
+      "status": "PASS",
+      "details": "0 matches found",
+      "timestamp": "2025-06-29T15:58:45.219407"
+    },
+    {
+      "test": "Device Registration",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:47.195481"
+    },
+    {
+      "test": "AI Analyze",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:49.204953"
+    },
+    {
+      "test": "AI Job Advice",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:55.835499"
+    },
+    {
+      "test": "AI Resume Review",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:57.091105"
+    },
+    {
+      "test": "Profile Sync",
+      "status": "PASS",
+      "details": "",
+      "timestamp": "2025-06-29T15:58:58.325895"
+    }
+  ]
+}

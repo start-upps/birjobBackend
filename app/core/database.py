@@ -69,7 +69,7 @@ async def check_db_health():
     try:
         async with engine.begin() as conn:
             result = await conn.execute(text("SELECT 1"))
-            await result.fetchone()
+            result.fetchone()  # Remove await - fetchone() is not async for Result objects
             return {"status": "healthy", "message": "Database connection is working"}
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
