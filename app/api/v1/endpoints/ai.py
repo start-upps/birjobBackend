@@ -103,11 +103,9 @@ async def analyze_with_gemini(request: AIRequest):
         
         return {
             "success": True,
-            "data": {
-                "response": ai_response,
-                "timestamp": datetime.now().isoformat(),
-                "tokens_used": tokens_used
-            }
+            "response": ai_response,
+            "timestamp": datetime.now().isoformat(),
+            "tokens_used": tokens_used
         }
         
     except HTTPException:
@@ -205,11 +203,9 @@ async def get_job_advice(request: AIRequest):
         
         return {
             "success": True,
-            "data": {
-                "response": ai_response,
-                "timestamp": datetime.now().isoformat(),
-                "tokens_used": tokens_used
-            }
+            "response": ai_response,
+            "timestamp": datetime.now().isoformat(),
+            "tokens_used": tokens_used
         }
         
     except HTTPException:
@@ -306,11 +302,9 @@ async def review_resume(request: AIRequest):
         
         return {
             "success": True,
-            "data": {
-                "response": ai_response,
-                "timestamp": datetime.now().isoformat(),
-                "tokens_used": tokens_used
-            }
+            "response": ai_response,
+            "timestamp": datetime.now().isoformat(),
+            "tokens_used": tokens_used
         }
         
     except HTTPException:

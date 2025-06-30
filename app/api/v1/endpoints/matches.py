@@ -43,8 +43,9 @@ async def get_job_matches(
                 detail="Device not found"
             )
         
-        # Build query for matches
-        where_conditions = [JobMatch.device_id == device_uuid]
+        # Build query for matches - get user_id from device first
+        user_id = device.user_id
+        where_conditions = [JobMatch.user_id == user_id]
         
         if since:
             try:
@@ -138,10 +139,21 @@ async def mark_match_as_read(
     
     try:
         # Find and update match
+        # Get user_id from device_id for the query
+        device_stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        device_result = await db.execute(device_stmt)
+        device = device_result.scalar_one_or_none()
+        
+        if not device:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Device not found"
+            )
+            
         stmt = select(JobMatch).where(
             and_(
                 JobMatch.id == match_uuid,
-                JobMatch.device_id == device_uuid
+                JobMatch.user_id == device.user_id
             )
         )
         result = await db.execute(stmt)
@@ -201,7 +213,7 @@ async def get_unread_count(
         from sqlalchemy import func
         stmt = select(func.count(JobMatch.id)).where(
             and_(
-                JobMatch.device_id == device_uuid,
+                JobMatch.user_id == device.user_id,
                 JobMatch.is_read == False
             )
         )
