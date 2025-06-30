@@ -4,140 +4,140 @@
     "failed": 0,
     "total": 22,
     "success_rate": 100.0,
-    "duration": 38.0
+    "duration": 34.7
   },
   "details": [
     {
       "test": "Health Check",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:28.762290"
+      "timestamp": "2025-06-29T16:51:20.511400"
     },
     {
       "test": "Scraper Status",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:29.897018"
+      "timestamp": "2025-06-29T16:51:21.773564"
     },
     {
       "test": "Jobs List",
       "status": "PASS",
       "details": "5 jobs retrieved",
-      "timestamp": "2025-06-29T15:58:31.063274"
+      "timestamp": "2025-06-29T16:51:22.949960"
     },
     {
       "test": "Job Stats",
       "status": "PASS",
-      "details": "4438 total jobs",
-      "timestamp": "2025-06-29T15:58:33.043071"
+      "details": "4436 total jobs",
+      "timestamp": "2025-06-29T16:51:24.934417"
     },
     {
       "test": "Analytics Overview",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:33.883929"
+      "timestamp": "2025-06-29T16:51:26.160051"
     },
     {
       "test": "Analytics By Source",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:34.894841"
+      "timestamp": "2025-06-29T16:51:26.862777"
     },
     {
       "test": "Analytics By Company",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:35.451341"
+      "timestamp": "2025-06-29T16:51:27.562524"
     },
     {
       "test": "Analytics Current Cycle",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:36.667339"
+      "timestamp": "2025-06-29T16:51:29.642605"
     },
     {
       "test": "Analytics Keywords",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:37.353873"
+      "timestamp": "2025-06-29T16:51:30.443908"
     },
     {
       "test": "Analytics Search",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:39.201272"
+      "timestamp": "2025-06-29T16:51:32.388741"
     },
     {
       "test": "Create Profile",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:39.975335"
+      "timestamp": "2025-06-29T16:51:33.208858"
     },
     {
       "test": "Get Profile",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:40.689269"
+      "timestamp": "2025-06-29T16:51:33.963204"
     },
     {
       "test": "Get Keywords",
       "status": "PASS",
       "details": "3 keywords",
-      "timestamp": "2025-06-29T15:58:41.365762"
+      "timestamp": "2025-06-29T16:51:34.781887"
     },
     {
       "test": "Add Keyword",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:42.502010"
+      "timestamp": "2025-06-29T16:51:35.908721"
     },
     {
       "test": "Update Keywords",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:43.129031"
+      "timestamp": "2025-06-29T16:51:36.483915"
     },
     {
       "test": "Remove Keyword",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:44.168327"
+      "timestamp": "2025-06-29T16:51:37.682288"
     },
     {
       "test": "Job Matches",
       "status": "PASS",
       "details": "0 matches found",
-      "timestamp": "2025-06-29T15:58:45.219407"
+      "timestamp": "2025-06-29T16:51:38.682193"
     },
     {
       "test": "Device Registration",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:47.195481"
+      "timestamp": "2025-06-29T16:51:40.968273"
     },
     {
       "test": "AI Analyze",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:49.204953"
+      "timestamp": "2025-06-29T16:51:43.270269"
     },
     {
       "test": "AI Job Advice",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:55.835499"
+      "timestamp": "2025-06-29T16:51:49.691281"
     },
     {
       "test": "AI Resume Review",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:57.091105"
+      "timestamp": "2025-06-29T16:51:50.999354"
     },
     {
       "test": "Profile Sync",
       "status": "PASS",
       "details": "",
-      "timestamp": "2025-06-29T15:58:58.325895"
+      "timestamp": "2025-06-29T16:51:52.125876"
     }
   ]
 }
