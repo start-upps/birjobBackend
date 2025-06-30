@@ -41,8 +41,7 @@ async def register_device(
         if not user:
             # Create a basic user profile for device registration
             user = User(
-                device_id=device_id_value,
-                is_active=True
+                device_id=device_id_value
             )
             db.add(user)
             await db.commit()
