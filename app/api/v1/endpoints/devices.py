@@ -20,21 +20,52 @@ async def register_device(
 ):
     """Register a new iOS device for push notifications"""
     try:
+        from app.models.user import User  # Import here to avoid circular imports
+        
+        # Extract device_id from device_info if available, otherwise use device_token
+        device_id_value = None
+        if hasattr(request.device_info, 'device_id'):
+            device_id_value = request.device_info.device_id
+        elif isinstance(request.device_info.model_dump(), dict):
+            device_id_value = request.device_info.model_dump().get('device_id')
+        
+        # If no device_id in device_info, use the device_token as device_id
+        if not device_id_value:
+            device_id_value = request.device_token
+            
+        # First, find or create user based on device_id
+        user_stmt = select(User).where(User.device_id == device_id_value)
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            # Create a basic user profile for device registration
+            user = User(
+                device_id=device_id_value,
+                is_active=True
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            logger.info(f"Created new user for device registration: {user.id}")
+        
         # Check if device already exists
-        stmt = select(DeviceToken).where(DeviceToken.device_token == request.device_token)
-        result = await db.execute(stmt)
-        existing_device = result.scalar_one_or_none()
+        device_stmt = select(DeviceToken).where(DeviceToken.device_token == request.device_token)
+        device_result = await db.execute(device_stmt)
+        existing_device = device_result.scalar_one_or_none()
         
         if existing_device:
             # Update existing device
             existing_device.device_info = request.device_info.model_dump()
             existing_device.is_active = True
+            existing_device.user_id = user.id  # Ensure user_id is set
             await db.commit()
             await db.refresh(existing_device)
             
             return DeviceRegisterResponse(
                 data={
                     "device_id": str(existing_device.id),
+                    "user_id": str(user.id),
                     "registered_at": existing_device.updated_at.isoformat(),
                     "message": "Device updated successfully"
                 }
@@ -42,6 +73,7 @@ async def register_device(
         else:
             # Create new device
             device = DeviceToken(
+                user_id=user.id,  # Required field in new schema
                 device_token=request.device_token,
                 device_info=request.device_info.model_dump()
             )
@@ -49,11 +81,12 @@ async def register_device(
             await db.commit()
             await db.refresh(device)
             
-            logger.info(f"New device registered: {device.id}")
+            logger.info(f"New device registered: {device.id} for user: {user.id}")
             
             return DeviceRegisterResponse(
                 data={
                     "device_id": str(device.id),
+                    "user_id": str(user.id),
                     "registered_at": device.created_at.isoformat()
                 }
             )

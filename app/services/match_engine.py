@@ -44,7 +44,7 @@ class JobMatchEngine:
             
             self.logger.info(f"Found {len(active_subscriptions)} active subscriptions")
             for sub in active_subscriptions:
-                self.logger.info(f"  Device {sub['device_id']}: keywords={sub['keywords']}")
+                self.logger.info(f"  User {sub['user_id']} (device {sub['device_id']}): keywords={sub['keywords']}")
             
             matches_created = 0
             jobs_processed = 0
@@ -108,19 +108,22 @@ class JobMatchEngine:
             return []
     
     async def get_active_subscriptions(self) -> List[Dict[str, Any]]:
-        """Get all active device subscriptions with device tokens"""
+        """Get all active user subscriptions with device tokens"""
         try:
             query = """
                 SELECT 
                     ks.id,
-                    ks.device_id,
+                    ks.user_id,
+                    u.device_id,
                     ks.keywords,
-                    ks.sources,
+                    ks.source_filters as sources,
                     ks.location_filters,
                     dt.device_token
                 FROM iosapp.keyword_subscriptions ks
-                JOIN iosapp.device_tokens dt ON ks.device_id = dt.id
+                JOIN iosapp.users u ON ks.user_id = u.id
+                JOIN iosapp.device_tokens dt ON u.id = dt.user_id
                 WHERE ks.is_active = true 
+                AND u.is_active = true
                 AND dt.is_active = true
             """
             subscriptions = await db_manager.execute_query(query)
@@ -138,8 +141,8 @@ class JobMatchEngine:
         
         for subscription in subscriptions:
             try:
-                # Check if match already exists for this job+device combination (replaces Redis check)
-                if await self.match_already_exists(subscription['device_id'], job['id']):
+                # Check if match already exists for this job+user combination (replaces Redis check)
+                if await self.match_already_exists(subscription['user_id'], job['id']):
                     continue
                 
                 # Apply source filter if specified
@@ -167,7 +170,7 @@ class JobMatchEngine:
                     if relevance_score >= 0.1:  # Lowered threshold for better matching
                         # Store match in database
                         match_id = await self.store_job_match(
-                            subscription['device_id'],
+                            uuid.UUID(subscription['user_id']),
                             job['id'],
                             matched_keywords,
                             relevance_score
@@ -176,7 +179,7 @@ class JobMatchEngine:
                         # Send push notification
                         await self.push_service.send_job_match_notification(
                             subscription['device_token'],
-                            subscription['device_id'],
+                            subscription['user_id'],
                             job,
                             matched_keywords,
                             match_id
@@ -187,7 +190,7 @@ class JobMatchEngine:
                         matches_created = True
                         
                         self.logger.info(
-                            f"Match created: job {job['id']} -> device {subscription['device_id']} "
+                            f"Match created: job {job['id']} -> user {subscription['user_id']} "
                             f"(score: {relevance_score:.2f})"
                         )
                         
@@ -198,15 +201,15 @@ class JobMatchEngine:
         
         return matches_created
     
-    async def match_already_exists(self, device_id: str, job_id: str) -> bool:
-        """Check if a match already exists for this device+job combination"""
+    async def match_already_exists(self, user_id: str, job_id: str) -> bool:
+        """Check if a match already exists for this user+job combination"""
         try:
             query = """
                 SELECT 1 FROM iosapp.job_matches 
-                WHERE device_id = $1 AND job_id = $2 
+                WHERE user_id = $1 AND job_id = $2 
                 LIMIT 1
             """
-            result = await db_manager.execute_query(query, device_id, str(job_id))
+            result = await db_manager.execute_query(query, user_id, str(job_id))
             return len(result) > 0 if result else False
             
         except Exception as e:
@@ -251,7 +254,7 @@ class JobMatchEngine:
         total_score = base_score + title_bonus + company_bonus + recency_bonus
         return min(1.0, total_score)
     
-    async def store_job_match(self, device_id: uuid.UUID, 
+    async def store_job_match(self, user_id: uuid.UUID, 
                             job_id: int, matched_keywords: List[str], 
                             relevance_score: float) -> str:
         """Store job match in database"""
@@ -260,17 +263,17 @@ class JobMatchEngine:
             
             query = """
                 INSERT INTO iosapp.job_matches 
-                (id, device_id, job_id, matched_keywords, relevance_score)
+                (id, user_id, job_id, matched_keywords, match_score)
                 VALUES ($1, $2, $3, $4, $5)
             """
             
             await db_manager.execute_command(
                 query,
                 uuid.UUID(match_id),
-                device_id,
+                user_id,
                 str(job_id),
                 matched_keywords,
-                str(relevance_score)
+                float(relevance_score) * 100  # Convert to 0-100 scale
             )
             
             return match_id
@@ -523,8 +526,8 @@ class ProfileBasedJobMatcher:
         try:
             # Get user's profile keywords
             profile_query = """
-                SELECT match_keywords, job_preferences
-                FROM iosapp.user_profiles 
+                SELECT match_keywords, additional_job_preferences
+                FROM iosapp.users 
                 WHERE device_id = $1
             """
             
@@ -543,6 +546,8 @@ class ProfileBasedJobMatcher:
             # Handle JSON parsing
             if isinstance(match_keywords, str):
                 match_keywords = json.loads(match_keywords)
+            elif match_keywords is None:
+                match_keywords = []
             
             if not match_keywords:
                 return {
