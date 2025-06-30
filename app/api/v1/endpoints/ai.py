@@ -23,7 +23,7 @@ class AIResponse(BaseModel):
     timestamp: str
     tokens_used: Optional[int] = None
 
-@router.post("/analyze", response_model=AIResponse)
+@router.post("/analyze")
 async def analyze_with_gemini(request: AIRequest):
     """
     Analyze text using Google Gemini AI
@@ -101,11 +101,14 @@ async def analyze_with_gemini(request: AIRequest):
         
         logger.info(f"AI analysis completed. Tokens used: {tokens_used}")
         
-        return AIResponse(
-            response=ai_response,
-            timestamp=datetime.now().isoformat(),
-            tokens_used=tokens_used
-        )
+        return {
+            "success": True,
+            "data": {
+                "response": ai_response,
+                "timestamp": datetime.now().isoformat(),
+                "tokens_used": tokens_used
+            }
+        }
         
     except HTTPException:
         raise
@@ -116,7 +119,7 @@ async def analyze_with_gemini(request: AIRequest):
             detail="Failed to process AI request"
         )
 
-@router.post("/job-advice", response_model=AIResponse)
+@router.post("/job-advice")
 async def get_job_advice(request: AIRequest):
     """
     Get job-specific advice using AI
@@ -200,11 +203,14 @@ async def get_job_advice(request: AIRequest):
         
         logger.info(f"Job advice completed. Tokens used: {tokens_used}")
         
-        return AIResponse(
-            response=ai_response,
-            timestamp=datetime.now().isoformat(),
-            tokens_used=tokens_used
-        )
+        return {
+            "success": True,
+            "data": {
+                "response": ai_response,
+                "timestamp": datetime.now().isoformat(),
+                "tokens_used": tokens_used
+            }
+        }
         
     except HTTPException:
         raise
@@ -215,7 +221,7 @@ async def get_job_advice(request: AIRequest):
             detail="Failed to process job advice request"
         )
 
-@router.post("/resume-review", response_model=AIResponse)
+@router.post("/resume-review")
 async def review_resume(request: AIRequest):
     """
     AI-powered resume review and feedback
@@ -298,11 +304,14 @@ async def review_resume(request: AIRequest):
         
         logger.info(f"Resume review completed. Tokens used: {tokens_used}")
         
-        return AIResponse(
-            response=ai_response,
-            timestamp=datetime.now().isoformat(),
-            tokens_used=tokens_used
-        )
+        return {
+            "success": True,
+            "data": {
+                "response": ai_response,
+                "timestamp": datetime.now().isoformat(),
+                "tokens_used": tokens_used
+            }
+        }
         
     except HTTPException:
         raise
