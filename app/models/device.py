@@ -11,6 +11,7 @@ class DeviceToken(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False, index=True)
     device_token = Column(String(255), unique=True, nullable=False, index=True)
     device_info = Column(JSONB)
     is_active = Column(Boolean, default=True, index=True)
@@ -19,8 +20,7 @@ class DeviceToken(Base):
     last_seen = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    subscriptions = relationship("KeywordSubscription", back_populates="device", cascade="all, delete-orphan")
-    matches = relationship("JobMatch", back_populates="device", cascade="all, delete-orphan")
+    user = relationship("User", back_populates="device_tokens")
     notifications = relationship("PushNotification", back_populates="device", cascade="all, delete-orphan")
 
 class KeywordSubscription(Base):
@@ -28,7 +28,7 @@ class KeywordSubscription(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False, index=True)
     keywords = Column(ARRAY(Text), nullable=False)
     sources = Column(ARRAY(Text))
     location_filters = Column(JSONB)
@@ -38,14 +38,14 @@ class KeywordSubscription(Base):
     
     # Foreign key constraint handled at database level
     # Relationships
-    device = relationship("DeviceToken", back_populates="subscriptions")
+    user = relationship("User", back_populates="keyword_subscriptions")
 
 class JobMatch(Base):
     __tablename__ = "job_matches"
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False, index=True)
     job_id = Column(String, nullable=False)  # References scraper.jobs_jobpost.id
     matched_keywords = Column(ARRAY(Text), nullable=False)
     relevance_score = Column(String)  # DECIMAL(3,2) as string for easier handling
@@ -53,7 +53,7 @@ class JobMatch(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
     # Relationships
-    device = relationship("DeviceToken", back_populates="matches")
+    user = relationship("User", back_populates="job_matches")
     notifications = relationship("PushNotification", back_populates="match")
 
 class PushNotification(Base):
@@ -79,6 +79,6 @@ class ProcessedJob(Base):
     __tablename__ = "processed_jobs"
     __table_args__ = {'schema': 'iosapp'}
     
-    device_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.device_tokens.id'), primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), primary_key=True)
     job_id = Column(String, primary_key=True)
     processed_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, JSON, DECIMAL, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -10,7 +11,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = {'schema': 'iosapp'}
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     device_id = Column(String, unique=True, nullable=False, index=True)
     
     # Personal Information
@@ -60,14 +61,17 @@ class User(Base):
     saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
     job_views = relationship("JobView", back_populates="user", cascade="all, delete-orphan")
     applications = relationship("JobApplication", back_populates="user", cascade="all, delete-orphan")
+    device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
+    keyword_subscriptions = relationship("KeywordSubscription", back_populates="user", cascade="all, delete-orphan")
+    job_matches = relationship("JobMatch", back_populates="user", cascade="all, delete-orphan")
 
 
 class SavedJob(Base):
     __tablename__ = "saved_jobs"
     __table_args__ = {'schema': 'iosapp'}
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey('iosapp.users.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False)
     job_id = Column(Integer, nullable=False)
     notes = Column(Text)
     application_status = Column(String(20), default="not_applied")  # "not_applied", "applied", "interviewing", "rejected", "offered"
@@ -81,8 +85,8 @@ class JobView(Base):
     __tablename__ = "job_views"
     __table_args__ = {'schema': 'iosapp'}
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey('iosapp.users.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False)
     job_id = Column(Integer, nullable=False)
     view_duration = Column(Integer)  # seconds
     source = Column(String(50))  # "job_list", "recommendations", "search"
@@ -96,8 +100,8 @@ class JobApplication(Base):
     __tablename__ = "job_applications"
     __table_args__ = {'schema': 'iosapp'}
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey('iosapp.users.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False)
     job_id = Column(Integer, nullable=False)
     
     # Application details
@@ -117,8 +121,8 @@ class UserAnalytics(Base):
     __tablename__ = "user_analytics"
     __table_args__ = {'schema': 'iosapp'}
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey('iosapp.users.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id'), nullable=False)
     
     # Profile insights
     profile_strength = Column(Integer, default=0)
