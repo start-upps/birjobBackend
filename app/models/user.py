@@ -61,9 +61,6 @@ class User(Base):
     saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
     job_views = relationship("JobView", back_populates="user", cascade="all, delete-orphan")
     applications = relationship("JobApplication", back_populates="user", cascade="all, delete-orphan")
-    device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
-    keyword_subscriptions = relationship("KeywordSubscription", back_populates="user", cascade="all, delete-orphan")
-    job_matches = relationship("JobMatch", back_populates="user", cascade="all, delete-orphan")
 
 
 class SavedJob(Base):

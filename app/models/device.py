@@ -20,7 +20,6 @@ class DeviceToken(Base):
     last_seen = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    user = relationship("User", back_populates="device_tokens")
     notifications = relationship("PushNotification", back_populates="device", cascade="all, delete-orphan")
 
 class KeywordSubscription(Base):
@@ -37,8 +36,6 @@ class KeywordSubscription(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Foreign key constraint handled at database level
-    # Relationships
-    user = relationship("User", back_populates="keyword_subscriptions")
 
 class JobMatch(Base):
     __tablename__ = "job_matches"
@@ -53,7 +50,6 @@ class JobMatch(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
     # Relationships
-    user = relationship("User", back_populates="job_matches")
     notifications = relationship("PushNotification", back_populates="match")
 
 class PushNotification(Base):
