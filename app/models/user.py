@@ -21,7 +21,7 @@ class User(Base):
     phone = Column(String(20))
     location = Column(String(255))
     current_job_title = Column(String(255))
-    years_of_experience = Column(String(50))
+    years_of_experience = Column(Integer)
     linkedin_profile = Column(String(500))
     portfolio_url = Column(String(500))
     bio = Column(Text)
