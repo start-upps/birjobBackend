@@ -47,7 +47,7 @@ class User(Base):
     preferred_notification_time = Column(Time, default=time(9, 0))
     
     # Privacy Settings
-    profile_visibility = Column(String(20), default="Public")  # "Public", "Private"
+    profile_visibility = Column(String(20), default="private")  # "public", "private"
     share_analytics = Column(Boolean, default=True)
     share_job_view_history = Column(Boolean, default=False)
     allow_personalized_recommendations = Column(Boolean, default=True)
