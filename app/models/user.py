@@ -1,8 +1,8 @@
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, JSON, DECIMAL, ForeignKey
+from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, JSON, DECIMAL, ForeignKey, Time
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, time
 import uuid
 
 Base = declarative_base()
@@ -42,9 +42,9 @@ class User(Base):
     weekly_digest_enabled = Column(Boolean, default=False)
     market_insights_enabled = Column(Boolean, default=True)
     quiet_hours_enabled = Column(Boolean, default=True)
-    quiet_hours_start = Column(String(5), default="22:00")
-    quiet_hours_end = Column(String(5), default="08:00")
-    preferred_notification_time = Column(String(5), default="09:00")
+    quiet_hours_start = Column(Time, default=time(22, 0))
+    quiet_hours_end = Column(Time, default=time(8, 0))
+    preferred_notification_time = Column(Time, default=time(9, 0))
     
     # Privacy Settings
     profile_visibility = Column(String(20), default="Public")  # "Public", "Private"
