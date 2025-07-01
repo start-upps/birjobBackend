@@ -91,12 +91,15 @@ async def get_user_profile(device_id: str):
         profile_query = """
             SELECT 
                 id, device_id, first_name, last_name, email, phone, location,
-                current_job_title, years_of_experience, linkedin_profile, portfolio_url, bio,
+                current_job_title, years_of_experience::text as years_of_experience, 
+                linkedin_profile, portfolio_url, bio,
                 desired_job_types, remote_work_preference, skills, preferred_locations,
                 min_salary, max_salary, salary_currency, salary_negotiable,
                 match_keywords, job_matches_enabled, application_reminders_enabled,
                 weekly_digest_enabled, market_insights_enabled, quiet_hours_enabled,
-                quiet_hours_start, quiet_hours_end, preferred_notification_time,
+                quiet_hours_start::text as quiet_hours_start, 
+                quiet_hours_end::text as quiet_hours_end, 
+                preferred_notification_time::text as preferred_notification_time,
                 profile_visibility, share_analytics, share_job_view_history,
                 allow_personalized_recommendations, additional_personal_info,
                 additional_job_preferences, additional_notification_settings,
