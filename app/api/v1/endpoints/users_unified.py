@@ -43,7 +43,7 @@ async def create_or_update_user_profile(user_data: UnifiedUserCreate):
         
         # Create UPSERT query
         upsert_query = f"""
-            INSERT INTO iosapp.users_unified (device_id, {', '.join(fields)})
+            INSERT INTO iosapp.users (device_id, {', '.join(fields)})
             VALUES ($1, {', '.join(placeholders)})
             ON CONFLICT (device_id) 
             DO UPDATE SET 
@@ -101,7 +101,7 @@ async def get_user_profile(device_id: str):
                 allow_personalized_recommendations, additional_personal_info,
                 additional_job_preferences, additional_notification_settings,
                 additional_privacy_settings, profile_completeness, created_at, updated_at
-            FROM iosapp.users_unified 
+            FROM iosapp.users 
             WHERE device_id = $1
         """
         
@@ -199,7 +199,7 @@ async def get_profile_keywords(device_id: str):
     try:
         profile_query = """
             SELECT match_keywords, skills, updated_at
-            FROM iosapp.users_unified 
+            FROM iosapp.users 
             WHERE device_id = $1
         """
         
@@ -258,7 +258,7 @@ async def update_profile_keywords(device_id: str, request: UpdateKeywordsRequest
             )
         
         update_query = """
-            UPDATE iosapp.users_unified 
+            UPDATE iosapp.users 
             SET 
                 match_keywords = $1::jsonb,
                 updated_at = CURRENT_TIMESTAMP
@@ -306,7 +306,7 @@ async def add_profile_keyword(device_id: str, request: AddKeywordRequest):
         # Get current keywords
         current_query = """
             SELECT match_keywords 
-            FROM iosapp.users_unified 
+            FROM iosapp.users 
             WHERE device_id = $1
         """
         
@@ -352,7 +352,7 @@ async def add_profile_keyword(device_id: str, request: AddKeywordRequest):
         
         # Update database
         update_query = """
-            UPDATE iosapp.users_unified 
+            UPDATE iosapp.users 
             SET 
                 match_keywords = $1::jsonb,
                 updated_at = CURRENT_TIMESTAMP
@@ -395,7 +395,7 @@ async def remove_profile_keyword(device_id: str, keyword: str):
         # Get current keywords
         current_query = """
             SELECT match_keywords 
-            FROM iosapp.users_unified 
+            FROM iosapp.users 
             WHERE device_id = $1
         """
         
@@ -424,7 +424,7 @@ async def remove_profile_keyword(device_id: str, keyword: str):
             
             # Update database
             update_query = """
-                UPDATE iosapp.users_unified 
+                UPDATE iosapp.users 
                 SET 
                     match_keywords = $1::jsonb,
                     updated_at = CURRENT_TIMESTAMP
@@ -478,7 +478,7 @@ async def get_profile_based_matches(
         # Get user's keywords
         keywords_query = """
             SELECT match_keywords 
-            FROM iosapp.users_unified 
+            FROM iosapp.users 
             WHERE device_id = $1
         """
         
@@ -599,7 +599,7 @@ async def sync_user_profile(
     try:
         # Get source profile
         source_query = """
-            SELECT * FROM iosapp.users_unified WHERE device_id = $1
+            SELECT * FROM iosapp.users WHERE device_id = $1
         """
         source_result = await db_manager.execute_query(source_query, sourceDeviceId)
         
@@ -622,7 +622,7 @@ async def sync_user_profile(
         
         # Insert/update target profile
         sync_query = f"""
-            INSERT INTO iosapp.users_unified (device_id, {', '.join(fields)})
+            INSERT INTO iosapp.users (device_id, {', '.join(fields)})
             VALUES ($1, {', '.join(placeholders)})
             ON CONFLICT (device_id) 
             DO UPDATE SET 
