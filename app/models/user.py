@@ -27,9 +27,10 @@ class User(Base):
     
     # Job Preferences (stored as JSON)
     desired_job_types = Column(JSON)  # ["Full-time", "Contract"]
-    remote_work_preference = Column(String(50))  # "Remote", "Hybrid", "On-site"
+    remote_work_preference = Column(String(50), default="hybrid")  # "Remote", "Hybrid", "On-site"
     skills = Column(JSON)  # ["Swift", "SwiftUI", "UIKit"]
     preferred_locations = Column(JSON)  # ["San Francisco", "Remote"]
+    match_keywords = Column(JSON)  # ["Python", "iOS", "Swift"] - for job matching
     min_salary = Column(Integer)
     max_salary = Column(Integer)
     salary_currency = Column(String(10), default="USD")
@@ -53,6 +54,15 @@ class User(Base):
     
     # Profile Metadata
     profile_completeness = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    
+    # Flexible Storage for Future Features
+    additional_personal_info = Column(JSON, default=dict)
+    additional_job_preferences = Column(JSON, default=dict)
+    additional_notification_settings = Column(JSON, default=dict)
+    additional_privacy_settings = Column(JSON, default=dict)
+    
+    # Audit Fields
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
