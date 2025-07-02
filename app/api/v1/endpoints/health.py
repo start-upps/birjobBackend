@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.core.database import db_manager, check_db_health, engine, AsyncSessionLocal
 from app.core.redis_client import redis_client
-from app.services.match_engine import JobMatchEngine
+# from app.services.match_engine import JobMatchEngine  # Disabled - complex dependencies
 from app.core.config import settings
 from sqlalchemy import text
 
@@ -136,36 +136,35 @@ async def get_system_metrics() -> Dict[str, Any]:
         """
         active_devices = await db_manager.execute_query(active_devices_query)
         
-        # Get active subscriptions count
+        # Get active subscriptions count (simplified - count users with keywords)
         active_subs_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.keyword_subscriptions 
-            WHERE is_active = true
+            FROM iosapp.users 
+            WHERE jsonb_array_length(keywords) > 0
         """
         active_subs = await db_manager.execute_query(active_subs_query)
         
-        # Get matches in last 24h
-        matches_24h_query = """
+        # Get job views in last 24h (simplified metrics)
+        job_views_24h_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.job_matches 
-            WHERE created_at > NOW() - INTERVAL '24 hours'
+            FROM iosapp.job_views 
+            WHERE viewed_at > NOW() - INTERVAL '24 hours'
         """
-        matches_24h = await db_manager.execute_query(matches_24h_query)
+        job_views_24h = await db_manager.execute_query(job_views_24h_query)
         
-        # Get notifications sent in last 24h
-        notifications_24h_query = """
+        # Get saved jobs in last 24h (simplified notifications metric)
+        saved_jobs_24h_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.push_notifications 
+            FROM iosapp.saved_jobs 
             WHERE created_at > NOW() - INTERVAL '24 hours'
-            AND status = 'sent'
         """
-        notifications_24h = await db_manager.execute_query(notifications_24h_query)
+        saved_jobs_24h = await db_manager.execute_query(saved_jobs_24h_query)
         
         return {
             "active_devices": active_devices[0]["count"] if active_devices else 0,
             "active_subscriptions": active_subs[0]["count"] if active_subs else 0,
-            "matches_last_24h": matches_24h[0]["count"] if matches_24h else 0,
-            "notifications_sent_last_24h": notifications_24h[0]["count"] if notifications_24h else 0
+            "matches_last_24h": job_views_24h[0]["count"] if job_views_24h else 0,
+            "notifications_sent_last_24h": saved_jobs_24h[0]["count"] if saved_jobs_24h else 0
         }
         
     except Exception as e:
@@ -177,57 +176,9 @@ async def get_system_metrics() -> Dict[str, Any]:
             "notifications_sent_last_24h": 0
         }
 
-@router.post("/trigger-matching")
-async def trigger_match_engine():
-    """Manually trigger the job matching engine for testing"""
-    try:
-        logger.info("Manually triggering match engine...")
-        
-        engine = JobMatchEngine()
-        await engine.process_new_jobs()
-        
-        # Get updated match count
-        matches_count = await db_manager.execute_query("""
-            SELECT COUNT(*) as count 
-            FROM iosapp.job_matches 
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        """)
-        
-        recent_matches = matches_count[0]["count"] if matches_count else 0
-        
-        logger.info(f"Match engine completed. Recent matches: {recent_matches}")
-        
-        return {
-            "message": "Match engine triggered successfully", 
-            "matches_created_last_hour": recent_matches,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to trigger match engine: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to trigger match engine: {str(e)}"
-        )
-
-@router.get("/scheduler-status")
-async def get_scheduler_status():
-    """Check if the background scheduler is running"""
-    try:
-        from app.services.match_engine import job_scheduler
-        
-        return {
-            "scheduler_running": job_scheduler.running,
-            "interval_minutes": job_scheduler.interval_minutes,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get scheduler status: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get scheduler status: {str(e)}"
-        )
+# Match engine endpoints disabled in simplified version
+# @router.post("/trigger-matching")
+# @router.get("/scheduler-status")
 
 @router.post("/create-user-tables")
 async def create_user_tables():

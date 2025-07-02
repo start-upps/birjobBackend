@@ -41,15 +41,14 @@ async def get_user_by_email(email: str = Query(...)):
                 }
             )
         else:
-            # Auto-create user with email only
+            # Auto-create user with email only (no device_id in users table now)
             create_query = """
-                INSERT INTO iosapp.users (email, device_id, keywords, preferred_sources)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO iosapp.users (email, keywords, preferred_sources)
+                VALUES ($1, $2, $3)
                 RETURNING *
             """
-            fake_device_id = f"web_{email}_{int(datetime.now().timestamp())}"
             new_result = await db_manager.execute_query(
-                create_query, email, fake_device_id, json.dumps([]), json.dumps([])
+                create_query, email, json.dumps([]), json.dumps([])
             )
             
             if new_result:
@@ -199,20 +198,25 @@ async def register_user(user_data: UserCreate):
         logger.error(f"Error registering user: {e}")
         raise HTTPException(status_code=500, detail="Failed to register user")
 
-@router.get("/{device_id}", response_model=SuccessResponse)
-async def get_user(device_id: str):
-    """Get user by device_id"""
+@router.get("/profile/{device_id}", response_model=SuccessResponse)
+async def get_user_profile(device_id: str):
+    """Get user profile by device_id (using device_tokens relationship)"""
     try:
-        query = "SELECT * FROM iosapp.users WHERE device_id = $1"
+        # Query user via device_tokens table (new RDBMS relationship)
+        query = """
+            SELECT u.* FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
         result = await db_manager.execute_query(query, device_id)
         
         if result:
             user = result[0]
             return SuccessResponse(
-                message="User found",
+                message="User profile found",
                 data={
                     "id": str(user["id"]),
-                    "device_id": user["device_id"],
+                    "device_id": device_id,  # Include device_id for iOS app compatibility
                     "email": user["email"],
                     "keywords": user["keywords"] or [],
                     "preferred_sources": user["preferred_sources"] or [],
@@ -222,11 +226,132 @@ async def get_user(device_id: str):
                 }
             )
         else:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="User profile not found")
             
     except Exception as e:
-        logger.error(f"Error getting user: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get user")
+        logger.error(f"Error getting user profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user profile")
+
+@router.get("/profile/exists/{device_id}", response_model=SuccessResponse)
+async def check_profile_exists(device_id: str):
+    """Check if user profile exists for device"""
+    try:
+        query = """
+            SELECT COUNT(*) as count FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        result = await db_manager.execute_query(query, device_id)
+        
+        exists = result[0]["count"] > 0 if result else False
+        
+        return SuccessResponse(
+            message="Profile existence checked",
+            data={"exists": exists}
+        )
+            
+    except Exception as e:
+        logger.error(f"Error checking profile existence: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check profile existence")
+
+@router.post("/profile", response_model=SuccessResponse)
+async def create_or_update_profile(profile_data: UserCreate):
+    """Create or update user profile via device ID"""
+    try:
+        # First check if user exists via device_id
+        check_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        existing_result = await db_manager.execute_query(check_query, profile_data.device_id)
+        
+        if existing_result:
+            # Update existing user
+            user_id = existing_result[0]["id"]
+            update_query = """
+                UPDATE iosapp.users 
+                SET email = $1, keywords = $2, preferred_sources = $3, 
+                    notifications_enabled = $4, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $5
+                RETURNING *
+            """
+            result = await db_manager.execute_query(
+                update_query, 
+                profile_data.email,
+                json.dumps(profile_data.keywords or []),
+                json.dumps(profile_data.preferred_sources or []),
+                profile_data.notifications_enabled,
+                user_id
+            )
+            
+            if result:
+                user = result[0]
+                return SuccessResponse(
+                    message="Profile updated successfully",
+                    data={
+                        "id": str(user["id"]),
+                        "device_id": profile_data.device_id,
+                        "email": user["email"],
+                        "keywords": user["keywords"] or [],
+                        "preferred_sources": user["preferred_sources"] or [],
+                        "notifications_enabled": user["notifications_enabled"],
+                        "created_at": user["created_at"].isoformat(),
+                        "updated_at": user["updated_at"].isoformat()
+                    }
+                )
+        else:
+            # Create new user and device token entry
+            # First create user
+            create_user_query = """
+                INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *
+            """
+            user_result = await db_manager.execute_query(
+                create_user_query,
+                profile_data.email,
+                json.dumps(profile_data.keywords or []),
+                json.dumps(profile_data.preferred_sources or []),
+                profile_data.notifications_enabled
+            )
+            
+            if user_result:
+                user = user_result[0]
+                
+                # Create device token entry (if not exists)
+                device_query = """
+                    INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (device_id) DO UPDATE SET user_id = $1, is_active = true
+                """
+                await db_manager.execute_query(
+                    device_query,
+                    user["id"],
+                    profile_data.device_id,
+                    f"token_for_{profile_data.device_id}",  # Placeholder token
+                    json.dumps({})
+                )
+                
+                return SuccessResponse(
+                    message="Profile created successfully",
+                    data={
+                        "id": str(user["id"]),
+                        "device_id": profile_data.device_id,
+                        "email": user["email"],
+                        "keywords": user["keywords"] or [],
+                        "preferred_sources": user["preferred_sources"] or [],
+                        "notifications_enabled": user["notifications_enabled"],
+                        "created_at": user["created_at"].isoformat(),
+                        "updated_at": user["updated_at"].isoformat()
+                    }
+                )
+            
+        raise HTTPException(status_code=500, detail="Failed to create/update profile")
+            
+    except Exception as e:
+        logger.error(f"Error creating/updating profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create/update profile")
 
 @router.put("/{device_id}", response_model=SuccessResponse)
 async def update_user(device_id: str, user_data: UserUpdate):

@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, DateTime, JSON, Integer, Boolean
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -12,12 +12,11 @@ class User(Base):
     
     # Basic identification
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(String, unique=True, nullable=False, index=True)
-    email = Column(String(255), index=True)  # Optional email for notifications
+    email = Column(String(255), unique=True, index=True)  # Email is now unique
     
     # Simple job preferences
-    keywords = Column(JSON, default=list)  # Job search keywords
-    preferred_sources = Column(JSON, default=list)  # Preferred job sources
+    keywords = Column(JSONB, default=list)  # Job search keywords
+    preferred_sources = Column(JSONB, default=list)  # Preferred job sources
     
     # Notification settings
     notifications_enabled = Column(Boolean, default=True)
@@ -26,6 +25,19 @@ class User(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships with proper foreign keys
+    device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
+    saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
+    job_views = relationship("JobView", back_populates="user", cascade="all, delete-orphan")
+    
+    # Analytics relationships
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    actions = relationship("UserAction", back_populates="user", cascade="all, delete-orphan")
+    searches = relationship("SearchAnalytics", back_populates="user", cascade="all, delete-orphan")
+    job_engagements = relationship("JobEngagement", back_populates="user", cascade="all, delete-orphan")
+    preferences_history = relationship("UserPreferencesHistory", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("NotificationAnalytics", back_populates="user", cascade="all, delete-orphan")
 
 
 class SavedJob(Base):
@@ -33,9 +45,15 @@ class SavedJob(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
     job_id = Column(Integer, nullable=False)
+    job_title = Column(String(500))  # Cache job title for performance
+    job_company = Column(String(255))  # Cache job company for performance
+    job_source = Column(String(100))  # Cache job source for performance
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship back to user
+    user = relationship("User", back_populates="saved_jobs")
 
 
 class JobView(Base):
@@ -43,6 +61,13 @@ class JobView(Base):
     __table_args__ = {'schema': 'iosapp'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
     job_id = Column(Integer, nullable=False)
+    job_title = Column(String(500))  # Cache job title for analytics
+    job_company = Column(String(255))  # Cache job company for analytics
+    job_source = Column(String(100))  # Cache job source for analytics
+    view_duration_seconds = Column(Integer, default=0)  # How long user viewed job
     viewed_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship back to user
+    user = relationship("User", back_populates="job_views")

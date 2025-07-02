@@ -256,3 +256,225 @@ async def get_job_stats():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch job statistics"
         )
+
+# Job Management Endpoints for RDBMS Schema
+
+@router.post("/save", response_model=Dict[str, Any])
+async def save_job(job_data: Dict[str, Any]):
+    """Save a job for user (uses device_id to find user via RDBMS relationship)"""
+    try:
+        device_id = job_data.get("device_id")
+        job_id = job_data.get("job_id")
+        
+        if not device_id or not job_id:
+            raise HTTPException(status_code=400, detail="device_id and job_id are required")
+        
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]["id"]
+        
+        # Get job details for caching
+        job_details = await get_job_details(job_id)
+        
+        # Insert saved job with foreign key relationship
+        save_query = """
+            INSERT INTO iosapp.saved_jobs (user_id, job_id, job_title, job_company, job_source)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id, job_id) DO NOTHING
+            RETURNING id
+        """
+        result = await db_manager.execute_query(
+            save_query, 
+            user_id, 
+            job_id,
+            job_details.get("title", ""),
+            job_details.get("company", ""),
+            job_details.get("source", "")
+        )
+        
+        if result:
+            return {"success": True, "message": "Job saved successfully"}
+        else:
+            return {"success": True, "message": "Job already saved"}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving job: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save job")
+
+@router.delete("/unsave", response_model=Dict[str, Any])
+async def unsave_job(job_data: Dict[str, Any]):
+    """Remove saved job for user"""
+    try:
+        device_id = job_data.get("device_id")
+        job_id = job_data.get("job_id")
+        
+        if not device_id or not job_id:
+            raise HTTPException(status_code=400, detail="device_id and job_id are required")
+        
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]["id"]
+        
+        # Delete saved job
+        delete_query = """
+            DELETE FROM iosapp.saved_jobs 
+            WHERE user_id = $1 AND job_id = $2
+            RETURNING id
+        """
+        result = await db_manager.execute_query(delete_query, user_id, job_id)
+        
+        if result:
+            return {"success": True, "message": "Job unsaved successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Saved job not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unsaving job: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unsave job")
+
+@router.get("/saved/{device_id}", response_model=Dict[str, Any])
+async def get_saved_jobs(device_id: str):
+    """Get all saved jobs for user via device_id"""
+    try:
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]["id"]
+        
+        # Get saved jobs with cached details
+        saved_jobs_query = """
+            SELECT job_id, job_title, job_company, job_source, created_at
+            FROM iosapp.saved_jobs
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+        """
+        saved_jobs = await db_manager.execute_query(saved_jobs_query, user_id)
+        
+        saved_jobs_data = []
+        for job in saved_jobs:
+            saved_jobs_data.append({
+                "job_id": job["job_id"],
+                "job_title": job["job_title"],
+                "job_company": job["job_company"],
+                "job_source": job["job_source"],
+                "saved_at": job["created_at"].isoformat()
+            })
+        
+        return {
+            "success": True,
+            "data": {"saved_jobs": saved_jobs_data}
+        }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting saved jobs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get saved jobs")
+
+@router.post("/view", response_model=Dict[str, Any])
+async def record_job_view(view_data: Dict[str, Any]):
+    """Record job view for analytics with RDBMS foreign key"""
+    try:
+        device_id = view_data.get("device_id")
+        job_id = view_data.get("job_id")
+        view_duration = view_data.get("view_duration_seconds", 0)
+        
+        if not device_id or not job_id:
+            raise HTTPException(status_code=400, detail="device_id and job_id are required")
+        
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]["id"]
+        
+        # Get job details for caching
+        job_details = await get_job_details(job_id)
+        
+        # Record job view with foreign key relationship
+        view_query = """
+            INSERT INTO iosapp.job_views (user_id, job_id, job_title, job_company, job_source, view_duration_seconds)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        """
+        result = await db_manager.execute_query(
+            view_query, 
+            user_id, 
+            job_id,
+            job_details.get("title", ""),
+            job_details.get("company", ""),
+            job_details.get("source", ""),
+            view_duration
+        )
+        
+        if result:
+            return {"success": True, "message": "Job view recorded"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to record job view")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recording job view: {e}")
+        raise HTTPException(status_code=500, detail="Failed to record job view")
+
+async def get_job_details(job_id: int) -> Dict[str, Any]:
+    """Helper function to get job details for caching"""
+    try:
+        job_query = """
+            SELECT title, company, source
+            FROM scraper.jobs_jobpost
+            WHERE id = $1
+        """
+        result = await db_manager.execute_query(job_query, job_id)
+        
+        if result:
+            job = result[0]
+            return {
+                "title": job["title"],
+                "company": job["company"],
+                "source": job["source"]
+            }
+        else:
+            return {"title": "", "company": "", "source": "unknown"}
+            
+    except Exception as e:
+        logger.error(f"Error getting job details: {e}")
+        return {"title": "", "company": "", "source": "unknown"}

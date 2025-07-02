@@ -33,39 +33,45 @@ async def register_device(
         if not device_id_value:
             device_id_value = request.device_token
             
-        # First, find or create user based on device_id
-        user_stmt = select(User).where(User.device_id == device_id_value)
-        user_result = await db.execute(user_stmt)
-        user = user_result.scalar_one_or_none()
+        # First, find or create user based on device_id (now in device_tokens table)
+        device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
+        device_result = await db.execute(device_stmt)
+        existing_device = device_result.scalar_one_or_none()
+        
+        user = None
+        if existing_device:
+            # Get existing user
+            user_stmt = select(User).where(User.id == existing_device.user_id)
+            user_result = await db.execute(user_stmt)
+            user = user_result.scalar_one_or_none()
         
         if not user:
             # Create a basic user profile for device registration
-            user = User(
-                device_id=device_id_value
-            )
+            user = User()  # No device_id field in users table anymore
             db.add(user)
             await db.commit()
             await db.refresh(user)
             logger.info(f"Created new user for device registration: {user.id}")
         
-        # Check if device already exists
-        device_stmt = select(DeviceToken).where(DeviceToken.device_token == request.device_token)
-        device_result = await db.execute(device_stmt)
-        existing_device = device_result.scalar_one_or_none()
+        # Check if device token already exists (different from device_id check above)
+        token_stmt = select(DeviceToken).where(DeviceToken.device_token == request.device_token)
+        token_result = await db.execute(token_stmt)
+        existing_token_device = token_result.scalar_one_or_none()
         
-        if existing_device:
+        if existing_token_device:
             # Update existing device
-            existing_device.device_info = request.device_info.model_dump()
-            existing_device.is_active = True
-            existing_device.user_id = user.id  # Ensure user_id is set
+            existing_token_device.device_info = request.device_info.model_dump()
+            existing_token_device.is_active = True
+            existing_token_device.user_id = user.id  # Ensure user_id is set
+            existing_token_device.device_id = device_id_value  # Update device_id if needed
             await db.commit()
-            await db.refresh(existing_device)
+            await db.refresh(existing_token_device)
             
             return DeviceRegisterResponse(
                 data={
-                    "device_id": str(existing_device.id),
+                    "device_id": existing_token_device.device_id,
                     "user_id": str(user.id),
-                    "registered_at": existing_device.updated_at.isoformat(),
+                    "registered_at": existing_token_device.updated_at.isoformat(),
                     "message": "Device updated successfully"
                 }
             )
@@ -73,6 +79,7 @@ async def register_device(
             # Create new device
             device = DeviceToken(
                 user_id=user.id,  # Required field in new schema
+                device_id=device_id_value,  # Store device_id for linking
                 device_token=request.device_token,
                 device_info=request.device_info.model_dump()
             )
@@ -84,9 +91,9 @@ async def register_device(
             
             return DeviceRegisterResponse(
                 data={
-                    "device_id": str(device.id),
+                    "device_id": device.device_id,
                     "user_id": str(user.id),
-                    "registered_at": device.created_at.isoformat()
+                    "registered_at": device.registered_at.isoformat()
                 }
             )
             
