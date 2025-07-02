@@ -208,7 +208,7 @@ async def register_user(user_data: UserCreate):
                 device_query,
                 user["id"],
                 user_data.device_id,
-                f"token_for_{user_data.device_id}",  # Placeholder token
+                f"placeholder_token_64_chars_min_{user_data.device_id}_{'x' * 20}",  # 64+ char token
                 json.dumps({})
             )
             
@@ -335,6 +335,11 @@ async def create_or_update_profile(profile_data: UserCreate):
             create_user_query = """
                 INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
                 VALUES ($1, $2, $3, $4)
+                ON CONFLICT (email) DO UPDATE SET
+                    keywords = EXCLUDED.keywords,
+                    preferred_sources = EXCLUDED.preferred_sources,
+                    notifications_enabled = EXCLUDED.notifications_enabled,
+                    updated_at = CURRENT_TIMESTAMP
                 RETURNING *
             """
             user_result = await db_manager.execute_query(
@@ -358,7 +363,7 @@ async def create_or_update_profile(profile_data: UserCreate):
                     device_query,
                     user["id"],
                     profile_data.device_id,
-                    f"token_for_{profile_data.device_id}",  # Placeholder token
+                    f"placeholder_token_64_chars_min_{profile_data.device_id}_{'x' * 20}",  # 64+ char token
                     json.dumps({})
                 )
                 
