@@ -782,6 +782,11 @@ async def backup_user_profile_post(request: ProfileBackupRequest):
     """Backup user profile for iOS app (POST with request body)"""
     try:
         device_id = request.device_id
+        if not device_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="device_id is required. Please provide device_id or deviceId in request body."
+            )
         backup_data = await _create_profile_backup(device_id)
         return {
             "success": True,
@@ -796,3 +801,79 @@ async def backup_user_profile_post(request: ProfileBackupRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create profile backup"
         )
+
+@router.post("/profile/exists")
+async def check_profile_exists(request: Dict[str, Any]):
+    """Check if user profile exists for iOS app"""
+    try:
+        # Extract device_id from request
+        device_id = request.get("device_id") or request.get("deviceId")
+        if not device_id:
+            return {
+                "success": False,
+                "exists": False,
+                "message": "device_id is required"
+            }
+        
+        # Check if profile exists
+        exists_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        result = await db_manager.execute_query(exists_query, device_id)
+        
+        exists = bool(result)
+        
+        return {
+            "success": True,
+            "exists": exists,
+            "message": "Profile found" if exists else "Profile not found",
+            "data": {
+                "deviceId": device_id,
+                "profileExists": exists
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking profile exists: {e}")
+        return {
+            "success": False,
+            "exists": False,
+            "message": "Error checking profile existence"
+        }
+
+@router.post("/profile/backup/simple")
+async def backup_user_profile_simple(request: Dict[str, Any] = None):
+    """Simple backup endpoint that handles empty requests gracefully"""
+    try:
+        # Handle empty request body
+        if not request:
+            request = {}
+            
+        # Extract device_id from request
+        device_id = request.get("device_id") or request.get("deviceId")
+        
+        if not device_id:
+            return {
+                "success": False,
+                "message": "device_id is required. Please provide device_id or deviceId in request body.",
+                "data": None
+            }
+        
+        backup_data = await _create_profile_backup(device_id)
+        return {
+            "success": True,
+            "message": "Profile backup created successfully",
+            "data": backup_data
+        }
+        
+    except HTTPException as e:
+        return {
+            "success": False,
+            "message": str(e.detail),
+            "data": None
+        }
+    except Exception as e:
+        logger.error(f"Error creating profile backup (simple): {e}")
+        return {
+            "success": False,
+            "message": "Failed to create profile backup",
+            "data": None
+        }

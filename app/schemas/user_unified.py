@@ -279,11 +279,20 @@ class ProfileBackupRequest(BaseModel):
     device_id: Optional[str] = Field(None, description="Device ID (snake_case)")
     deviceId: Optional[str] = Field(None, description="Device ID (camelCase)")
     
+    def __init__(self, **data):
+        # Handle case where iOS app sends empty body or null values
+        if not data or all(v is None for v in data.values()):
+            # If no valid data provided, try to extract from headers or context
+            # For now, set a placeholder that will trigger proper error handling
+            data = {"device_id": None, "deviceId": None}
+        super().__init__(**data)
+    
     @validator('device_id', pre=True, always=True)
     def validate_device_id(cls, v, values):
         device_id = v or values.get('deviceId')
-        if not device_id:
-            raise ValueError('Either device_id or deviceId must be provided')
+        if not device_id or device_id == "null":
+            # Return None to trigger proper error in endpoint
+            return None
         return device_id
 
 class ProfileBackupResponse(BaseModel):
