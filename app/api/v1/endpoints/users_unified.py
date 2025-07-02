@@ -657,3 +657,118 @@ async def sync_user_profile(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync profile"
         )
+
+@router.post("/profile/backup")
+async def backup_user_profile(device_id: str = Query(...)):
+    """Backup user profile for iOS app"""
+    try:
+        # Get complete user profile
+        profile_query = """
+            SELECT 
+                id, device_id, first_name, last_name, email, phone, location,
+                current_job_title, years_of_experience::text as years_of_experience, 
+                linkedin_profile, portfolio_url, bio,
+                desired_job_types, remote_work_preference, skills, preferred_locations,
+                min_salary, max_salary, salary_currency, salary_negotiable,
+                match_keywords, job_matches_enabled, application_reminders_enabled,
+                weekly_digest_enabled, market_insights_enabled, quiet_hours_enabled,
+                quiet_hours_start::text as quiet_hours_start, 
+                quiet_hours_end::text as quiet_hours_end, 
+                preferred_notification_time::text as preferred_notification_time,
+                profile_visibility, share_analytics, share_job_view_history,
+                allow_personalized_recommendations, additional_personal_info,
+                additional_job_preferences, additional_notification_settings,
+                additional_privacy_settings, profile_completeness, created_at, updated_at
+            FROM iosapp.users 
+            WHERE device_id = $1
+        """
+        
+        result = await db_manager.execute_query(profile_query, device_id)
+        
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found"
+            )
+        
+        user_data = result[0]
+        
+        # Parse JSONB fields
+        def parse_jsonb_field(field_value):
+            if isinstance(field_value, str):
+                try:
+                    return json.loads(field_value)
+                except:
+                    return []
+            return field_value or []
+        
+        # Create backup data
+        backup_data = {
+            "userId": str(user_data["id"]),
+            "deviceId": user_data["device_id"],
+            "backupTimestamp": datetime.now().isoformat(),
+            "profileData": {
+                "personalInfo": {
+                    "firstName": user_data["first_name"],
+                    "lastName": user_data["last_name"],
+                    "email": user_data["email"],
+                    "phone": user_data["phone"],
+                    "location": user_data["location"],
+                    "currentJobTitle": user_data["current_job_title"],
+                    "yearsOfExperience": user_data["years_of_experience"],
+                    "linkedInProfile": user_data["linkedin_profile"],
+                    "portfolioURL": user_data["portfolio_url"],
+                    "bio": user_data["bio"]
+                },
+                "jobPreferences": {
+                    "desiredJobTypes": parse_jsonb_field(user_data["desired_job_types"]),
+                    "remoteWorkPreference": user_data["remote_work_preference"],
+                    "skills": parse_jsonb_field(user_data["skills"]),
+                    "preferredLocations": parse_jsonb_field(user_data["preferred_locations"]),
+                    "salaryRange": {
+                        "minSalary": user_data["min_salary"],
+                        "maxSalary": user_data["max_salary"],
+                        "currency": user_data["salary_currency"],
+                        "isNegotiable": user_data["salary_negotiable"]
+                    },
+                    "matchKeywords": parse_jsonb_field(user_data["match_keywords"])
+                },
+                "notificationSettings": {
+                    "jobMatchesEnabled": user_data["job_matches_enabled"],
+                    "applicationRemindersEnabled": user_data["application_reminders_enabled"],
+                    "weeklyDigestEnabled": user_data["weekly_digest_enabled"],
+                    "marketInsightsEnabled": user_data["market_insights_enabled"],
+                    "quietHoursEnabled": user_data["quiet_hours_enabled"],
+                    "quietHoursStart": user_data["quiet_hours_start"],
+                    "quietHoursEnd": user_data["quiet_hours_end"],
+                    "preferredNotificationTime": user_data["preferred_notification_time"]
+                },
+                "privacySettings": {
+                    "profileVisibility": user_data["profile_visibility"],
+                    "shareAnalytics": user_data["share_analytics"],
+                    "shareJobViewHistory": user_data["share_job_view_history"],
+                    "allowPersonalizedRecommendations": user_data["allow_personalized_recommendations"]
+                }
+            },
+            "metadata": {
+                "profileCompleteness": user_data["profile_completeness"],
+                "createdAt": user_data["created_at"].isoformat() if user_data["created_at"] else None,
+                "lastUpdated": user_data["updated_at"].isoformat() if user_data["updated_at"] else None,
+                "backupVersion": "1.0"
+            }
+        }
+        
+        return {
+            "success": True,
+            "message": "Profile backup created successfully",
+            "data": backup_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating profile backup: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create profile backup"
+        )
