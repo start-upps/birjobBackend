@@ -273,3 +273,20 @@ class UserAnalyticsResponse(BaseModel):
 class ApplicationHistoryResponse(BaseModel):
     success: bool
     data: Dict[str, Any]
+
+# Profile Backup schemas
+class ProfileBackupRequest(BaseModel):
+    device_id: Optional[str] = Field(None, description="Device ID (snake_case)")
+    deviceId: Optional[str] = Field(None, description="Device ID (camelCase)")
+    
+    @validator('device_id', pre=True, always=True)
+    def validate_device_id(cls, v, values):
+        device_id = v or values.get('deviceId')
+        if not device_id:
+            raise ValueError('Either device_id or deviceId must be provided')
+        return device_id
+
+class ProfileBackupResponse(BaseModel):
+    success: bool
+    message: str
+    data: Dict[str, Any]

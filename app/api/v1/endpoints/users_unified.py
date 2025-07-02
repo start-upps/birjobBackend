@@ -9,7 +9,7 @@ from app.schemas.user_unified import (
     UnifiedUserCreate, UnifiedUserUpdate, UnifiedUserResponse,
     UpdateKeywordsRequest, AddKeywordRequest, KeywordResponse,
     UserProfileCreate, UserProfileResponse, UserProfile,
-    SuccessResponse, ErrorResponse
+    SuccessResponse, ErrorResponse, ProfileBackupRequest, ProfileBackupResponse
 )
 from app.services.match_engine import ProfileBasedJobMatcher
 
@@ -63,10 +63,10 @@ async def create_or_update_user_profile(user_data: UnifiedUserCreate):
             return SuccessResponse(
                 message="User profile created/updated successfully",
                 data={
-                    "userId": str(user_result["id"]),
-                    "deviceId": user_result["device_id"],
-                    "profileCompleteness": user_result["profile_completeness"],
-                    "lastUpdated": user_result["updated_at"].isoformat()
+                "userId": str(user_result["id"]),
+                "deviceId": user_result["device_id"],
+                "profileCompleteness": user_result["profile_completeness"],
+                "lastUpdated": user_result["updated_at"].isoformat()
                 }
             )
         else:
@@ -149,12 +149,12 @@ async def get_user_profile(device_id: str):
                 "skills": parse_jsonb_field(user_data["skills"]),
                 "preferredLocations": parse_jsonb_field(user_data["preferred_locations"]),
                 "salaryRange": {
-                    "minSalary": user_data["min_salary"],
-                    "maxSalary": user_data["max_salary"],
-                    "currency": user_data["salary_currency"],
-                    "isNegotiable": user_data["salary_negotiable"]
-                },
-                "matchKeywords": parse_jsonb_field(user_data["match_keywords"])
+                "minSalary": user_data["min_salary"],
+                "maxSalary": user_data["max_salary"],
+                "currency": user_data["salary_currency"],
+                "isNegotiable": user_data["salary_negotiable"]
+            },
+            "matchKeywords": parse_jsonb_field(user_data["match_keywords"])
             },
             notificationSettings={
                 "jobMatchesEnabled": user_data["job_matches_enabled"],
@@ -338,8 +338,8 @@ async def add_profile_keyword(device_id: str, request: AddKeywordRequest):
                 "success": True,
                 "message": "Keyword already exists",
                 "data": {
-                    "matchKeywords": current_keywords,
-                    "keywordCount": len(current_keywords)
+                "matchKeywords": current_keywords,
+                "keywordCount": len(current_keywords)
                 }
             }
         
@@ -445,10 +445,10 @@ async def remove_profile_keyword(device_id: str, keyword: str):
                 "success": True,
                 "message": "Keyword removed successfully",
                 "data": {
-                    "matchKeywords": updated_keywords,
-                    "keywordCount": len(updated_keywords),
-                    "removedKeyword": keyword,
-                    "lastUpdated": result[0]["updated_at"].isoformat()
+                "matchKeywords": updated_keywords,
+                "keywordCount": len(updated_keywords),
+                "removedKeyword": keyword,
+                "lastUpdated": result[0]["updated_at"].isoformat()
                 }
             }
         else:
@@ -456,8 +456,8 @@ async def remove_profile_keyword(device_id: str, keyword: str):
                 "success": True,
                 "message": "Keyword not found in profile",
                 "data": {
-                    "matchKeywords": current_keywords,
-                    "keywordCount": len(current_keywords)
+                "matchKeywords": current_keywords,
+                "keywordCount": len(current_keywords)
                 }
             }
         
@@ -508,14 +508,14 @@ async def get_profile_based_matches(
             return {
                 "success": True,
                 "data": {
-                    "matches": [],
-                    "totalCount": 0,
-                    "userKeywords": [],
-                    "matchingStats": {
-                        "totalJobsEvaluated": 0,
-                        "jobsWithMatches": 0,
-                        "averageScore": 0,
-                        "topScore": 0
+                "matches": [],
+                "totalCount": 0,
+                "userKeywords": [],
+                "matchingStats": {
+                    "totalJobsEvaluated": 0,
+                    "jobsWithMatches": 0,
+                    "averageScore": 0,
+                    "topScore": 0
                     }
                 }
             }
@@ -539,18 +539,18 @@ async def get_profile_based_matches(
             
             if match_details["score"] > 0:  # Only include jobs with relevance
                 scored_jobs.append({
-                    "jobId": job["id"],
-                    "title": job["title"],
-                    "company": job["company"],
-                    "location": "Remote",  # Default since location not in table
-                    "salary": "Competitive",  # Default since salary not in table
-                    "description": job["title"],  # Use title as description fallback
-                    "source": job["source"],
-                    "postedAt": job["created_at"].isoformat() if job["created_at"] else None,
-                    "matchScore": round(match_details["score"], 1),
-                    "matchedKeywords": match_details["matched_keywords"],
-                    "matchReasons": match_details["match_reasons"][:3],  # Top 3 reasons
-                    "keywordRelevance": match_details["keyword_relevance"]
+                "jobId": job["id"],
+                "title": job["title"],
+                "company": job["company"],
+                "location": "Remote",  # Default since location not in table
+                "salary": "Competitive",  # Default since salary not in table
+                "description": job["title"],  # Use title as description fallback
+                "source": job["source"],
+                "postedAt": job["created_at"].isoformat() if job["created_at"] else None,
+                "matchScore": round(match_details["score"], 1),
+                "matchedKeywords": match_details["matched_keywords"],
+                "matchReasons": match_details["match_reasons"][:3],  # Top 3 reasons
+                "keywordRelevance": match_details["keyword_relevance"]
                 })
         
         # Sort by score (descending) and take requested limit
@@ -658,116 +658,140 @@ async def sync_user_profile(
             detail="Failed to sync profile"
         )
 
-@router.post("/profile/backup")
-async def backup_user_profile(device_id: str = Query(...)):
-    """Backup user profile for iOS app"""
-    try:
-        # Get complete user profile
-        profile_query = """
-            SELECT 
-                id, device_id, first_name, last_name, email, phone, location,
-                current_job_title, years_of_experience::text as years_of_experience, 
-                linkedin_profile, portfolio_url, bio,
-                desired_job_types, remote_work_preference, skills, preferred_locations,
-                min_salary, max_salary, salary_currency, salary_negotiable,
-                match_keywords, job_matches_enabled, application_reminders_enabled,
-                weekly_digest_enabled, market_insights_enabled, quiet_hours_enabled,
-                quiet_hours_start::text as quiet_hours_start, 
-                quiet_hours_end::text as quiet_hours_end, 
-                preferred_notification_time::text as preferred_notification_time,
-                profile_visibility, share_analytics, share_job_view_history,
-                allow_personalized_recommendations, additional_personal_info,
-                additional_job_preferences, additional_notification_settings,
-                additional_privacy_settings, profile_completeness, created_at, updated_at
-            FROM iosapp.users 
-            WHERE device_id = $1
-        """
-        
-        result = await db_manager.execute_query(profile_query, device_id)
-        
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        user_data = result[0]
-        
-        # Parse JSONB fields
-        def parse_jsonb_field(field_value):
-            if isinstance(field_value, str):
-                try:
-                    return json.loads(field_value)
-                except:
-                    return []
-            return field_value or []
-        
-        # Create backup data
-        backup_data = {
-            "userId": str(user_data["id"]),
-            "deviceId": user_data["device_id"],
-            "backupTimestamp": datetime.now().isoformat(),
-            "profileData": {
-                "personalInfo": {
-                    "firstName": user_data["first_name"],
-                    "lastName": user_data["last_name"],
-                    "email": user_data["email"],
-                    "phone": user_data["phone"],
-                    "location": user_data["location"],
-                    "currentJobTitle": user_data["current_job_title"],
-                    "yearsOfExperience": user_data["years_of_experience"],
-                    "linkedInProfile": user_data["linkedin_profile"],
-                    "portfolioURL": user_data["portfolio_url"],
-                    "bio": user_data["bio"]
-                },
-                "jobPreferences": {
-                    "desiredJobTypes": parse_jsonb_field(user_data["desired_job_types"]),
-                    "remoteWorkPreference": user_data["remote_work_preference"],
-                    "skills": parse_jsonb_field(user_data["skills"]),
-                    "preferredLocations": parse_jsonb_field(user_data["preferred_locations"]),
-                    "salaryRange": {
-                        "minSalary": user_data["min_salary"],
-                        "maxSalary": user_data["max_salary"],
-                        "currency": user_data["salary_currency"],
-                        "isNegotiable": user_data["salary_negotiable"]
-                    },
-                    "matchKeywords": parse_jsonb_field(user_data["match_keywords"])
-                },
-                "notificationSettings": {
-                    "jobMatchesEnabled": user_data["job_matches_enabled"],
-                    "applicationRemindersEnabled": user_data["application_reminders_enabled"],
-                    "weeklyDigestEnabled": user_data["weekly_digest_enabled"],
-                    "marketInsightsEnabled": user_data["market_insights_enabled"],
-                    "quietHoursEnabled": user_data["quiet_hours_enabled"],
-                    "quietHoursStart": user_data["quiet_hours_start"],
-                    "quietHoursEnd": user_data["quiet_hours_end"],
-                    "preferredNotificationTime": user_data["preferred_notification_time"]
-                },
-                "privacySettings": {
-                    "profileVisibility": user_data["profile_visibility"],
-                    "shareAnalytics": user_data["share_analytics"],
-                    "shareJobViewHistory": user_data["share_job_view_history"],
-                    "allowPersonalizedRecommendations": user_data["allow_personalized_recommendations"]
-                }
+async def _create_profile_backup(device_id: str) -> Dict[str, Any]:
+    """Helper function to create profile backup data"""
+    # Get complete user profile
+    profile_query = """
+        SELECT 
+            id, device_id, first_name, last_name, email, phone, location,
+            current_job_title, years_of_experience::text as years_of_experience, 
+            linkedin_profile, portfolio_url, bio,
+            desired_job_types, remote_work_preference, skills, preferred_locations,
+            min_salary, max_salary, salary_currency, salary_negotiable,
+            match_keywords, job_matches_enabled, application_reminders_enabled,
+            weekly_digest_enabled, market_insights_enabled, quiet_hours_enabled,
+            quiet_hours_start::text as quiet_hours_start, 
+            quiet_hours_end::text as quiet_hours_end, 
+            preferred_notification_time::text as preferred_notification_time,
+            profile_visibility, share_analytics, share_job_view_history,
+            allow_personalized_recommendations, additional_personal_info,
+            additional_job_preferences, additional_notification_settings,
+            additional_privacy_settings, profile_completeness, created_at, updated_at
+        FROM iosapp.users 
+        WHERE device_id = $1
+    """
+    
+    result = await db_manager.execute_query(profile_query, device_id)
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User profile not found"
+        )
+    
+    user_data = result[0]
+    
+    # Parse JSONB fields
+    def parse_jsonb_field(field_value):
+        if isinstance(field_value, str):
+            try:
+                return json.loads(field_value)
+            except:
+                return []
+        return field_value or []
+    
+    # Create backup data
+    backup_data = {
+        "userId": str(user_data["id"]),
+        "deviceId": user_data["device_id"],
+        "backupTimestamp": datetime.now().isoformat(),
+        "profileData": {
+            "personalInfo": {
+                "firstName": user_data["first_name"],
+                "lastName": user_data["last_name"],
+                "email": user_data["email"],
+                "phone": user_data["phone"],
+                "location": user_data["location"],
+                "currentJobTitle": user_data["current_job_title"],
+                "yearsOfExperience": user_data["years_of_experience"],
+                "linkedInProfile": user_data["linkedin_profile"],
+                "portfolioURL": user_data["portfolio_url"],
+                "bio": user_data["bio"]
             },
-            "metadata": {
-                "profileCompleteness": user_data["profile_completeness"],
-                "createdAt": user_data["created_at"].isoformat() if user_data["created_at"] else None,
-                "lastUpdated": user_data["updated_at"].isoformat() if user_data["updated_at"] else None,
-                "backupVersion": "1.0"
+            "jobPreferences": {
+                "desiredJobTypes": parse_jsonb_field(user_data["desired_job_types"]),
+                "remoteWorkPreference": user_data["remote_work_preference"],
+                "skills": parse_jsonb_field(user_data["skills"]),
+                "preferredLocations": parse_jsonb_field(user_data["preferred_locations"]),
+                "salaryRange": {
+                    "minSalary": user_data["min_salary"],
+                    "maxSalary": user_data["max_salary"],
+                    "currency": user_data["salary_currency"],
+                    "isNegotiable": user_data["salary_negotiable"]
+                },
+            "matchKeywords": parse_jsonb_field(user_data["match_keywords"])
+            },
+            "notificationSettings": {
+                "jobMatchesEnabled": user_data["job_matches_enabled"],
+                "applicationRemindersEnabled": user_data["application_reminders_enabled"],
+                "weeklyDigestEnabled": user_data["weekly_digest_enabled"],
+                "marketInsightsEnabled": user_data["market_insights_enabled"],
+                "quietHoursEnabled": user_data["quiet_hours_enabled"],
+                "quietHoursStart": user_data["quiet_hours_start"],
+                "quietHoursEnd": user_data["quiet_hours_end"],
+                "preferredNotificationTime": user_data["preferred_notification_time"]
+            },
+            "privacySettings": {
+                "profileVisibility": user_data["profile_visibility"],
+                "shareAnalytics": user_data["share_analytics"],
+                "shareJobViewHistory": user_data["share_job_view_history"],
+                "allowPersonalizedRecommendations": user_data["allow_personalized_recommendations"]
             }
+        },
+        "metadata": {
+            "profileCompleteness": user_data["profile_completeness"],
+            "createdAt": user_data["created_at"].isoformat() if user_data["created_at"] else None,
+            "lastUpdated": user_data["updated_at"].isoformat() if user_data["updated_at"] else None,
+            "backupVersion": "1.0"
         }
-        
+    }
+    
+    return backup_data
+
+@router.get("/profile/backup", response_model=ProfileBackupResponse)
+async def backup_user_profile_get(device_id: str = Query(...)):
+    """Backup user profile for iOS app (GET with query parameter)"""
+    try:
+        backup_data = await _create_profile_backup(device_id)
         return {
             "success": True,
             "message": "Profile backup created successfully",
             "data": backup_data
         }
-        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating profile backup: {e}")
+        logger.error(f"Error creating profile backup (GET): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create profile backup"
+        )
+
+@router.post("/profile/backup", response_model=ProfileBackupResponse)
+async def backup_user_profile_post(request: ProfileBackupRequest):
+    """Backup user profile for iOS app (POST with request body)"""
+    try:
+        device_id = request.device_id
+        backup_data = await _create_profile_backup(device_id)
+        return {
+            "success": True,
+            "message": "Profile backup created successfully",
+            "data": backup_data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating profile backup (POST): {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create profile backup"
