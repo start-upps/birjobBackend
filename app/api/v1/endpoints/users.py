@@ -155,8 +155,12 @@ async def remove_keyword_by_email(email: str = Query(...), keyword: str = Query(
 async def register_user(user_data: UserCreate):
     """Register new user with device_id (iOS app)"""
     try:
-        # Check if user already exists
-        query = "SELECT * FROM iosapp.users WHERE device_id = $1"
+        # Check if device already exists
+        query = """
+            SELECT u.* FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
         result = await db_manager.execute_query(query, user_data.device_id)
         
         if result:
@@ -166,28 +170,41 @@ async def register_user(user_data: UserCreate):
             )
         
         # Create new user
-        insert_query = """
-            INSERT INTO iosapp.users (device_id, email, keywords, preferred_sources, notifications_enabled)
-            VALUES ($1, $2, $3, $4, $5)
+        user_insert_query = """
+            INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
         """
         
-        new_result = await db_manager.execute_query(
-            insert_query,
-            user_data.device_id,
+        user_result = await db_manager.execute_query(
+            user_insert_query,
             user_data.email,
             json.dumps(user_data.keywords or []),
             json.dumps(user_data.preferred_sources or []),
             user_data.notifications_enabled
         )
         
-        if new_result:
-            user = new_result[0]
+        if user_result:
+            user = user_result[0]
+            
+            # Create device token entry
+            device_query = """
+                INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
+                VALUES ($1, $2, $3, $4)
+            """
+            await db_manager.execute_query(
+                device_query,
+                user["id"],
+                user_data.device_id,
+                f"token_for_{user_data.device_id}",  # Placeholder token
+                json.dumps({})
+            )
+            
             return SuccessResponse(
                 message="User created successfully",
                 data={
                     "user_id": str(user["id"]),
-                    "device_id": user["device_id"],
+                    "device_id": user_data.device_id,
                     "created_at": user["created_at"].isoformat()
                 }
             )
@@ -386,8 +403,11 @@ async def update_user(device_id: str, user_data: UserUpdate):
         query = f"""
             UPDATE iosapp.users 
             SET {', '.join(updates)}
-            WHERE device_id = ${len(values)}
-            RETURNING *
+            FROM iosapp.device_tokens dt
+            WHERE iosapp.users.id = dt.user_id 
+            AND dt.device_id = ${len(values)}
+            AND dt.is_active = true
+            RETURNING iosapp.users.*
         """
         
         result = await db_manager.execute_query(query, *values)
@@ -398,7 +418,7 @@ async def update_user(device_id: str, user_data: UserUpdate):
                 message="User updated successfully",
                 data={
                     "id": str(user["id"]),
-                    "device_id": user["device_id"],
+                    "device_id": device_id,
                     "updated_at": user["updated_at"].isoformat()
                 }
             )
@@ -417,8 +437,12 @@ async def update_user(device_id: str, user_data: UserUpdate):
 async def save_job(request: SaveJobRequest):
     """Save job for user"""
     try:
-        # Check if user exists
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        # Check if user exists via device_tokens
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
         if not user_result:
@@ -461,8 +485,12 @@ async def save_job(request: SaveJobRequest):
 async def view_job(request: JobViewRequest):
     """Record job view"""
     try:
-        # Check if user exists
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
+        # Check if user exists via device_tokens
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
         if not user_result:

@@ -21,6 +21,3 @@ class DeviceToken(Base):
     
     # Relationship back to user
     user = relationship("User", back_populates="device_tokens")
-    
-    # Analytics relationship
-    notifications = relationship("NotificationAnalytics", back_populates="device_token", cascade="all, delete-orphan")

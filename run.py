@@ -5,7 +5,7 @@ Production startup script for iOS Job App Backend
 
 import os
 import uvicorn
-from application import app
+from main import app
 
 if __name__ == "__main__":
     # Get port from environment (Render sets this automatically)

@@ -30,14 +30,7 @@ class User(Base):
     device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
     saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
     job_views = relationship("JobView", back_populates="user", cascade="all, delete-orphan")
-    
-    # Analytics relationships
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    actions = relationship("UserAction", back_populates="user", cascade="all, delete-orphan")
-    searches = relationship("SearchAnalytics", back_populates="user", cascade="all, delete-orphan")
-    job_engagements = relationship("JobEngagement", back_populates="user", cascade="all, delete-orphan")
-    preferences_history = relationship("UserPreferencesHistory", back_populates="user", cascade="all, delete-orphan")
-    notifications = relationship("NotificationAnalytics", back_populates="user", cascade="all, delete-orphan")
+    analytics = relationship("UserAnalytics", back_populates="user", cascade="all, delete-orphan")
 
 
 class SavedJob(Base):
@@ -71,3 +64,19 @@ class JobView(Base):
     
     # Relationship back to user
     user = relationship("User", back_populates="job_views")
+
+
+class UserAnalytics(Base):
+    __tablename__ = "user_analytics"
+    __table_args__ = {'schema': 'iosapp'}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
+    action_type = Column(String(50), nullable=False)
+    action_data = Column(JSONB, default=dict)
+    session_id = Column(String(255))
+    device_info = Column(JSONB, default=dict)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship back to user
+    user = relationship("User", back_populates="analytics")
