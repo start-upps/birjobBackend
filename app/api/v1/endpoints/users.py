@@ -83,7 +83,13 @@ async def add_keyword_by_email(request: EmailKeywordRequest):
         result = await db_manager.execute_query(query, request.email)
         
         if result:
-            current_keywords = result[0]["keywords"] or []
+            # Parse JSON string to list if needed
+            keywords_data = result[0]["keywords"]
+            if isinstance(keywords_data, str):
+                current_keywords = json.loads(keywords_data) if keywords_data else []
+            else:
+                current_keywords = keywords_data or []
+                
             keyword_lower = request.keyword.lower().strip()
             
             if keyword_lower not in [k.lower() for k in current_keywords]:
@@ -122,7 +128,13 @@ async def remove_keyword_by_email(email: str = Query(...), keyword: str = Query(
         result = await db_manager.execute_query(query, email)
         
         if result:
-            current_keywords = result[0]["keywords"] or []
+            # Parse JSON string to list if needed
+            keywords_data = result[0]["keywords"]
+            if isinstance(keywords_data, str):
+                current_keywords = json.loads(keywords_data) if keywords_data else []
+            else:
+                current_keywords = keywords_data or []
+                
             keyword_lower = keyword.lower().strip()
             
             # Remove keyword (case-insensitive)
