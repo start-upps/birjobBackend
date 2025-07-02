@@ -27,6 +27,8 @@ class UserSession(Base):
     # Relationships
     user = relationship("User", back_populates="sessions")
     actions = relationship("UserAction", back_populates="session", cascade="all, delete-orphan")
+    searches = relationship("SearchAnalytics", back_populates="session", cascade="all, delete-orphan")
+    job_engagements = relationship("JobEngagement", back_populates="session", cascade="all, delete-orphan")
 
 class UserAction(Base):
     __tablename__ = "user_actions"
@@ -37,7 +39,8 @@ class UserAction(Base):
     session_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.user_sessions.id', ondelete='SET NULL'))
     action_type = Column(String(50), nullable=False)
     action_details = Column(JSONB, default=dict)
-    job_id = Column(Integer)
+    job_id = Column(Integer, ForeignKey('scraper.jobs_jobpost.id', ondelete='SET NULL'))
+    search_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.search_analytics.id', ondelete='SET NULL'))
     search_query = Column(String(500))
     page_url = Column(String(500))
     duration_seconds = Column(Integer, default=0)
@@ -46,6 +49,8 @@ class UserAction(Base):
     # Relationships
     user = relationship("User", back_populates="actions")
     session = relationship("UserSession", back_populates="actions")
+    # job = relationship("JobPost", back_populates="actions")  # Uncomment when JobPost model is available
+    search = relationship("SearchAnalytics", back_populates="actions")
 
 class SearchAnalytics(Base):
     __tablename__ = "search_analytics"
@@ -53,6 +58,7 @@ class SearchAnalytics(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.user_sessions.id', ondelete='SET NULL'))
     search_query = Column(String(500), nullable=False)
     normalized_query = Column(String(500))
     results_count = Column(Integer, default=0)
@@ -66,6 +72,8 @@ class SearchAnalytics(Base):
     
     # Relationships
     user = relationship("User", back_populates="searches")
+    session = relationship("UserSession", back_populates="searches")
+    actions = relationship("UserAction", back_populates="search", cascade="all, delete-orphan")
 
 class JobEngagement(Base):
     __tablename__ = "job_engagement"
@@ -73,7 +81,8 @@ class JobEngagement(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
-    job_id = Column(Integer, nullable=False)
+    job_id = Column(Integer, ForeignKey('scraper.jobs_jobpost.id', ondelete='CASCADE'), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.user_sessions.id', ondelete='SET NULL'))
     job_title = Column(String(500))
     job_company = Column(String(255))
     job_source = Column(String(100))
@@ -104,6 +113,9 @@ class JobEngagement(Base):
     
     # Relationships
     user = relationship("User", back_populates="job_engagements")
+    session = relationship("UserSession", back_populates="job_engagements")
+    # job = relationship("JobPost", back_populates="engagements")  # Uncomment when JobPost model is available
+    notifications = relationship("NotificationAnalytics", back_populates="job_engagement", cascade="all, delete-orphan")
 
 class UserPreferencesHistory(Base):
     __tablename__ = "user_preferences_history"
@@ -130,7 +142,8 @@ class NotificationAnalytics(Base):
     notification_type = Column(String(50), nullable=False)
     notification_title = Column(String(200))
     notification_body = Column(Text)
-    job_id = Column(Integer)
+    job_id = Column(Integer, ForeignKey('scraper.jobs_jobpost.id', ondelete='SET NULL'))
+    job_engagement_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.job_engagement.id', ondelete='SET NULL'))
     
     # Delivery tracking
     sent_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -152,3 +165,5 @@ class NotificationAnalytics(Base):
     # Relationships
     user = relationship("User", back_populates="notifications")
     device_token = relationship("DeviceToken", back_populates="notifications")
+    # job = relationship("JobPost", back_populates="notifications")  # Uncomment when JobPost model is available
+    job_engagement = relationship("JobEngagement", back_populates="notifications")

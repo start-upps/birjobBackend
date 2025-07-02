@@ -53,6 +53,7 @@ class UserActionRequest(BaseModel):
     action_type: ActionType
     action_details: Dict[str, Any] = Field(default_factory=dict)
     job_id: Optional[int] = None
+    search_id: Optional[str] = None  # New: reference to search_analytics
     search_query: Optional[str] = Field(None, max_length=500)
     page_url: Optional[str] = Field(None, max_length=500)
     duration_seconds: int = Field(0, ge=0)
@@ -64,6 +65,7 @@ class UserActionResponse(BaseModel):
 # Search Analytics Schemas
 class SearchRequest(BaseModel):
     device_id: str
+    session_id: Optional[str] = None  # New: reference to user_sessions
     search_query: str = Field(..., min_length=1, max_length=500)
     filters_applied: Dict[str, Any] = Field(default_factory=dict)
     
@@ -93,6 +95,7 @@ class SearchResponse(BaseModel):
 # Job Engagement Schemas
 class JobEngagementRequest(BaseModel):
     device_id: str
+    session_id: Optional[str] = None  # New: reference to user_sessions
     job_id: int = Field(..., gt=0)
     job_title: Optional[str] = Field(None, max_length=500)
     job_company: Optional[str] = Field(None, max_length=255)
