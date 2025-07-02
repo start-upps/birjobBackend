@@ -18,6 +18,12 @@ async def recreate_tables():
         print("❌ DATABASE_URL environment variable not set")
         return
     
+    # Convert SQLAlchemy URL format to asyncpg format
+    if database_url.startswith('postgresql+asyncpg://'):
+        database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
+    elif database_url.startswith('postgres+asyncpg://'):
+        database_url = database_url.replace('postgres+asyncpg://', 'postgresql://')
+    
     print("🔄 Connecting to database...")
     
     try:

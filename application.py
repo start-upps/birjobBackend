@@ -9,9 +9,9 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis_client import init_redis
 from app.api.v1.router import api_router
-from app.core.monitoring import setup_monitoring
-from app.core.security import setup_security_headers
-from app.services.match_engine import job_scheduler
+# from app.core.monitoring import setup_monitoring  # Disabled - module doesn't exist
+# from app.core.security import setup_security_headers  # Disabled - module doesn't exist
+# from app.services.match_engine import job_scheduler  # Disabled - complex dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,8 @@ async def lifespan(app: FastAPI):
     if os.getenv("RENDER"):
         logger.info("Production environment detected - migration check skipped (handled by start command)")
     
-    # Start the job matching scheduler in the background
-    try:
-        logger.info("Starting job matching scheduler...")
-        asyncio.create_task(job_scheduler.start())
-        logger.info("Job matching scheduler task created successfully")
-    except Exception as e:
-        logger.error(f"Failed to start job matching scheduler: {e}")
-        # Don't fail the entire app if scheduler fails to start
+    # Job matching scheduler disabled - complex dependencies
+    logger.info("Job matching scheduler disabled in simplified version")
     
     yield
     
@@ -61,9 +55,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup monitoring and security
-setup_monitoring(app)
-setup_security_headers(app)
+# Setup monitoring and security - disabled in simplified version
+# setup_monitoring(app)  # Disabled - module doesn't exist
+# setup_security_headers(app)  # Disabled - module doesn't exist
 
 # Mount static files
 # app.mount("/1", StaticFiles(directory="1"), name="icons")  # Removed as directory doesn't exist
