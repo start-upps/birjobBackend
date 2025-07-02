@@ -10,6 +10,8 @@ services:
         fromDatabase:
           name: birjob-postgres
           property: connectionString
+      - key: REDIS_URL
+        value: "redis://red-ctgq1tr6l47c73f1l3fg:6379"
       - key: UPSTASH_REDIS_REST_URL
         value: "https://strong-kiwi-38087.upstash.io"
       - key: UPSTASH_REDIS_REST_TOKEN
