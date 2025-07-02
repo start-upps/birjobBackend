@@ -13,6 +13,9 @@ class ActionType(str, Enum):
     PROFILE_UPDATE = "profile_update"
     SETTINGS_CHANGE = "settings_change"
     NOTIFICATION_CLICK = "notification_click"
+    CHATBOT_MESSAGE = "chatbot_message"
+    JOB_RECOMMENDATIONS = "job_recommendations"
+    JOB_ANALYSIS = "job_analysis"
 
 class AnalyticsEventRequest(BaseModel):
     device_id: str = Field(..., description="Device identifier")

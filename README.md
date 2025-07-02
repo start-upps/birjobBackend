@@ -139,6 +139,12 @@ python run.py
 - `GET /api/v1/analytics/stats` - Get overall analytics statistics
 - `DELETE /api/v1/analytics/user/{device_id}` - Clear user analytics (GDPR)
 
+### Gemini AI Chatbot
+- `POST /api/v1/chatbot/chat` - Chat with AI job search assistant
+- `POST /api/v1/chatbot/recommendations` - Get personalized job recommendations
+- `POST /api/v1/chatbot/analyze-job` - Analyze job posting with AI insights
+- `GET /api/v1/chatbot/stats` - Get chatbot usage statistics
+
 ## 🏗 Project Structure
 
 ```
@@ -229,6 +235,28 @@ curl -X POST "http://localhost:8000/api/v1/analytics/event" \
     "action_type": "job_view",
     "action_data": {"job_id": 12345, "duration": 30},
     "session_id": "session-456"
+  }'
+```
+
+### Chat with AI Assistant
+```bash
+curl -X POST "http://localhost:8000/api/v1/chatbot/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "device-123",
+    "message": "How can I improve my resume for backend developer roles?",
+    "include_user_context": true
+  }'
+```
+
+### Get Job Recommendations
+```bash
+curl -X POST "http://localhost:8000/api/v1/chatbot/recommendations" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "device-123",
+    "keywords": ["python", "fastapi"],
+    "location": "Baku"
   }'
 ```
 
