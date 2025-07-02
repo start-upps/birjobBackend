@@ -6,7 +6,6 @@ import uuid
 
 from app.core.database import db_manager
 from app.core.redis_client import redis_client
-from app.core.monitoring import metrics
 from app.services.push_notifications import PushNotificationService
 import json
 import re
@@ -186,7 +185,7 @@ class JobMatchEngine:
                         )
                         
                         # Record metrics
-                        metrics.record_match_created()
+                        logger.info(f"Match created for device {device_id}, job {job_id}")
                         matches_created = True
                         
                         self.logger.info(

@@ -1,1279 +1,367 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from typing import Dict, Any, Optional
+from fastapi import APIRouter, HTTPException, status, Query
+from typing import Dict, Any, Optional, List
 import logging
+import json
 from datetime import datetime
 
 from app.core.database import db_manager
 from app.schemas.user import (
-    UserProfileCreate, UserProfileResponse, UserProfileUpdateResponse,
-    SaveJobRequest, SavedJobsListResponse, JobViewRequest,
-    UserAnalyticsResponse, ApplicationHistoryResponse,
+    UserCreate, UserUpdate, UserResponse,
+    AddKeywordRequest, RemoveKeywordRequest, UpdateKeywordsRequest,
+    SaveJobRequest, JobViewRequest, EmailUserRequest, EmailKeywordRequest,
     SuccessResponse, ErrorResponse
 )
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-def calculate_profile_completeness(user_data: dict) -> int:
-    """Calculate profile completeness percentage"""
-    total_fields = 20  # Total important fields for profile
-    completed_fields = 0
-    
-    # Personal info fields (8 fields)
-    personal_info = user_data.get('personalInfo', {})
-    personal_fields = ['firstName', 'lastName', 'email', 'phone', 'location', 
-                      'currentJobTitle', 'yearsOfExperience', 'bio']
-    completed_fields += sum(1 for field in personal_fields if personal_info.get(field))
-    
-    # Job preferences fields (6 fields)
-    job_prefs = user_data.get('jobPreferences', {})
-    if job_prefs.get('desiredJobTypes'):
-        completed_fields += 1
-    if job_prefs.get('remoteWorkPreference'):
-        completed_fields += 1
-    if job_prefs.get('skills'):
-        completed_fields += 1
-    if job_prefs.get('preferredLocations'):
-        completed_fields += 1
-    salary_range = job_prefs.get('salaryRange', {})
-    if salary_range.get('minSalary'):
-        completed_fields += 1
-    if salary_range.get('maxSalary'):
-        completed_fields += 1
-    
-    # Additional profile elements (6 fields)
-    if personal_info.get('linkedInProfile'):
-        completed_fields += 1
-    if personal_info.get('portfolioURL'):
-        completed_fields += 1
-    if user_data.get('notificationSettings'):
-        completed_fields += 1
-    if user_data.get('privacySettings'):
-        completed_fields += 1
-    # Bonus for having skills > 3
-    skills = job_prefs.get('skills', [])
-    if len(skills) >= 3:
-        completed_fields += 1
-    # Bonus for having bio > 50 characters
-    bio = personal_info.get('bio', '')
-    if len(bio) >= 50:
-        completed_fields += 1
-    
-    return min(int((completed_fields / total_fields) * 100), 100)
+# =====================================
+# Email-based User Management (Website Style)
+# =====================================
 
-@router.post("/profile", response_model=UserProfileUpdateResponse)
-async def create_or_update_profile(profile_data: UserProfileCreate):
-    """Create or update user profile"""
+@router.get("/by-email", response_model=SuccessResponse)
+async def get_user_by_email(email: str = Query(...)):
+    """Get or create user by email (website-style)"""
     try:
-        device_id = profile_data.deviceId
-        
         # Check if user exists
-        existing_user_query = """
-            SELECT id FROM iosapp.users WHERE device_id = $1
-        """
-        existing_user = await db_manager.execute_query(existing_user_query, device_id)
+        query = "SELECT * FROM iosapp.users WHERE email = $1"
+        result = await db_manager.execute_query(query, email)
         
-        # Calculate profile completeness
-        profile_completeness = calculate_profile_completeness(profile_data.dict())
-        
-        if existing_user:
-            # Update existing user
-            user_id = existing_user[0]['id']
-            
-            update_query = """
-                UPDATE iosapp.users SET
-                    first_name = $1, last_name = $2, email = $3, phone = $4,
-                    location = $5, current_job_title = $6, years_of_experience = $7,
-                    linkedin_profile = $8, portfolio_url = $9, bio = $10,
-                    desired_job_types = $11, remote_work_preference = $12,
-                    skills = $13, preferred_locations = $14,
-                    min_salary = $15, max_salary = $16, salary_currency = $17, salary_negotiable = $18,
-                    job_matches_enabled = $19, application_reminders_enabled = $20,
-                    weekly_digest_enabled = $21, market_insights_enabled = $22,
-                    quiet_hours_enabled = $23, quiet_hours_start = $24, quiet_hours_end = $25,
-                    preferred_notification_time = $26,
-                    profile_visibility = $27, share_analytics = $28,
-                    share_job_view_history = $29, allow_personalized_recommendations = $30,
-                    profile_completeness = $31, updated_at = $32
-                WHERE device_id = $33
-            """
-            
-            # Extract data with defaults
-            personal = profile_data.personalInfo or {}
-            job_prefs = profile_data.jobPreferences or {}
-            salary_range = job_prefs.salaryRange or {}
-            notifications = profile_data.notificationSettings or {}
-            privacy = profile_data.privacySettings or {}
-            
-            import json
-            params = (
-                getattr(personal, 'firstName', None), getattr(personal, 'lastName', None), 
-                getattr(personal, 'email', None), getattr(personal, 'phone', None),
-                getattr(personal, 'location', None), getattr(personal, 'currentJobTitle', None), 
-                getattr(personal, 'yearsOfExperience', None),
-                getattr(personal, 'linkedInProfile', None), getattr(personal, 'portfolioURL', None), 
-                getattr(personal, 'bio', None),
-                json.dumps(getattr(job_prefs, 'desiredJobTypes', None)) if getattr(job_prefs, 'desiredJobTypes', None) else None,
-                getattr(job_prefs, 'remoteWorkPreference', None),
-                json.dumps(getattr(job_prefs, 'skills', None)) if getattr(job_prefs, 'skills', None) else None,
-                json.dumps(getattr(job_prefs, 'preferredLocations', None)) if getattr(job_prefs, 'preferredLocations', None) else None,
-                getattr(salary_range, 'minSalary', None), getattr(salary_range, 'maxSalary', None), 
-                getattr(salary_range, 'currency', None) or "USD", getattr(salary_range, 'isNegotiable', True),
-                getattr(notifications, 'jobMatchesEnabled', True), getattr(notifications, 'applicationRemindersEnabled', True),
-                getattr(notifications, 'weeklyDigestEnabled', False), getattr(notifications, 'marketInsightsEnabled', True),
-                getattr(notifications, 'quietHoursEnabled', True), getattr(notifications, 'quietHoursStart', '22:00'),
-                getattr(notifications, 'quietHoursEnd', '08:00'), getattr(notifications, 'preferredNotificationTime', '09:00'),
-                getattr(privacy, 'profileVisibility', 'Public'), getattr(privacy, 'shareAnalytics', True),
-                getattr(privacy, 'shareJobViewHistory', False), getattr(privacy, 'allowPersonalizedRecommendations', True),
-                profile_completeness, datetime.utcnow(), device_id
-            )
-            
-            await db_manager.execute_query(update_query, *params)
-            
-            return UserProfileUpdateResponse(
-                success=True,
-                message="Profile updated successfully",
+        if result:
+            user = result[0]
+            return SuccessResponse(
+                message="User found",
                 data={
-                    "userId": user_id,
-                    "deviceId": device_id,
-                    "profileCompleteness": profile_completeness,
-                    "lastUpdated": datetime.utcnow().isoformat()
+                    "id": str(user["id"]),
+                    "email": user["email"],
+                    "keywords": user["keywords"] or [],
+                    "preferred_sources": user["preferred_sources"] or [],
+                    "notifications_enabled": user["notifications_enabled"],
+                    "created_at": user["created_at"].isoformat()
                 }
             )
-        
         else:
-            # Create new user
-            import uuid
-            user_id = str(uuid.uuid4())
-            
-            insert_query = """
-                INSERT INTO iosapp.users (
-                    id, device_id, first_name, last_name, email, phone,
-                    location, current_job_title, years_of_experience,
-                    linkedin_profile, portfolio_url, bio,
-                    desired_job_types, remote_work_preference,
-                    skills, preferred_locations,
-                    min_salary, max_salary, salary_currency, salary_negotiable,
-                    job_matches_enabled, application_reminders_enabled,
-                    weekly_digest_enabled, market_insights_enabled,
-                    quiet_hours_enabled, quiet_hours_start, quiet_hours_end,
-                    preferred_notification_time,
-                    profile_visibility, share_analytics,
-                    share_job_view_history, allow_personalized_recommendations,
-                    profile_completeness, created_at, updated_at
-                ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                    $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
-                    $33, $34, $35
-                )
+            # Auto-create user with email only
+            create_query = """
+                INSERT INTO iosapp.users (email, device_id, keywords, preferred_sources)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *
             """
-            
-            # Extract data with defaults
-            personal = profile_data.personalInfo or {}
-            job_prefs = profile_data.jobPreferences or {}
-            salary_range = job_prefs.salaryRange or {}
-            notifications = profile_data.notificationSettings or {}
-            privacy = profile_data.privacySettings or {}
-            
-            now = datetime.utcnow()
-            params = (
-                user_id, device_id,
-                getattr(personal, 'firstName', None), getattr(personal, 'lastName', None), 
-                getattr(personal, 'email', None), getattr(personal, 'phone', None),
-                getattr(personal, 'location', None), getattr(personal, 'currentJobTitle', None), 
-                getattr(personal, 'yearsOfExperience', None),
-                getattr(personal, 'linkedInProfile', None), getattr(personal, 'portfolioURL', None), 
-                getattr(personal, 'bio', None),
-                json.dumps(getattr(job_prefs, 'desiredJobTypes', None)) if getattr(job_prefs, 'desiredJobTypes', None) else None,
-                getattr(job_prefs, 'remoteWorkPreference', None),
-                json.dumps(getattr(job_prefs, 'skills', None)) if getattr(job_prefs, 'skills', None) else None,
-                json.dumps(getattr(job_prefs, 'preferredLocations', None)) if getattr(job_prefs, 'preferredLocations', None) else None,
-                getattr(salary_range, 'minSalary', None), getattr(salary_range, 'maxSalary', None),
-                getattr(salary_range, 'currency', None) or "USD", getattr(salary_range, 'isNegotiable', True),
-                getattr(notifications, 'jobMatchesEnabled', True), getattr(notifications, 'applicationRemindersEnabled', True),
-                getattr(notifications, 'weeklyDigestEnabled', False), getattr(notifications, 'marketInsightsEnabled', True),
-                getattr(notifications, 'quietHoursEnabled', True), getattr(notifications, 'quietHoursStart', '22:00'),
-                getattr(notifications, 'quietHoursEnd', '08:00'), getattr(notifications, 'preferredNotificationTime', '09:00'),
-                getattr(privacy, 'profileVisibility', 'Public'), getattr(privacy, 'shareAnalytics', True),
-                getattr(privacy, 'shareJobViewHistory', False), getattr(privacy, 'allowPersonalizedRecommendations', True),
-                profile_completeness, now, now
+            fake_device_id = f"web_{email}_{int(datetime.now().timestamp())}"
+            new_result = await db_manager.execute_query(
+                create_query, email, fake_device_id, json.dumps([]), json.dumps([])
             )
             
-            await db_manager.execute_query(insert_query, *params)
+            if new_result:
+                user = new_result[0]
+                return SuccessResponse(
+                    message="User created",
+                    data={
+                        "id": str(user["id"]),
+                        "email": user["email"],
+                        "keywords": [],
+                        "preferred_sources": [],
+                        "notifications_enabled": True,
+                        "created_at": user["created_at"].isoformat()
+                    }
+                )
+            else:
+                raise HTTPException(status_code=500, detail="Failed to create user")
+                
+    except Exception as e:
+        logger.error(f"Error in get_user_by_email: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/keywords/email", response_model=SuccessResponse)
+async def add_keyword_by_email(request: EmailKeywordRequest):
+    """Add keyword for user by email (website-style)"""
+    try:
+        # Get or create user
+        user_response = await get_user_by_email(request.email)
+        
+        # Get current keywords
+        query = "SELECT keywords FROM iosapp.users WHERE email = $1"
+        result = await db_manager.execute_query(query, request.email)
+        
+        if result:
+            current_keywords = result[0]["keywords"] or []
+            keyword_lower = request.keyword.lower().strip()
             
-            return UserProfileUpdateResponse(
-                success=True,
-                message="Profile created successfully",
-                data={
-                    "userId": user_id,
-                    "deviceId": device_id,
-                    "profileCompleteness": profile_completeness,
-                    "lastUpdated": now.isoformat()
-                }
-            )
+            if keyword_lower not in [k.lower() for k in current_keywords]:
+                current_keywords.append(keyword_lower)
+                
+                # Update keywords
+                update_query = """
+                    UPDATE iosapp.users 
+                    SET keywords = $1, updated_at = CURRENT_TIMESTAMP
+                    WHERE email = $2
+                """
+                await db_manager.execute_query(update_query, json.dumps(current_keywords), request.email)
+                
+                return SuccessResponse(
+                    message="Keyword added successfully",
+                    data={"keywords": current_keywords}
+                )
+            else:
+                return SuccessResponse(
+                    message="Keyword already exists",
+                    data={"keywords": current_keywords}
+                )
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
             
     except Exception as e:
-        logger.error(f"Error creating/updating profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create/update profile"
-        )
+        logger.error(f"Error adding keyword by email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add keyword")
 
-@router.get("/profile/{device_id}")
-async def get_user_profile(device_id: str):
-    """Get user profile by device ID"""
+@router.delete("/keywords/email", response_model=SuccessResponse)
+async def remove_keyword_by_email(email: str = Query(...), keyword: str = Query(...)):
+    """Remove keyword for user by email (website-style)"""
     try:
-        query = """
-            SELECT * FROM iosapp.users WHERE device_id = $1
+        # Get current keywords
+        query = "SELECT keywords FROM iosapp.users WHERE email = $1"
+        result = await db_manager.execute_query(query, email)
+        
+        if result:
+            current_keywords = result[0]["keywords"] or []
+            keyword_lower = keyword.lower().strip()
+            
+            # Remove keyword (case-insensitive)
+            updated_keywords = [k for k in current_keywords if k.lower() != keyword_lower]
+            
+            # Update keywords
+            update_query = """
+                UPDATE iosapp.users 
+                SET keywords = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE email = $2
+            """
+            await db_manager.execute_query(update_query, json.dumps(updated_keywords), email)
+            
+            return SuccessResponse(
+                message="Keyword removed successfully",
+                data={"keywords": updated_keywords}
+            )
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+    except Exception as e:
+        logger.error(f"Error removing keyword by email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to remove keyword")
+
+# =====================================
+# Device-based User Management (iOS App)
+# =====================================
+
+@router.post("/register", response_model=SuccessResponse)
+async def register_user(user_data: UserCreate):
+    """Register new user with device_id (iOS app)"""
+    try:
+        # Check if user already exists
+        query = "SELECT * FROM iosapp.users WHERE device_id = $1"
+        result = await db_manager.execute_query(query, user_data.device_id)
+        
+        if result:
+            return SuccessResponse(
+                message="User already exists",
+                data={"user_id": str(result[0]["id"])}
+            )
+        
+        # Create new user
+        insert_query = """
+            INSERT INTO iosapp.users (device_id, email, keywords, preferred_sources, notifications_enabled)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
         """
         
+        new_result = await db_manager.execute_query(
+            insert_query,
+            user_data.device_id,
+            user_data.email,
+            json.dumps(user_data.keywords or []),
+            json.dumps(user_data.preferred_sources or []),
+            user_data.notifications_enabled
+        )
+        
+        if new_result:
+            user = new_result[0]
+            return SuccessResponse(
+                message="User created successfully",
+                data={
+                    "user_id": str(user["id"]),
+                    "device_id": user["device_id"],
+                    "created_at": user["created_at"].isoformat()
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+            
+    except Exception as e:
+        logger.error(f"Error registering user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to register user")
+
+@router.get("/{device_id}", response_model=SuccessResponse)
+async def get_user(device_id: str):
+    """Get user by device_id"""
+    try:
+        query = "SELECT * FROM iosapp.users WHERE device_id = $1"
         result = await db_manager.execute_query(query, device_id)
         
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        user = result[0]
-        
-        # Deserialize JSON fields
-        import json
-        desired_job_types = json.loads(user["desired_job_types"]) if user["desired_job_types"] else []
-        skills = json.loads(user["skills"]) if user["skills"] else []
-        preferred_locations = json.loads(user["preferred_locations"]) if user["preferred_locations"] else []
-        
-        # Build response data
-        response_data = {
-            "userId": user["id"],
-            "deviceId": user["device_id"],
-            "personalInfo": {
-                "firstName": user["first_name"],
-                "lastName": user["last_name"],
-                "email": user["email"],
-                "phone": user["phone"],
-                "location": user["location"],
-                "currentJobTitle": user["current_job_title"],
-                "yearsOfExperience": user["years_of_experience"],
-                "linkedInProfile": user["linkedin_profile"],
-                "portfolioURL": user["portfolio_url"],
-                "bio": user["bio"]
-            },
-            "jobPreferences": {
-                "desiredJobTypes": desired_job_types,
-                "remoteWorkPreference": user["remote_work_preference"],
-                "skills": skills,
-                "preferredLocations": preferred_locations,
-                "salaryRange": {
-                    "minSalary": user["min_salary"],
-                    "maxSalary": user["max_salary"],
-                    "currency": user["salary_currency"],
-                    "isNegotiable": user["salary_negotiable"]
+        if result:
+            user = result[0]
+            return SuccessResponse(
+                message="User found",
+                data={
+                    "id": str(user["id"]),
+                    "device_id": user["device_id"],
+                    "email": user["email"],
+                    "keywords": user["keywords"] or [],
+                    "preferred_sources": user["preferred_sources"] or [],
+                    "notifications_enabled": user["notifications_enabled"],
+                    "created_at": user["created_at"].isoformat(),
+                    "updated_at": user["updated_at"].isoformat()
                 }
-            },
-            "notificationSettings": {
-                "jobMatchesEnabled": user["job_matches_enabled"],
-                "applicationRemindersEnabled": user["application_reminders_enabled"],
-                "weeklyDigestEnabled": user["weekly_digest_enabled"],
-                "marketInsightsEnabled": user["market_insights_enabled"],
-                "quietHoursEnabled": user["quiet_hours_enabled"],
-                "quietHoursStart": user["quiet_hours_start"],
-                "quietHoursEnd": user["quiet_hours_end"],
-                "preferredNotificationTime": user["preferred_notification_time"]
-            },
-            "privacySettings": {
-                "profileVisibility": user["profile_visibility"],
-                "shareAnalytics": user["share_analytics"],
-                "shareJobViewHistory": user["share_job_view_history"],
-                "allowPersonalizedRecommendations": user["allow_personalized_recommendations"]
-            },
-            "profileCompleteness": user["profile_completeness"],
-            "createdAt": user["created_at"].isoformat() if user["created_at"] else None,
-            "lastUpdated": user["updated_at"].isoformat() if user["updated_at"] else None
-        }
-        
-        return {
-            "success": True,
-            "data": response_data
-        }
-        
-    except HTTPException:
-        raise
+            )
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+            
     except Exception as e:
-        logger.error(f"Error getting user profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get user profile"
-        )
+        logger.error(f"Error getting user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user")
 
-@router.post("/{device_id}/saved-jobs")
-async def save_job(device_id: str, save_data: SaveJobRequest):
-    """Save a job to user's saved jobs list"""
+@router.put("/{device_id}", response_model=SuccessResponse)
+async def update_user(device_id: str, user_data: UserUpdate):
+    """Update user by device_id"""
     try:
-        # Get user ID from device ID
+        # Build dynamic update query
+        updates = []
+        values = []
+        
+        if user_data.email is not None:
+            updates.append("email = $" + str(len(values) + 1))
+            values.append(user_data.email)
+            
+        if user_data.keywords is not None:
+            updates.append("keywords = $" + str(len(values) + 1))
+            values.append(json.dumps(user_data.keywords))
+            
+        if user_data.preferred_sources is not None:
+            updates.append("preferred_sources = $" + str(len(values) + 1))
+            values.append(json.dumps(user_data.preferred_sources))
+            
+        if user_data.notifications_enabled is not None:
+            updates.append("notifications_enabled = $" + str(len(values) + 1))
+            values.append(user_data.notifications_enabled)
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(device_id)
+        
+        query = f"""
+            UPDATE iosapp.users 
+            SET {', '.join(updates)}
+            WHERE device_id = ${len(values)}
+            RETURNING *
+        """
+        
+        result = await db_manager.execute_query(query, *values)
+        
+        if result:
+            user = result[0]
+            return SuccessResponse(
+                message="User updated successfully",
+                data={
+                    "id": str(user["id"]),
+                    "device_id": user["device_id"],
+                    "updated_at": user["updated_at"].isoformat()
+                }
+            )
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
+# =====================================
+# Job Interaction (Simple)
+# =====================================
+
+@router.post("/save-job", response_model=SuccessResponse)
+async def save_job(request: SaveJobRequest):
+    """Save job for user"""
+    try:
+        # Check if user exists
         user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
+        user_result = await db_manager.execute_query(user_query, request.device_id)
         
         if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+            raise HTTPException(status_code=404, detail="User not found")
         
         user_id = user_result[0]["id"]
         
         # Check if job already saved
-        existing_query = """
-            SELECT id FROM iosapp.saved_jobs 
-            WHERE user_id = $1 AND job_id = $2
-        """
-        existing = await db_manager.execute_query(existing_query, user_id, save_data.jobId)
+        check_query = "SELECT id FROM iosapp.saved_jobs WHERE user_id = $1 AND job_id = $2"
+        existing = await db_manager.execute_query(check_query, user_id, request.job_id)
         
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Job already saved"
+            return SuccessResponse(
+                message="Job already saved",
+                data={"saved_job_id": str(existing[0]["id"])}
             )
         
-        # Save the job
-        import uuid
-        saved_job_id = str(uuid.uuid4())
-        
-        insert_query = """
-            INSERT INTO iosapp.saved_jobs (id, user_id, job_id, notes, created_at)
-            VALUES ($1, $2, $3, $4, $5)
+        # Save job
+        save_query = """
+            INSERT INTO iosapp.saved_jobs (user_id, job_id)
+            VALUES ($1, $2)
+            RETURNING *
         """
         
-        now = datetime.utcnow()
-        await db_manager.execute_query(
-            insert_query, 
-            saved_job_id, user_id, save_data.jobId, save_data.notes, now
-        )
+        result = await db_manager.execute_query(save_query, user_id, request.job_id)
         
-        return {
-            "success": True,
-            "message": "Job saved successfully",
-            "data": {
-                "savedJobId": saved_job_id,
-                "jobId": save_data.jobId,
-                "savedAt": now.isoformat()
-            }
-        }
-        
-    except HTTPException:
-        raise
+        if result:
+            return SuccessResponse(
+                message="Job saved successfully",
+                data={"saved_job_id": str(result[0]["id"])}
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save job")
+            
     except Exception as e:
         logger.error(f"Error saving job: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save job"
-        )
+        raise HTTPException(status_code=500, detail="Failed to save job")
 
-@router.get("/{device_id}/saved-jobs")
-async def get_saved_jobs(
-    device_id: str,
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100)
-):
-    """Get user's saved jobs with pagination"""
+@router.post("/view-job", response_model=SuccessResponse)
+async def view_job(request: JobViewRequest):
+    """Record job view"""
     try:
-        # Get user ID
+        # Check if user exists
         user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
+        user_result = await db_manager.execute_query(user_query, request.device_id)
         
         if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        user_id = user_result[0]["id"]
-        offset = (page - 1) * limit
-        
-        # Get saved jobs with job details
-        saved_jobs_query = """
-            SELECT 
-                sj.id as saved_job_id,
-                sj.job_id,
-                sj.notes,
-                sj.application_status,
-                sj.created_at as saved_at,
-                j.title,
-                j.company,
-                j.created_at as posted_date
-            FROM iosapp.saved_jobs sj
-            LEFT JOIN scraper.jobs_jobpost j ON sj.job_id = j.id
-            WHERE sj.user_id = $1
-            ORDER BY sj.created_at DESC
-            LIMIT $2 OFFSET $3
-        """
-        
-        saved_jobs = await db_manager.execute_query(
-            saved_jobs_query, user_id, limit, offset
-        )
-        
-        # Get total count
-        count_query = "SELECT COUNT(*) as total FROM iosapp.saved_jobs WHERE user_id = $1"
-        count_result = await db_manager.execute_query(count_query, user_id)
-        total_saved_jobs = count_result[0]["total"] if count_result else 0
-        
-        # Format response
-        jobs_data = []
-        for job in saved_jobs:
-            jobs_data.append({
-                "savedJobId": job["saved_job_id"],
-                "jobId": job["job_id"],
-                "title": job["title"] or "Job title not available",
-                "companyName": job["company"] or "Company not available",
-                "location": "Location not available",  # Can be enhanced with location data
-                "salary": "Salary not specified",  # Can be enhanced with salary data
-                "postedDate": job["posted_date"].isoformat() if job["posted_date"] else None,
-                "savedAt": job["saved_at"].isoformat() if job["saved_at"] else None,
-                "notes": job["notes"],
-                "applicationStatus": job["application_status"]
-            })
-        
-        total_pages = (total_saved_jobs + limit - 1) // limit
-        
-        return {
-            "success": True,
-            "data": {
-                "savedJobs": jobs_data,
-                "totalSavedJobs": total_saved_jobs,
-                "page": page,
-                "totalPages": total_pages
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting saved jobs: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get saved jobs"
-        )
-
-@router.delete("/{device_id}/saved-jobs/{job_id}")
-async def remove_saved_job(device_id: str, job_id: int):
-    """Remove a job from user's saved jobs"""
-    try:
-        # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
-        
-        if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+            raise HTTPException(status_code=404, detail="User not found")
         
         user_id = user_result[0]["id"]
         
-        # Delete the saved job
-        delete_query = """
-            DELETE FROM iosapp.saved_jobs 
-            WHERE user_id = $1 AND job_id = $2
+        # Record view
+        view_query = """
+            INSERT INTO iosapp.job_views (user_id, job_id)
+            VALUES ($1, $2)
+            RETURNING *
         """
         
-        result = await db_manager.execute_query(delete_query, user_id, job_id)
+        result = await db_manager.execute_query(view_query, user_id, request.job_id)
         
-        return {
-            "success": True,
-            "message": "Job removed from saved jobs"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error removing saved job: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to remove saved job"
-        )
-
-@router.get("/{device_id}/analytics")
-async def get_user_analytics(device_id: str):
-    """Get user-specific analytics and insights"""
-    try:
-        # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
-        
-        if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+        if result:
+            return SuccessResponse(
+                message="Job view recorded",
+                data={"view_id": str(result[0]["id"])}
             )
-        
-        user_id = user_result[0]["id"]
-        
-        # Get profile insights
-        profile_query = """
-            SELECT 
-                profile_completeness,
-                skills,
-                years_of_experience,
-                current_job_title
-            FROM iosapp.users 
-            WHERE device_id = $1
-        """
-        profile_result = await db_manager.execute_query(profile_query, device_id)
-        user_profile = profile_result[0] if profile_result else {}
-        
-        # Calculate profile strength (based on completeness and skills)
-        profile_completeness = user_profile.get("profile_completeness", 0)
-        skills_count = len(user_profile.get("skills", []) or [])
-        profile_strength = min(profile_completeness + (skills_count * 2), 100)
-        
-        # Get job activity stats
-        activity_queries = {
-            "total_jobs_viewed": "SELECT COUNT(*) as count FROM iosapp.job_views WHERE user_id = $1",
-            "total_jobs_saved": "SELECT COUNT(*) as count FROM iosapp.saved_jobs WHERE user_id = $1",
-            "total_applications": "SELECT COUNT(*) as count FROM iosapp.job_applications WHERE user_id = $1"
-        }
-        
-        activity_stats = {}
-        for stat_name, query in activity_queries.items():
-            result = await db_manager.execute_query(query, user_id)
-            activity_stats[stat_name] = result[0]["count"] if result else 0
-        
-        # Get average view time
-        avg_view_query = """
-            SELECT AVG(view_duration) as avg_duration 
-            FROM iosapp.job_views 
-            WHERE user_id = $1 AND view_duration > 0
-        """
-        avg_view_result = await db_manager.execute_query(avg_view_query, user_id)
-        avg_view_time = avg_view_result[0]["avg_duration"] if avg_view_result and avg_view_result[0]["avg_duration"] else 0
-        avg_view_time_str = f"{int(avg_view_time / 60)} minutes" if avg_view_time > 60 else f"{int(avg_view_time)} seconds"
-        
-        # Get last week activity
-        from datetime import datetime, timedelta
-        last_week = datetime.utcnow() - timedelta(days=7)
-        
-        last_week_queries = {
-            "jobs_viewed": f"""
-                SELECT COUNT(*) as count FROM iosapp.job_views 
-                WHERE user_id = $1 AND viewed_at >= '{last_week.isoformat()}'
-            """,
-            "jobs_saved": f"""
-                SELECT COUNT(*) as count FROM iosapp.saved_jobs 
-                WHERE user_id = $1 AND created_at >= '{last_week.isoformat()}'
-            """,
-            "applications": f"""
-                SELECT COUNT(*) as count FROM iosapp.job_applications 
-                WHERE user_id = $1 AND applied_at >= '{last_week.isoformat()}'
-            """
-        }
-        
-        last_week_activity = {}
-        for stat_name, query in last_week_queries.items():
-            result = await db_manager.execute_query(query, user_id)
-            last_week_activity[stat_name] = result[0]["count"] if result else 0
-        
-        # Get most viewed categories (based on job titles)
-        categories_query = """
-            SELECT 
-                CASE 
-                    WHEN LOWER(j.title) LIKE '%ios%' OR LOWER(j.title) LIKE '%swift%' THEN 'iOS Development'
-                    WHEN LOWER(j.title) LIKE '%android%' OR LOWER(j.title) LIKE '%kotlin%' THEN 'Android Development'
-                    WHEN LOWER(j.title) LIKE '%web%' OR LOWER(j.title) LIKE '%javascript%' THEN 'Web Development'
-                    WHEN LOWER(j.title) LIKE '%data%' OR LOWER(j.title) LIKE '%python%' THEN 'Data Science'
-                    WHEN LOWER(j.title) LIKE '%mobile%' THEN 'Mobile Development'
-                    ELSE 'Other'
-                END as category,
-                COUNT(*) as view_count
-            FROM iosapp.job_views jv
-            JOIN scraper.jobs_jobpost j ON jv.job_id = j.id
-            WHERE jv.user_id = $1
-            GROUP BY category
-            ORDER BY view_count DESC
-            LIMIT 5
-        """
-        categories_result = await db_manager.execute_query(categories_query, user_id)
-        most_viewed_categories = [row["category"] for row in categories_result if row["category"] != "Other"]
-        
-        # Calculate market fit based on skills and activity
-        skills = user_profile.get("skills", []) or []
-        market_fit = min(50 + len(skills) * 5 + (activity_stats["total_jobs_viewed"] // 10), 100)
-        
-        # Generate improvement areas
-        improvement_areas = []
-        if profile_completeness < 80:
-            improvement_areas.append("Complete your profile for better job matches")
-        if len(skills) < 5:
-            improvement_areas.append("Add more skills to your profile")
-        if activity_stats["total_applications"] == 0:
-            improvement_areas.append("Start applying to relevant job positions")
-        if not user_profile.get("current_job_title"):
-            improvement_areas.append("Add your current job title")
-        
-        # Mock matching insights (can be enhanced with real data)
-        total_matches = activity_stats["total_jobs_viewed"]  # Simplified
-        average_match_score = 75 if total_matches > 0 else 0  # Mock score
-        
-        # Mock market insights
-        market_insights = [
-            {
-                "insight": "iOS Developer demand increased 15% this month",
-                "confidence": 0.9,
-                "category": "market_trend"
-            },
-            {
-                "insight": "Your skill set matches 80% of current iOS job requirements",
-                "confidence": 0.85,
-                "category": "skills_analysis"
-            }
-        ]
-        
-        response_data = {
-            "profileInsights": {
-                "profileStrength": profile_strength,
-                "profileCompleteness": profile_completeness,
-                "skillsAssessment": f"Strong profile with {len(skills)} skills listed" if len(skills) >= 3 else "Add more skills to strengthen your profile",
-                "marketFit": market_fit,
-                "improvementAreas": improvement_areas
-            },
-            "jobActivity": {
-                "totalJobsViewed": activity_stats["total_jobs_viewed"],
-                "totalJobsSaved": activity_stats["total_jobs_saved"],
-                "totalApplications": activity_stats["total_applications"],
-                "averageViewTime": avg_view_time_str,
-                "mostViewedCategories": most_viewed_categories,
-                "lastWeekActivity": last_week_activity
-            },
-            "matchingInsights": {
-                "totalMatches": total_matches,
-                "averageMatchScore": average_match_score,
-                "topMatchingCompanies": ["Apple", "Google", "Meta"],  # Mock data
-                "recommendedSkills": ["SwiftUI", "Combine", "Core Data"]  # Mock data
-            },
-            "marketInsights": market_insights
-        }
-        
-        return {
-            "success": True,
-            "data": response_data
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting user analytics: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get user analytics"
-        )
-
-@router.post("/{device_id}/job-views")
-async def track_job_view(device_id: str, view_data: JobViewRequest):
-    """Track when a user views a job"""
-    try:
-        # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
-        
-        if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        user_id = user_result[0]["id"]
-        
-        # Insert job view record
-        import uuid
-        view_id = str(uuid.uuid4())
-        
-        insert_query = """
-            INSERT INTO iosapp.job_views 
-            (id, user_id, job_id, view_duration, source, viewed_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        """
-        
-        await db_manager.execute_query(
-            insert_query,
-            view_id, user_id, view_data.jobId, view_data.viewDuration, 
-             view_data.source, view_data.timestamp
-        )
-        
-        return {
-            "success": True,
-            "message": "Job view tracked successfully"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error tracking job view: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to track job view"
-        )
-
-@router.get("/{device_id}/applications")
-async def get_application_history(
-    device_id: str,
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100)
-):
-    """Get user's job application history"""
-    try:
-        # Get user ID
-        user_query = "SELECT id FROM iosapp.users WHERE device_id = $1"
-        user_result = await db_manager.execute_query(user_query, device_id)
-        
-        if not user_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        user_id = user_result[0]["id"]
-        offset = (page - 1) * limit
-        
-        # Get applications with job details
-        applications_query = """
-            SELECT 
-                ja.id as application_id,
-                ja.job_id,
-                ja.status,
-                ja.applied_at,
-                ja.notes,
-                ja.follow_up_date,
-                j.title,
-                j.company
-            FROM iosapp.job_applications ja
-            LEFT JOIN scraper.jobs_jobpost j ON ja.job_id = j.id
-            WHERE ja.user_id = $1
-            ORDER BY ja.applied_at DESC
-            LIMIT $2 OFFSET $3
-        """
-        
-        applications = await db_manager.execute_query(
-            applications_query, user_id, limit, offset
-        )
-        
-        # Get total count
-        count_query = "SELECT COUNT(*) as total FROM iosapp.job_applications WHERE user_id = $1"
-        count_result = await db_manager.execute_query(count_query, user_id)
-        total_applications = count_result[0]["total"] if count_result else 0
-        
-        # Get status counts
-        status_query = """
-            SELECT status, COUNT(*) as count 
-            FROM iosapp.job_applications 
-            WHERE user_id = $1 
-            GROUP BY status
-        """
-        status_result = await db_manager.execute_query(status_query, user_id)
-        status_counts = {row["status"]: row["count"] for row in status_result}
-        
-        # Format applications data
-        applications_data = []
-        for app in applications:
-            applications_data.append({
-                "applicationId": app["application_id"],
-                "jobId": app["job_id"],
-                "title": app["title"] or "Job title not available",
-                "companyName": app["company"] or "Company not available",
-                "appliedAt": app["applied_at"].isoformat() if app["applied_at"] else None,
-                "status": app["status"],
-                "notes": app["notes"],
-                "followUpDate": app["follow_up_date"].isoformat() if app["follow_up_date"] else None
-            })
-        
-        return {
-            "success": True,
-            "data": {
-                "applications": applications_data,
-                "totalApplications": total_applications,
-                "statusCounts": {
-                    "pending": status_counts.get("pending", 0),
-                    "interview": status_counts.get("interview", 0),
-                    "rejected": status_counts.get("rejected", 0),
-                    "offer": status_counts.get("offer", 0)
-                }
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting application history: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get application history"
-        )
-
-# Profile Keyword Management Endpoints
-@router.get("/{device_id}/profile/keywords", response_model=Dict[str, Any])
-async def get_profile_keywords(device_id: str):
-    """Get user's profile keywords for job matching"""
-    try:
-        # Get user profile
-        profile_query = """
-            SELECT match_keywords, job_preferences, last_updated
-            FROM iosapp.user_profiles 
-            WHERE device_id = $1
-        """
-        
-        profile_result = await db_manager.execute_query(profile_query, device_id)
-        
-        if not profile_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        profile = profile_result[0]
-        match_keywords = profile["match_keywords"] if profile["match_keywords"] else []
-        job_preferences = profile["job_preferences"] if profile["job_preferences"] else {}
-        
-        # Ensure match_keywords is a list
-        if isinstance(match_keywords, str):
-            import json
-            match_keywords = json.loads(match_keywords)
-        
-        # Ensure job_preferences is a dict
-        if isinstance(job_preferences, str):
-            import json
-            job_preferences = json.loads(job_preferences)
-        
-        return {
-            "success": True,
-            "data": {
-                "matchKeywords": match_keywords or [],
-                "keywordCount": len(match_keywords) if match_keywords else 0,
-                "lastUpdated": profile["last_updated"].isoformat() if profile["last_updated"] else None,
-                "relatedSkills": job_preferences.get("skills", []) if isinstance(job_preferences, dict) else []
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting profile keywords: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get profile keywords"
-        )
-
-@router.post("/{device_id}/profile/keywords", response_model=Dict[str, Any])
-async def update_profile_keywords(
-    device_id: str,
-    keywords_data: Dict[str, Any]
-):
-    """Update user's profile keywords for job matching"""
-    try:
-        keywords = keywords_data.get("matchKeywords", [])
-        
-        # Validate keywords
-        if not isinstance(keywords, list):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="matchKeywords must be an array"
-            )
-        
-        # Limit to reasonable number of keywords
-        if len(keywords) > 50:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximum 50 keywords allowed"
-            )
-        
-        # Clean and validate keywords
-        cleaned_keywords = []
-        for keyword in keywords:
-            if isinstance(keyword, str) and len(keyword.strip()) > 0:
-                cleaned_keywords.append(keyword.strip().lower())
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_keywords = []
-        for keyword in cleaned_keywords:
-            if keyword not in seen:
-                seen.add(keyword)
-                unique_keywords.append(keyword)
-        
-        # Update user profile
-        update_query = """
-            UPDATE iosapp.user_profiles 
-            SET 
-                match_keywords = $1::jsonb,
-                last_updated = CURRENT_TIMESTAMP
-            WHERE device_id = $2
-            RETURNING user_id, last_updated
-        """
-        
-        import json
-        result = await db_manager.execute_query(
-            update_query, 
-            json.dumps(unique_keywords), device_id
-        )
-        
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        return {
-            "success": True,
-            "message": "Profile keywords updated successfully",
-            "data": {
-                "matchKeywords": unique_keywords,
-                "keywordCount": len(unique_keywords),
-                "lastUpdated": result[0]["last_updated"].isoformat()
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating profile keywords: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update profile keywords"
-        )
-
-@router.post("/{device_id}/profile/keywords/add", response_model=Dict[str, Any])
-async def add_profile_keyword(
-    device_id: str,
-    keyword_data: Dict[str, Any]
-):
-    """Add a single keyword to user's profile"""
-    try:
-        new_keyword = keyword_data.get("keyword", "").strip().lower()
-        
-        if not new_keyword:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Keyword cannot be empty"
-            )
-        
-        if len(new_keyword) > 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Keyword too long (max 100 characters)"
-            )
-        
-        # Get current keywords
-        current_query = """
-            SELECT match_keywords 
-            FROM iosapp.user_profiles 
-            WHERE device_id = $1
-        """
-        
-        current_result = await db_manager.execute_query(current_query, device_id)
-        
-        if not current_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        current_keywords = current_result[0]["match_keywords"] if current_result[0]["match_keywords"] else []
-        
-        # Ensure it's a list
-        if isinstance(current_keywords, str):
-            import json
-            current_keywords = json.loads(current_keywords)
-        
-        current_keywords = current_keywords or []
-        
-        # Check if keyword already exists
-        if new_keyword in current_keywords:
-            return {
-                "success": True,
-                "message": "Keyword already exists",
-                "data": {
-                    "matchKeywords": current_keywords,
-                    "keywordCount": len(current_keywords)
-                }
-            }
-        
-        # Check keyword limit
-        if len(current_keywords) >= 50:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximum 50 keywords allowed"
-            )
-        
-        # Add new keyword
-        updated_keywords = current_keywords + [new_keyword]
-        
-        # Update database
-        update_query = """
-            UPDATE iosapp.user_profiles 
-            SET 
-                match_keywords = $1::jsonb,
-                last_updated = CURRENT_TIMESTAMP
-            WHERE device_id = $2
-            RETURNING last_updated
-        """
-        
-        import json
-        result = await db_manager.execute_query(
-            update_query, 
-            json.dumps(updated_keywords), device_id
-        )
-        
-        return {
-            "success": True,
-            "message": "Keyword added successfully",
-            "data": {
-                "matchKeywords": updated_keywords,
-                "keywordCount": len(updated_keywords),
-                "addedKeyword": new_keyword,
-                "lastUpdated": result[0]["last_updated"].isoformat()
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error adding profile keyword: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to add profile keyword"
-        )
-
-@router.delete("/{device_id}/profile/keywords/{keyword}", response_model=Dict[str, Any])
-async def remove_profile_keyword(device_id: str, keyword: str):
-    """Remove a keyword from user's profile"""
-    try:
-        keyword = keyword.strip().lower()
-        
-        # Get current keywords
-        current_query = """
-            SELECT match_keywords 
-            FROM iosapp.user_profiles 
-            WHERE device_id = $1
-        """
-        
-        current_result = await db_manager.execute_query(current_query, device_id)
-        
-        if not current_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        current_keywords = current_result[0]["match_keywords"] if current_result[0]["match_keywords"] else []
-        
-        # Ensure it's a list
-        if isinstance(current_keywords, str):
-            import json
-            current_keywords = json.loads(current_keywords)
-        
-        current_keywords = current_keywords or []
-        
-        # Remove keyword if it exists
-        if keyword in current_keywords:
-            updated_keywords = [k for k in current_keywords if k != keyword]
-            
-            # Update database
-            update_query = """
-                UPDATE iosapp.user_profiles 
-                SET 
-                    match_keywords = $1::jsonb,
-                    last_updated = CURRENT_TIMESTAMP
-                WHERE device_id = $2
-                RETURNING last_updated
-            """
-            
-            import json
-            result = await db_manager.execute_query(
-                update_query, 
-                [json.dumps(updated_keywords), device_id]
-            )
-            
-            return {
-                "success": True,
-                "message": "Keyword removed successfully",
-                "data": {
-                    "matchKeywords": updated_keywords,
-                    "keywordCount": len(updated_keywords),
-                    "removedKeyword": keyword,
-                    "lastUpdated": result[0]["last_updated"].isoformat()
-                }
-            }
         else:
-            return {
-                "success": True,
-                "message": "Keyword not found in profile",
-                "data": {
-                    "matchKeywords": current_keywords,
-                    "keywordCount": len(current_keywords)
-                }
-            }
-        
-    except HTTPException:
-        raise
+            raise HTTPException(status_code=500, detail="Failed to record view")
+            
     except Exception as e:
-        logger.error(f"Error removing profile keyword: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to remove profile keyword"
-        )
-
-@router.get("/{device_id}/profile/matches", response_model=Dict[str, Any])
-async def get_profile_based_matches(
-    device_id: str,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0)
-):
-    """Get job matches based on user's profile keywords"""
-    try:
-        # Get user's keywords
-        keywords_query = """
-            SELECT match_keywords 
-            FROM iosapp.user_profiles 
-            WHERE device_id = $1
-        """
-        
-        keywords_result = await db_manager.execute_query(keywords_query, device_id)
-        
-        if not keywords_result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
-        match_keywords = keywords_result[0]["match_keywords"] if keywords_result[0]["match_keywords"] else []
-        
-        if isinstance(match_keywords, str):
-            import json
-            match_keywords = json.loads(match_keywords)
-        
-        if not match_keywords:
-            return {
-                "success": True,
-                "data": {
-                    "matches": [],
-                    "totalCount": 0,
-                    "message": "No keywords set for matching"
-                }
-            }
-        
-        # Build dynamic query for keyword matching
-        keyword_conditions = []
-        for i, keyword in enumerate(match_keywords):
-            keyword_conditions.append(f"""
-                (title ILIKE ${i+2} OR 
-                 description ILIKE ${i+2} OR 
-                 requirements ILIKE ${i+2})
-            """)
-        
-        matches_query = f"""
-            WITH keyword_matches AS (
-                SELECT DISTINCT
-                    id,
-                    title,
-                    company,
-                    location,
-                    salary,
-                    description,
-                    requirements,
-                    source,
-                    created_at,
-                    (
-                        {' + '.join([f"CASE WHEN (title ILIKE ${i+2} OR description ILIKE ${i+2} OR requirements ILIKE ${i+2}) THEN 1 ELSE 0 END" for i in range(len(match_keywords))])}
-                    ) as match_count
-                FROM scraper.jobs_jobpost
-                WHERE ({' OR '.join(keyword_conditions)})
-            )
-            SELECT 
-                *,
-                ROUND((match_count::FLOAT / {len(match_keywords)}) * 100) as match_score
-            FROM keyword_matches
-            ORDER BY match_count DESC, created_at DESC
-            LIMIT $1 OFFSET ${len(match_keywords) + 2}
-        """
-        
-        # Prepare parameters
-        params = [limit] + [f"%{keyword}%" for keyword in match_keywords] + [offset]
-        
-        matches_result = await db_manager.execute_query(matches_query, params)
-        
-        # Format matches
-        matches = []
-        for match in matches_result:
-            matches.append({
-                "jobId": match["id"],
-                "title": match["title"],
-                "company": match["company"],
-                "location": match["location"],
-                "salary": match["salary"],
-                "description": match["description"][:200] + "..." if len(match["description"]) > 200 else match["description"],
-                "source": match["source"],
-                "postedAt": match["created_at"].isoformat(),
-                "matchScore": int(match["match_score"]),
-                "matchCount": match["match_count"],
-                "matchedKeywords": [kw for kw in match_keywords if 
-                                   kw.lower() in match["title"].lower() or 
-                                   kw.lower() in match["description"].lower() or 
-                                   kw.lower() in (match["requirements"] or "").lower()]
-            })
-        
-        return {
-            "success": True,
-            "data": {
-                "matches": matches,
-                "totalCount": len(matches),
-                "userKeywords": match_keywords,
-                "limit": limit,
-                "offset": offset
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting profile-based matches: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get profile-based matches"
-        )
-
-@router.post("/profile/sync")
-async def sync_profile(sync_request):
-    """Sync profile across devices - placeholder implementation"""
-    try:
-        # This is a placeholder implementation
-        # In a real system, you would implement proper device sync logic
-        
-        source_device = sync_request.get("sourceDeviceId")
-        target_device = sync_request.get("targetDeviceId")
-        
-        if not source_device or not target_device:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Source and target device IDs are required"
-            )
-        
-        # Mock successful sync response
-        return {
-            "success": True,
-            "message": "Profile synchronized successfully",
-            "data": {
-                "syncedItems": {
-                    "profile": True,
-                    "savedJobs": 0,  # Would contain actual count
-                    "preferences": True,
-                    "analytics": True
-                },
-                "lastSync": datetime.utcnow().isoformat()
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error syncing profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to sync profile"
-        )
+        logger.error(f"Error recording job view: {e}")
+        raise HTTPException(status_code=500, detail="Failed to record job view")

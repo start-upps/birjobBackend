@@ -15,7 +15,7 @@ except ImportError:
 from app.core.config import settings
 from app.core.database import db_manager
 from app.core.redis_client import redis_client
-from app.core.monitoring import metrics
+# Removed monitoring dependency
 
 logger = logging.getLogger(__name__)
 
@@ -142,9 +142,9 @@ class PushNotificationService:
         if success:
             # Update notification counts
             await self._update_notification_counts(device_id)
-            metrics.record_notification_sent("sent")
+            logger.info(f"Notification sent successfully to device {device_id}")
         else:
-            metrics.record_notification_sent("failed")
+            logger.warning(f"Failed to send notification to device {device_id}")
         
         return success
     
