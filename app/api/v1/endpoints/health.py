@@ -12,6 +12,11 @@ from sqlalchemy import text
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.get("/status", response_model=Dict[str, Any])
+async def detailed_health_status():
+    """Detailed system health status endpoint"""
+    return await health_check()
+
 @router.get("", response_model=Dict[str, Any])
 async def health_check():
     """System health check endpoint"""

@@ -126,16 +126,14 @@ async def unregister_device(
 ):
     """Unregister a device from push notifications"""
     try:
-        device_uuid = uuid.UUID(device_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid device ID format"
-        )
-    
-    try:
-        # Find and deactivate device
-        stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        # Try UUID format first, then fallback to device_id string lookup
+        try:
+            device_uuid = uuid.UUID(device_id)
+            stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        except ValueError:
+            # Use device_id field instead of UUID
+            stmt = select(DeviceToken).where(DeviceToken.device_id == device_id)
+        
         result = await db.execute(stmt)
         device = result.scalar_one_or_none()
         
@@ -172,15 +170,14 @@ async def get_device_status(
 ):
     """Get device registration status and basic info"""
     try:
-        device_uuid = uuid.UUID(device_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid device ID format"
-        )
-    
-    try:
-        stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        # Try UUID format first, then fallback to device_id string lookup
+        try:
+            device_uuid = uuid.UUID(device_id)
+            stmt = select(DeviceToken).where(DeviceToken.id == device_uuid)
+        except ValueError:
+            # Use device_id field instead of UUID
+            stmt = select(DeviceToken).where(DeviceToken.device_id == device_id)
+        
         result = await db.execute(stmt)
         device = result.scalar_one_or_none()
         
@@ -193,10 +190,11 @@ async def get_device_status(
         return {
             "success": True,
             "data": {
-                "device_id": str(device.id),
+                "device_id": device.device_id,  # Return the string device_id, not UUID
+                "uuid": str(device.id),  # Include UUID for reference
                 "is_active": device.is_active,
-                "registered_at": device.created_at.isoformat(),
-                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                "registered_at": device.registered_at.isoformat(),
+                "last_updated": device.updated_at.isoformat(),
                 "device_info": device.device_info
             }
         }

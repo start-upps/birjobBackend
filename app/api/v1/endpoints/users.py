@@ -168,60 +168,83 @@ async def register_user(user_data: UserCreate):
     """Register new user with device_id (iOS app)"""
     try:
         # Check if device already exists
-        query = """
+        device_query = """
             SELECT u.* FROM iosapp.users u
             JOIN iosapp.device_tokens dt ON u.id = dt.user_id
             WHERE dt.device_id = $1 AND dt.is_active = true
         """
-        result = await db_manager.execute_query(query, user_data.device_id)
+        device_result = await db_manager.execute_query(device_query, user_data.device_id)
         
-        if result:
+        if device_result:
             return SuccessResponse(
-                message="User already exists",
-                data={"user_id": str(result[0]["id"])}
+                message="User already registered with this device",
+                data={"user_id": str(device_result[0]["id"])}
             )
         
-        # Create new user
-        user_insert_query = """
-            INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
-            VALUES ($1, $2, $3, $4)
-            RETURNING *
-        """
+        # Check if email already exists
+        email_query = "SELECT * FROM iosapp.users WHERE email = $1"
+        email_result = await db_manager.execute_query(email_query, user_data.email)
         
-        user_result = await db_manager.execute_query(
-            user_insert_query,
-            user_data.email,
-            json.dumps(user_data.keywords or []),
-            json.dumps(user_data.preferred_sources or []),
-            user_data.notifications_enabled
+        user_id = None
+        
+        if email_result:
+            # User exists with this email, link to existing user
+            user_id = email_result[0]["id"]
+            
+            # Update keywords if provided
+            if user_data.keywords:
+                update_query = """
+                    UPDATE iosapp.users 
+                    SET keywords = $1, notifications_enabled = $2, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $3
+                """
+                await db_manager.execute_query(
+                    update_query,
+                    json.dumps(user_data.keywords),
+                    user_data.notifications_enabled,
+                    user_id
+                )
+        else:
+            # Create new user
+            user_insert_query = """
+                INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, created_at
+            """
+            
+            user_result = await db_manager.execute_query(
+                user_insert_query,
+                user_data.email,
+                json.dumps(user_data.keywords or []),
+                json.dumps(user_data.preferred_sources or []),
+                user_data.notifications_enabled
+            )
+            
+            if user_result:
+                user_id = user_result[0]["id"]
+            else:
+                raise HTTPException(status_code=500, detail="Failed to create user")
+        
+        # Create device token entry
+        device_token_query = """
+            INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
+            VALUES ($1, $2, $3, $4)
+        """
+        await db_manager.execute_query(
+            device_token_query,
+            user_id,
+            user_data.device_id,
+            f"placeholder_token_64_chars_min_{user_data.device_id}_{'x' * 20}",  # 64+ char token
+            json.dumps({})
         )
         
-        if user_result:
-            user = user_result[0]
-            
-            # Create device token entry
-            device_query = """
-                INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
-                VALUES ($1, $2, $3, $4)
-            """
-            await db_manager.execute_query(
-                device_query,
-                user["id"],
-                user_data.device_id,
-                f"placeholder_token_64_chars_min_{user_data.device_id}_{'x' * 20}",  # 64+ char token
-                json.dumps({})
-            )
-            
-            return SuccessResponse(
-                message="User created successfully",
-                data={
-                    "user_id": str(user["id"]),
-                    "device_id": user_data.device_id,
-                    "created_at": user["created_at"].isoformat()
-                }
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create user")
+        return SuccessResponse(
+            message="User registered successfully",
+            data={
+                "user_id": str(user_id),
+                "device_id": user_data.device_id
+            }
+        )
             
     except Exception as e:
         logger.error(f"Error registering user: {e}")
@@ -283,8 +306,17 @@ async def check_profile_exists(device_id: str):
         logger.error(f"Error checking profile existence: {e}")
         raise HTTPException(status_code=500, detail="Failed to check profile existence")
 
-@router.post("/profile", response_model=SuccessResponse)
+@router.put("/profile", response_model=SuccessResponse)
 async def create_or_update_profile(profile_data: UserCreate):
+    """Create or update user profile via device ID (PUT method)"""
+    return await _create_or_update_profile_internal(profile_data)
+
+@router.post("/profile", response_model=SuccessResponse)
+async def create_or_update_profile_post(profile_data: UserCreate):
+    """Create or update user profile via device ID (POST method)"""
+    return await _create_or_update_profile_internal(profile_data)
+
+async def _create_or_update_profile_internal(profile_data: UserCreate):
     """Create or update user profile via device ID"""
     try:
         # First check if user exists via device_id
