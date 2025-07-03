@@ -197,67 +197,52 @@ birjobBackend/
 - **Performance**: Optimized indexes
 - **Maintainability**: Simple, focused codebase
 
-## 📝 Usage Examples
+## 📚 Complete Documentation
 
-### Register User
+### 🔗 Quick Links
+- **[📋 API Documentation](BACKEND_API_DOCUMENTATION.md)** - Complete API reference with examples
+- **[🗄️ Database Schema](DATABASE_SCHEMA_DOCUMENTATION.md)** - Full database structure and relationships
+- **[📱 iOS Integration Guide](IOS_INTEGRATION_GUIDE.md)** - SwiftUI implementation with code examples
+- **[🤖 AI Development Guide](AI_DEVELOPMENT_GUIDE.md)** - AI-friendly guide with copy-paste code blocks
+
+### 🎯 For iOS App Development
+1. **Start Here**: [AI Development Guide](AI_DEVELOPMENT_GUIDE.md) - Everything an AI needs to build the iOS app
+2. **API Reference**: [Backend API Documentation](BACKEND_API_DOCUMENTATION.md) - All endpoints with examples
+3. **Implementation**: [iOS Integration Guide](IOS_INTEGRATION_GUIDE.md) - Complete SwiftUI code examples
+4. **Database**: [Database Schema Documentation](DATABASE_SCHEMA_DOCUMENTATION.md) - Data structure and relationships
+
+### 🚀 Production Status
+- **✅ 100% Operational**: https://birjobbackend-ir3e.onrender.com
+- **✅ 4,367+ Live Jobs**: From 39 different sources
+- **✅ AI Integration**: Gemini 2.5 Flash for career assistance
+- **✅ Full CRUD Operations**: Users, jobs, analytics, AI chat
+- **✅ Push Notifications**: APNs integration ready
+- **✅ Analytics Tracking**: User behavior and metrics
+
+### 📝 Quick Test Examples
+
+#### Health Check
 ```bash
-curl -X POST "http://localhost:8000/api/v1/users/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "device_id": "device-123",
-    "email": "user@example.com",
-    "keywords": ["python", "backend"],
-    "notifications_enabled": true
-  }'
+curl https://birjobbackend-ir3e.onrender.com/health
+# {"status":"healthy","message":"Service is running"}
 ```
 
-### Get Jobs
+#### Search Jobs
 ```bash
-curl "http://localhost:8000/api/v1/jobs/?search=python&limit=10"
+curl "https://birjobbackend-ir3e.onrender.com/api/v1/jobs/?search=iOS&limit=5"
+# Returns 5 iOS-related jobs from 4,367+ listings
 ```
 
-### Save Job
+#### AI Chat
 ```bash
-curl -X POST "http://localhost:8000/api/v1/jobs/save" \
+curl -X POST "https://birjobbackend-ir3e.onrender.com/api/v1/chatbot/chat" \
   -H "Content-Type: application/json" \
   -d '{
-    "device_id": "device-123",
-    "job_id": 12345
-  }'
-```
-
-### Record Analytics Event
-```bash
-curl -X POST "http://localhost:8000/api/v1/analytics/event" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "device_id": "device-123",
-    "action_type": "job_view",
-    "action_data": {"job_id": 12345, "duration": 30},
-    "session_id": "session-456"
-  }'
-```
-
-### Chat with AI Assistant
-```bash
-curl -X POST "http://localhost:8000/api/v1/chatbot/chat" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "device_id": "device-123",
-    "message": "How can I improve my resume for backend developer roles?",
+    "device_id": "test-device",
+    "message": "What skills do I need for iOS development?",
     "include_user_context": true
   }'
-```
-
-### Get Job Recommendations
-```bash
-curl -X POST "http://localhost:8000/api/v1/chatbot/recommendations" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "device_id": "device-123",
-    "keywords": ["python", "fastapi"],
-    "location": "Baku"
-  }'
+# Returns AI-powered career advice
 ```
 
 ## 🚦 Development
