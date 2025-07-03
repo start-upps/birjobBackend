@@ -21,7 +21,7 @@ class GeminiChatbotService:
         
         try:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
             logger.info("Gemini chatbot service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Gemini service: {e}")
@@ -99,7 +99,7 @@ Keep responses concise, helpful, and focused on job-related topics."""
                 "success": True,
                 "response": response,
                 "timestamp": datetime.now().isoformat(),
-                "model": "gemini-1.5-flash"
+                "model": "gemini-2.5-flash"
             }
             
         except Exception as e:

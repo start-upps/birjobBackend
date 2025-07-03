@@ -23,7 +23,7 @@ class ChatResponse(BaseModel):
     success: bool = True
     response: str = Field(..., description="Chatbot's response")
     timestamp: str = Field(..., description="Response timestamp")
-    model: str = Field(default="gemini-pro", description="AI model used")
+    model: str = Field(default="gemini-2.5-flash", description="AI model used")
     error: Optional[str] = Field(None, description="Error message if any")
 
 class JobRecommendationsRequest(BaseModel):
