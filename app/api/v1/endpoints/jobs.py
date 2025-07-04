@@ -312,6 +312,11 @@ async def save_job(job_data: Dict[str, Any]):
         logger.error(f"Error saving job: {e}")
         raise HTTPException(status_code=500, detail="Failed to save job")
 
+@router.delete("/save", response_model=Dict[str, Any])
+async def delete_saved_job(job_data: Dict[str, Any]):
+    """Remove saved job for user (alias for unsave endpoint)"""
+    return await unsave_job(job_data)
+
 @router.delete("/unsave", response_model=Dict[str, Any])
 async def unsave_job(job_data: Dict[str, Any]):
     """Remove saved job for user"""
