@@ -308,6 +308,41 @@ async def check_profile_exists(device_id: str):
         logger.error(f"Error checking profile existence: {e}")
         raise HTTPException(status_code=500, detail="Failed to check profile existence")
 
+@router.delete("/profile/{device_id}", response_model=SuccessResponse)
+async def delete_user_profile(device_id: str):
+    """Delete user profile and all associated data by device_id (GDPR compliance)"""
+    try:
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        user_id = user_result[0]["id"]
+        
+        # Delete user (CASCADE will handle related tables: device_tokens, saved_jobs, job_views, user_analytics)
+        delete_query = "DELETE FROM iosapp.users WHERE id = $1 RETURNING id"
+        delete_result = await db_manager.execute_query(delete_query, user_id)
+        
+        if delete_result:
+            return SuccessResponse(
+                message="User profile and all associated data deleted successfully",
+                data={"deleted_user_id": str(user_id), "device_id": device_id}
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete user profile")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user profile")
+
 @router.put("/profile", response_model=SuccessResponse)
 async def create_or_update_profile(profile_data: UserCreate):
     """Create or update user profile via device ID (PUT method)"""
