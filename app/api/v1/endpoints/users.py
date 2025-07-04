@@ -280,6 +280,8 @@ async def get_user_profile(device_id: str):
         else:
             raise HTTPException(status_code=404, detail="User profile not found")
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
         raise HTTPException(status_code=500, detail="Failed to get user profile")
