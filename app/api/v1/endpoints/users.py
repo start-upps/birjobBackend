@@ -343,6 +343,14 @@ async def delete_user_profile(device_id: str):
         logger.error(f"Error deleting user profile: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user profile")
 
+@router.delete("/profile", response_model=SuccessResponse)
+async def delete_user_profile_body(request_data: Dict[str, Any]):
+    """Delete user profile by device_id in request body (alternative endpoint)"""
+    device_id = request_data.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required")
+    return await delete_user_profile(device_id)
+
 @router.put("/profile", response_model=SuccessResponse)
 async def create_or_update_profile(profile_data: UserCreate):
     """Create or update user profile via device ID (PUT method)"""
