@@ -406,6 +406,54 @@ async def get_saved_jobs(device_id: str):
         logger.error(f"Error getting saved jobs: {e}")
         raise HTTPException(status_code=500, detail="Failed to get saved jobs")
 
+@router.delete("/saved/{device_id}", response_model=Dict[str, Any])
+async def clear_all_saved_jobs(device_id: str):
+    """Clear all saved jobs for user (bulk delete)"""
+    try:
+        # Find user via device_tokens relationship
+        user_query = """
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]["id"]
+        
+        # Count jobs before deletion
+        count_query = "SELECT COUNT(*) as count FROM iosapp.saved_jobs WHERE user_id = $1"
+        count_result = await db_manager.execute_query(count_query, user_id)
+        job_count = count_result[0]["count"] if count_result else 0
+        
+        # Delete all saved jobs for user
+        delete_query = "DELETE FROM iosapp.saved_jobs WHERE user_id = $1 RETURNING id"
+        delete_result = await db_manager.execute_query(delete_query, user_id)
+        
+        deleted_count = len(delete_result) if delete_result else 0
+        
+        return {
+            "success": True,
+            "message": f"Cleared {deleted_count} saved jobs",
+            "data": {"cleared_count": deleted_count}
+        }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing saved jobs: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear saved jobs")
+
+@router.post("/saved/clear", response_model=Dict[str, Any])
+async def clear_saved_jobs_post(clear_data: Dict[str, Any]):
+    """Clear all saved jobs for user via POST with device_id in body"""
+    device_id = clear_data.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required")
+    return await clear_all_saved_jobs(device_id)
+
 @router.post("/view", response_model=Dict[str, Any])
 async def record_job_view(view_data: Dict[str, Any]):
     """Record job view for analytics with RDBMS foreign key"""

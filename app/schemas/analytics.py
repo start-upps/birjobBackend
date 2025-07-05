@@ -16,6 +16,8 @@ class ActionType(str, Enum):
     CHATBOT_MESSAGE = "chatbot_message"
     JOB_RECOMMENDATIONS = "job_recommendations"
     JOB_ANALYSIS = "job_analysis"
+    JOBS_CLEAR_ALL_INDIVIDUAL = "jobs_clear_all_individual"
+    JOBS_CLEAR_ALL_BULK = "jobs_clear_all_bulk"
 
 class AnalyticsEventRequest(BaseModel):
     device_id: str = Field(..., description="Device identifier")
