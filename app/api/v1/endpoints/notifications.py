@@ -327,6 +327,49 @@ async def register_push_token(request: dict):
         logger.error(f"Error registering push token: {e}")
         raise HTTPException(status_code=500, detail="Failed to register push token")
 
+@router.get("/quick-test/{device_id}")
+async def quick_test_for_device(device_id: str):
+    """Quick test endpoint to setup and send notifications for specific device"""
+    try:
+        # First setup the user with keywords if not set
+        user_setup_query = """
+            UPDATE iosapp.users 
+            SET keywords = $1, notifications_enabled = true, updated_at = NOW()
+            WHERE id = (
+                SELECT u.id FROM iosapp.users u
+                JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+                WHERE dt.device_id = $2 AND dt.is_active = true
+            )
+        """
+        
+        keywords = ["iOS Developer", "Swift", "Mobile App", "iPhone", "React Native", "Apple"]
+        import json
+        await db_manager.execute_command(user_setup_query, json.dumps(keywords), device_id)
+        
+        # Now run the real notification processor
+        stats = await run_notifications_now(dry_run=False)
+        
+        return {
+            "success": True,
+            "message": "Keywords setup and real notifications triggered!",
+            "data": {
+                "device_id": device_id,
+                "keywords_set": keywords,
+                "processed_jobs": stats.get('processed_jobs', 0),
+                "matched_users": stats.get('matched_users', 0),
+                "notifications_sent": stats.get('notifications_sent', 0),
+                "mode": "REAL notifications"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in quick test: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Check server logs for details"
+        }
+
 @router.post("/test-run", response_model=JobNotificationTriggerResponse)
 async def test_run_notifications(dry_run: bool = False):
     """Test run notifications immediately - LIVE MODE by default"""
@@ -629,3 +672,590 @@ async def get_jobs_for_notification(notification_id: str):
     except Exception as e:
         logger.error(f"Error getting jobs for notification: {e}")
         raise HTTPException(status_code=500, detail="Failed to get jobs for notification")
+
+@router.post("/test-push/{device_id}")
+async def test_push_notification(device_id: str, message: str = "Test notification from backend!"):
+    """Send immediate test push notification to device"""
+    try:
+        # Get device token for this device_id
+        device_query = """
+            SELECT dt.device_token, dt.user_id, u.keywords 
+            FROM iosapp.device_tokens dt
+            JOIN iosapp.users u ON dt.user_id = u.id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        device_result = await db_manager.execute_query(device_query, device_id)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found or inactive")
+        
+        device_data = device_result[0]
+        device_token = device_data['device_token']
+        user_id = device_data['user_id']
+        keywords = device_data['keywords'] or []
+        
+        # Create a fake job for testing
+        test_job = {
+            'id': 999999,
+            'title': 'Test iOS Developer Position',
+            'company': 'Test Company Inc.',
+            'source': 'test',
+            'apply_link': 'https://example.com/test-job'
+        }
+        
+        # Use actual push notification service
+        from app.services.push_notifications import PushNotificationService
+        push_service = PushNotificationService()
+        
+        # Generate a test notification ID
+        import uuid
+        test_match_id = str(uuid.uuid4())
+        
+        # Record the test notification in database first
+        insert_query = """
+            INSERT INTO iosapp.job_notification_history 
+            (user_id, job_id, job_title, job_company, job_source, job_unique_key, matched_keywords, notification_sent_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            RETURNING id
+        """
+        
+        notification_result = await db_manager.execute_query(
+            insert_query,
+            user_id,
+            test_job['id'],
+            test_job['title'],
+            test_job['company'],
+            test_job['source'],
+            'test_' + test_match_id,
+            json.dumps(keywords[:2]) if keywords else json.dumps(['Test'])
+        )
+        
+        notification_id = str(notification_result[0]['id'])
+        
+        # Send the actual push notification
+        success = await push_service.send_job_match_notification(
+            device_token=device_token,
+            device_id=device_id,
+            job=test_job,
+            matched_keywords=keywords[:2] if keywords else ['Test'],
+            match_id=notification_id
+        )
+        
+        return {
+            "success": success,
+            "message": "Test push notification sent!" if success else "Failed to send push notification",
+            "data": {
+                "device_id": device_id,
+                "notification_id": notification_id,
+                "job": test_job,
+                "matched_keywords": keywords[:2] if keywords else ['Test'],
+                "device_token_preview": device_token[:20] + "..." if device_token else "None"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending test push notification: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send test notification: {str(e)}")
+
+@router.post("/test-simple-push/{device_id}")
+async def test_simple_push_notification(device_id: str):
+    """Send simple test push notification without database recording"""
+    try:
+        # Get device token for this device_id
+        device_query = """
+            SELECT dt.device_token
+            FROM iosapp.device_tokens dt
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        device_result = await db_manager.execute_query(device_query, device_id)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found or inactive")
+        
+        device_token = device_result[0]['device_token']
+        
+        # Use push notification service directly
+        from app.services.push_notifications import PushNotificationService
+        push_service = PushNotificationService()
+        
+        # Send a simple system notification
+        success = await push_service.send_system_notification(
+            device_token=device_token,
+            device_id=device_id,
+            title="🚀 Test Notification",
+            message="Your push notifications are working!",
+            data={"test": True, "timestamp": str(datetime.now())}
+        )
+        
+        return {
+            "success": success,
+            "message": "Simple test notification sent!" if success else "Failed to send notification",
+            "data": {
+                "device_id": device_id,
+                "device_token_preview": device_token[:20] + "..." if device_token else "None",
+                "notification_type": "system_test"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending simple test notification: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send simple test notification: {str(e)}")
+
+@router.get("/test-devices")
+async def get_test_devices():
+    """Get list of registered devices for testing"""
+    try:
+        devices_query = """
+            SELECT 
+                dt.device_id,
+                dt.device_token,
+                dt.is_active,
+                dt.registered_at,
+                u.email,
+                u.keywords,
+                u.notifications_enabled
+            FROM iosapp.device_tokens dt
+            JOIN iosapp.users u ON dt.user_id = u.id
+            WHERE dt.is_active = true
+            ORDER BY dt.registered_at DESC
+            LIMIT 20
+        """
+        
+        devices_result = await db_manager.execute_query(devices_query)
+        
+        devices = []
+        for device in devices_result:
+            devices.append({
+                "device_id": device['device_id'],
+                "device_token_preview": device['device_token'][:20] + "..." if device['device_token'] else "None",
+                "email": device['email'],
+                "keywords": device['keywords'],
+                "notifications_enabled": device['notifications_enabled'],
+                "registered_at": device['registered_at'].isoformat() if device['registered_at'] else None
+            })
+        
+        return {
+            "success": True,
+            "data": {
+                "devices": devices,
+                "total_count": len(devices)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting test devices: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get test devices")
+
+@router.post("/run-real-notifications")
+async def run_real_notifications_now():
+    """Immediately run real job matching notifications for all active users"""
+    try:
+        # Import the job notification service
+        from app.services.job_notification_service import job_notification_service
+        
+        # Run the actual notification processing (not dry run)
+        stats = await job_notification_service.process_job_notifications(
+            source_filter=None,  # Check all job sources
+            limit=500,  # Check more jobs
+            dry_run=False  # REAL notifications
+        )
+        
+        return {
+            "success": True,
+            "message": "Real job notifications processed and sent!",
+            "data": {
+                "processed_jobs": stats.get('processed_jobs', 0),
+                "matched_users": stats.get('matched_users', 0),
+                "notifications_sent": stats.get('notifications_sent', 0),
+                "errors": stats.get('errors', 0),
+                "mode": "LIVE - Real notifications sent"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error running real notifications: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to run real notifications: {str(e)}")
+
+@router.post("/force-job-check/{device_id}")
+async def force_job_check_for_device(device_id: str):
+    """Force immediate job checking and notifications for a specific device"""
+    try:
+        # Get user info for this device
+        user_query = """
+            SELECT u.id as user_id, u.keywords, u.notifications_enabled, dt.device_token
+            FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true AND u.notifications_enabled = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="Device not found or notifications disabled")
+        
+        user_data = user_result[0]
+        user_id = user_data['user_id']
+        keywords = user_data['keywords'] or []
+        device_token = user_data['device_token']
+        
+        if not keywords:
+            raise HTTPException(status_code=400, detail="No keywords set for user")
+        
+        # Get recent jobs from scraper database
+        recent_jobs_query = """
+            SELECT id, title, company, apply_link, source, created_at
+            FROM scraper.jobs_jobpost
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            ORDER BY created_at DESC
+            LIMIT 100
+        """
+        
+        jobs_result = await db_manager.execute_query(recent_jobs_query)
+        
+        if not jobs_result:
+            return {
+                "success": True,
+                "message": "No recent jobs found to check against your keywords",
+                "data": {
+                    "device_id": device_id,
+                    "keywords": keywords,
+                    "jobs_checked": 0,
+                    "matches_found": 0
+                }
+            }
+        
+        # Use the actual job notification service to process
+        from app.services.job_notification_service import JobNotificationService
+        notification_service = JobNotificationService()
+        
+        matches_found = 0
+        notifications_sent = 0
+        
+        # Check each recent job against user's keywords
+        for job in jobs_result:
+            # Use the actual keyword matching logic
+            matched_keywords = notification_service._match_keywords(job, keywords)
+            
+            if matched_keywords:
+                # Check if already notified
+                job_unique_key = notification_service._generate_job_unique_key(job['title'], job['company'])
+                
+                already_notified_query = """
+                    SELECT id FROM iosapp.job_notification_history
+                    WHERE user_id = $1 AND job_unique_key = $2
+                """
+                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_unique_key)
+                
+                if not already_notified:
+                    matches_found += 1
+                    
+                    # Record the notification
+                    notification_id = await notification_service._record_notification(
+                        user_id, job['id'], job['title'], job['company'], 
+                        job.get('source'), job_unique_key, matched_keywords
+                    )
+                    
+                    if notification_id:
+                        # Send actual push notification
+                        from app.services.push_notifications import PushNotificationService
+                        push_service = PushNotificationService()
+                        
+                        success = await push_service.send_job_match_notification(
+                            device_token=device_token,
+                            device_id=device_id,
+                            job=job,
+                            matched_keywords=matched_keywords,
+                            match_id=notification_id
+                        )
+                        
+                        if success:
+                            notifications_sent += 1
+        
+        return {
+            "success": True,
+            "message": f"Found {matches_found} new job matches! {notifications_sent} notifications sent.",
+            "data": {
+                "device_id": device_id,
+                "keywords": keywords,
+                "jobs_checked": len(jobs_result),
+                "matches_found": matches_found,
+                "notifications_sent": notifications_sent,
+                "mode": "REAL job matching"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in force job check: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check jobs: {str(e)}")
+
+@router.get("/devices")
+async def list_devices():
+    """List all registered devices (simple version)"""
+    try:
+        devices_query = """
+            SELECT 
+                dt.device_id,
+                dt.is_active,
+                u.keywords,
+                u.notifications_enabled
+            FROM iosapp.device_tokens dt
+            JOIN iosapp.users u ON dt.user_id = u.id
+            WHERE dt.is_active = true
+            ORDER BY dt.registered_at DESC
+            LIMIT 10
+        """
+        
+        devices_result = await db_manager.execute_query(devices_query)
+        
+        return {
+            "success": True,
+            "devices": [
+                {
+                    "device_id": device['device_id'],
+                    "keywords": device['keywords'],
+                    "notifications_enabled": device['notifications_enabled']
+                }
+                for device in devices_result
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing devices: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list devices: {str(e)}")
+
+@router.get("/device-info/{device_id}")
+async def get_device_info(device_id: str):
+    """Get detailed info for a specific device"""
+    try:
+        device_query = """
+            SELECT 
+                dt.device_id,
+                dt.device_token,
+                dt.is_active,
+                u.id as user_id,
+                u.email,
+                u.keywords,
+                u.notifications_enabled
+            FROM iosapp.device_tokens dt
+            JOIN iosapp.users u ON dt.user_id = u.id
+            WHERE dt.device_id = $1
+        """
+        
+        device_result = await db_manager.execute_query(device_query, device_id)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        device_data = device_result[0]
+        
+        return {
+            "success": True,
+            "data": {
+                "device_id": device_data['device_id'],
+                "user_id": str(device_data['user_id']),
+                "email": device_data['email'],
+                "keywords": device_data['keywords'],
+                "notifications_enabled": device_data['notifications_enabled'],
+                "is_active": device_data['is_active'],
+                "has_device_token": bool(device_data['device_token']),
+                "device_token_preview": device_data['device_token'][:20] + "..." if device_data['device_token'] else "None"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting device info: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get device info: {str(e)}")
+
+@router.post("/setup-keywords/{device_id}")
+async def setup_keywords_for_device(device_id: str, keywords: list = None):
+    """Setup keywords and enable notifications for a device"""
+    try:
+        if keywords is None:
+            keywords = ["iOS Developer", "Swift", "Mobile App", "iPhone", "React Native"]
+        
+        # Get user for this device
+        user_query = """
+            SELECT u.id as user_id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        user_id = user_result[0]['user_id']
+        
+        # Update user with keywords and enable notifications
+        update_query = """
+            UPDATE iosapp.users 
+            SET keywords = $1, notifications_enabled = true, updated_at = NOW()
+            WHERE id = $2
+        """
+        
+        import json
+        await db_manager.execute_command(update_query, json.dumps(keywords), user_id)
+        
+        return {
+            "success": True,
+            "message": "Keywords setup complete! You can now receive job notifications.",
+            "data": {
+                "device_id": device_id,
+                "user_id": str(user_id),
+                "keywords": keywords,
+                "notifications_enabled": True
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting up keywords: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to setup keywords: {str(e)}")
+
+@router.get("/auto-setup-and-notify/{device_id}")
+async def auto_setup_and_notify(device_id: str):
+    """Automatically setup keywords and send real notifications (GET endpoint for easy testing)"""
+    try:
+        # Get user for this device
+        user_query = """
+            SELECT 
+                dt.device_token,
+                u.id as user_id,
+                u.keywords,
+                u.notifications_enabled
+            FROM iosapp.device_tokens dt
+            JOIN iosapp.users u ON dt.user_id = u.id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="Device not found or inactive")
+        
+        user_data = user_result[0]
+        user_id = user_data['user_id']
+        device_token = user_data['device_token']
+        current_keywords = user_data['keywords']
+        
+        # Setup keywords if not set
+        keywords = ["iOS Developer", "Swift", "Mobile App", "iPhone", "React Native", "Apple"]
+        
+        if not current_keywords or not user_data['notifications_enabled']:
+            # Update user with keywords and enable notifications
+            update_query = """
+                UPDATE iosapp.users 
+                SET keywords = $1, notifications_enabled = true, updated_at = NOW()
+                WHERE id = $2
+            """
+            
+            import json
+            await db_manager.execute_command(update_query, json.dumps(keywords), user_id)
+        else:
+            keywords = current_keywords
+        
+        # Get recent jobs and check for matches
+        recent_jobs_query = """
+            SELECT id, title, company, apply_link, source, created_at
+            FROM scraper.jobs_jobpost
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            ORDER BY created_at DESC
+            LIMIT 50
+        """
+        
+        jobs_result = await db_manager.execute_query(recent_jobs_query)
+        
+        if not jobs_result:
+            return {
+                "success": True,
+                "message": "Setup complete, but no recent jobs found to check",
+                "data": {
+                    "device_id": device_id,
+                    "keywords_set": keywords,
+                    "jobs_checked": 0,
+                    "matches_found": 0
+                }
+            }
+        
+        # Check for matches and send notifications
+        from app.services.job_notification_service import JobNotificationService
+        from app.services.push_notifications import PushNotificationService
+        
+        notification_service = JobNotificationService()
+        push_service = PushNotificationService()
+        
+        matches_found = 0
+        notifications_sent = 0
+        job_matches = []
+        
+        for job in jobs_result:
+            # Check if job matches keywords
+            matched_keywords = notification_service._match_keywords(job, keywords)
+            
+            if matched_keywords:
+                # Check if already notified
+                job_unique_key = notification_service._generate_job_unique_key(job['title'], job['company'])
+                
+                already_notified_query = """
+                    SELECT id FROM iosapp.job_notification_history
+                    WHERE user_id = $1 AND job_unique_key = $2
+                """
+                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_unique_key)
+                
+                if not already_notified:
+                    matches_found += 1
+                    job_matches.append({
+                        "title": job['title'],
+                        "company": job['company'],
+                        "matched_keywords": matched_keywords
+                    })
+                    
+                    # Record the notification
+                    notification_id = await notification_service._record_notification(
+                        user_id, job['id'], job['title'], job['company'], 
+                        job.get('source'), job_unique_key, matched_keywords
+                    )
+                    
+                    if notification_id:
+                        # Send actual push notification
+                        success = await push_service.send_job_match_notification(
+                            device_token=device_token,
+                            device_id=device_id,
+                            job=job,
+                            matched_keywords=matched_keywords,
+                            match_id=notification_id
+                        )
+                        
+                        if success:
+                            notifications_sent += 1
+                        
+                        # Limit to 3 notifications at once
+                        if notifications_sent >= 3:
+                            break
+        
+        return {
+            "success": True,
+            "message": f"Setup complete! Found {matches_found} new job matches, sent {notifications_sent} notifications to your phone!",
+            "data": {
+                "device_id": device_id,
+                "keywords_set": keywords,
+                "jobs_checked": len(jobs_result),
+                "matches_found": matches_found,
+                "notifications_sent": notifications_sent,
+                "job_matches": job_matches[:5],  # Show first 5 matches
+                "mode": "REAL notifications sent to your phone!"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in auto setup and notify: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to setup and notify: {str(e)}")
