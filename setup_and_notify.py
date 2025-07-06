@@ -74,6 +74,7 @@ async def setup_and_notify(device_id):
         traceback.print_exc()
 
 if __name__ == "__main__":
+    # Use your actual device_id from the database
     device_id = "518239b48c18c6fdc0f2becaa860e6d06b521298c6fd39e1b11bc8de77fb4e36"
     
     print("🚀 Starting real notification setup and delivery...")
