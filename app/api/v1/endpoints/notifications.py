@@ -9,7 +9,8 @@ from app.schemas.notifications import (
     JobMatchRequest, JobMatchResponse,
     NotificationHistoryResponse,
     NotificationSettingsRequest, NotificationSettingsResponse,
-    JobNotificationTriggerRequest, JobNotificationTriggerResponse
+    JobNotificationTriggerRequest, JobNotificationTriggerResponse,
+    NotificationInboxResponse, MarkReadResponse, DeleteNotificationResponse
 )
 
 router = APIRouter()
@@ -348,3 +349,283 @@ async def test_run_notifications(dry_run: bool = False):
     except Exception as e:
         logger.error(f"Error in test notification run: {e}")
         raise HTTPException(status_code=500, detail="Failed to run test notifications")
+
+@router.get("/inbox/{device_id}", response_model=NotificationInboxResponse)
+async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 0):
+    """Get notification inbox for a device"""
+    try:
+        if limit > 100:
+            limit = 100
+            
+        # Get user_id from device_id
+        user_query = """
+            SELECT u.id as user_id FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="User not found for device")
+        
+        user_id = user_result[0]['user_id']
+        
+        # Get notification history with job details
+        notifications_query = """
+            SELECT 
+                jnh.id,
+                jnh.job_id,
+                jnh.job_title,
+                jnh.job_company,
+                jnh.job_source,
+                jnh.matched_keywords,
+                jnh.notification_sent_at,
+                jnh.is_read,
+                -- Get job details from scraper database
+                j.apply_link,
+                j.created_at as job_posted_at
+            FROM iosapp.job_notification_history jnh
+            LEFT JOIN scraper.jobs_jobpost j ON jnh.job_id = j.id
+            WHERE jnh.user_id = $1
+            ORDER BY jnh.notification_sent_at DESC
+            LIMIT $2 OFFSET $3
+        """
+        
+        notifications_result = await db_manager.execute_query(notifications_query, user_id, limit, offset)
+        
+        # Get total count
+        count_query = """
+            SELECT COUNT(*) as total_count,
+                   SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread_count
+            FROM iosapp.job_notification_history
+            WHERE user_id = $1
+        """
+        count_result = await db_manager.execute_query(count_query, user_id)
+        
+        total_count = count_result[0]['total_count'] if count_result else 0
+        unread_count = count_result[0]['unread_count'] if count_result else 0
+        
+        # Group notifications by similar jobs (same notification batch)
+        notifications_map = {}
+        
+        for row in notifications_result:
+            # Create a grouping key based on time and keywords (notifications sent within 1 hour with same keywords)
+            notification_time = row['notification_sent_at']
+            matched_keywords = row['matched_keywords'] or []
+            
+            # Simple grouping: use date + hour + keywords as key
+            time_key = notification_time.strftime('%Y-%m-%d-%H')
+            keywords_key = '_'.join(sorted(matched_keywords)) if matched_keywords else 'no_keywords'
+            group_key = f"{time_key}_{keywords_key}"
+            
+            if group_key not in notifications_map:
+                notifications_map[group_key] = {
+                    'id': str(row['id']),
+                    'type': 'job_match',
+                    'title': f"{len([row])} New Job{'s' if len([row]) != 1 else ''} Found!",
+                    'message': f"We found jobs matching your keywords: {', '.join(matched_keywords[:3]) if matched_keywords else 'N/A'}",
+                    'matched_keywords': matched_keywords,
+                    'job_count': 1,
+                    'created_at': row['notification_sent_at'].isoformat(),
+                    'is_read': row['is_read'] or False,
+                    'jobs': []
+                }
+            else:
+                notifications_map[group_key]['job_count'] += 1
+                notifications_map[group_key]['title'] = f"{notifications_map[group_key]['job_count']} New Jobs Found!"
+                # Use the most recent notification ID and read status
+                if row['notification_sent_at'] > datetime.fromisoformat(notifications_map[group_key]['created_at'].replace('Z', '+00:00').replace('+00:00', '')):
+                    notifications_map[group_key]['id'] = str(row['id'])
+                    notifications_map[group_key]['created_at'] = row['notification_sent_at'].isoformat()
+                    notifications_map[group_key]['is_read'] = row['is_read'] or False
+            
+            # Add job details
+            job_item = {
+                'id': row['job_id'],
+                'title': row['job_title'] or 'Unknown Job',
+                'company': row['job_company'] or 'Unknown Company', 
+                'location': 'Remote',  # Default since location not stored
+                'apply_link': row['apply_link'] or '',
+                'posted_at': (row['job_posted_at'] or row['notification_sent_at']).isoformat(),
+                'source': row['job_source'] or 'Unknown'
+            }
+            
+            notifications_map[group_key]['jobs'].append(job_item)
+        
+        # Convert to list and sort by created_at
+        notifications_list = list(notifications_map.values())
+        notifications_list.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return NotificationInboxResponse(
+            data={
+                "notifications": notifications_list,
+                "unread_count": unread_count,
+                "total_count": total_count
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting notification inbox: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get notification inbox")
+
+@router.post("/{notification_id}/read", response_model=MarkReadResponse)
+async def mark_notification_as_read(notification_id: str):
+    """Mark notification as read"""
+    try:
+        import uuid
+        
+        # Validate UUID format
+        try:
+            notification_uuid = uuid.UUID(notification_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid notification ID format")
+        
+        # Update notification as read
+        update_query = """
+            UPDATE iosapp.job_notification_history
+            SET is_read = true, updated_at = NOW()
+            WHERE id = $1
+        """
+        
+        result = await db_manager.execute_command(update_query, notification_uuid)
+        
+        return MarkReadResponse(
+            message="Notification marked as read"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {e}")
+        raise HTTPException(status_code=500, detail="Failed to mark notification as read")
+
+@router.delete("/{notification_id}", response_model=DeleteNotificationResponse)
+async def delete_notification(notification_id: str):
+    """Delete notification"""
+    try:
+        import uuid
+        
+        # Validate UUID format
+        try:
+            notification_uuid = uuid.UUID(notification_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid notification ID format")
+        
+        # Check if notification exists
+        check_query = """
+            SELECT id FROM iosapp.job_notification_history WHERE id = $1
+        """
+        check_result = await db_manager.execute_query(check_query, notification_uuid)
+        
+        if not check_result:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        # Delete notification (this will cascade to related records if foreign keys are set up)
+        delete_query = """
+            DELETE FROM iosapp.job_notification_history WHERE id = $1
+        """
+        await db_manager.execute_command(delete_query, notification_uuid)
+        
+        return DeleteNotificationResponse(
+            message="Notification deleted successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting notification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete notification")
+
+@router.get("/{notification_id}/jobs", response_model=Dict[str, Any])
+async def get_jobs_for_notification(notification_id: str):
+    """Get jobs for a specific notification"""
+    try:
+        import uuid
+        
+        # Validate UUID format
+        try:
+            notification_uuid = uuid.UUID(notification_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid notification ID format")
+        
+        # Get notification details and associated jobs
+        jobs_query = """
+            SELECT 
+                jnh.id as notification_id,
+                jnh.job_id,
+                jnh.job_title,
+                jnh.job_company,
+                jnh.job_source,
+                jnh.matched_keywords,
+                jnh.notification_sent_at,
+                j.apply_link,
+                j.created_at as job_posted_at
+            FROM iosapp.job_notification_history jnh
+            LEFT JOIN scraper.jobs_jobpost j ON jnh.job_id = j.id
+            WHERE jnh.id = $1
+        """
+        
+        jobs_result = await db_manager.execute_query(jobs_query, notification_uuid)
+        
+        if not jobs_result:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        notification_data = jobs_result[0]
+        
+        # For grouped notifications, get all jobs with same keywords and similar time
+        notification_time = notification_data['notification_sent_at']
+        matched_keywords = notification_data['matched_keywords'] or []
+        
+        # Get jobs within 1 hour of this notification with same keywords
+        related_jobs_query = """
+            SELECT DISTINCT
+                jnh.job_id,
+                jnh.job_title,
+                jnh.job_company,
+                jnh.job_source,
+                j.apply_link,
+                j.created_at as job_posted_at
+            FROM iosapp.job_notification_history jnh
+            LEFT JOIN scraper.jobs_jobpost j ON jnh.job_id = j.id
+            WHERE jnh.matched_keywords = $1
+            AND jnh.notification_sent_at BETWEEN $2 - INTERVAL '1 hour' AND $2 + INTERVAL '1 hour'
+            ORDER BY jnh.notification_sent_at DESC
+        """
+        
+        related_jobs_result = await db_manager.execute_query(
+            related_jobs_query, 
+            json.dumps(matched_keywords),
+            notification_time
+        )
+        
+        # Format job items
+        jobs = []
+        for job_row in related_jobs_result:
+            job_item = {
+                'id': job_row['job_id'],
+                'title': job_row['job_title'] or 'Unknown Job',
+                'company': job_row['job_company'] or 'Unknown Company',
+                'location': 'Remote',  # Default since location not stored
+                'apply_link': job_row['apply_link'] or '',
+                'posted_at': (job_row['job_posted_at'] or notification_time).isoformat(),
+                'source': job_row['job_source'] or 'Unknown'
+            }
+            jobs.append(job_item)
+        
+        return {
+            "success": True,
+            "data": {
+                "notification_id": notification_id,
+                "matched_keywords": matched_keywords,
+                "job_count": len(jobs),
+                "jobs": jobs
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting jobs for notification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get jobs for notification")

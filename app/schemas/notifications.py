@@ -51,3 +51,40 @@ class JobNotificationTriggerResponse(BaseModel):
     matched_users: int = Field(..., description="Number of users with matches")
     notifications_sent: int = Field(..., description="Number of notifications sent")
     data: Dict[str, Any] = Field(default_factory=dict)
+
+class NotificationJobItem(BaseModel):
+    """Job item within a notification"""
+    id: int
+    title: str
+    company: str
+    location: Optional[str] = None
+    apply_link: str
+    posted_at: str
+    source: str
+
+class NotificationInboxItem(BaseModel):
+    """Single notification item in inbox"""
+    id: str
+    type: str = "job_match"
+    title: str
+    message: str
+    matched_keywords: List[str]
+    job_count: int
+    created_at: str
+    is_read: bool = False
+    jobs: List[NotificationJobItem]
+
+class NotificationInboxResponse(BaseModel):
+    """Notification inbox response"""
+    success: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+class MarkReadResponse(BaseModel):
+    """Mark notification as read response"""
+    success: bool = True
+    message: str = "Notification marked as read"
+
+class DeleteNotificationResponse(BaseModel):
+    """Delete notification response"""
+    success: bool = True
+    message: str = "Notification deleted successfully"
