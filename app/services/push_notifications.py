@@ -56,6 +56,11 @@ class PushNotificationService:
                 # Validate and fix PEM format of environment variable
                 key_content = settings.APNS_PRIVATE_KEY.strip()
                 
+                # Remove extra quotes that might be added by environment variable parsing
+                if key_content.startswith('"') and key_content.endswith('"'):
+                    key_content = key_content[1:-1]
+                    self.logger.info("Removed extra quotes from environment key")
+                
                 # Fix potential line break issues in environment variables
                 if '\\n' in key_content:
                     key_content = key_content.replace('\\n', '\n')
