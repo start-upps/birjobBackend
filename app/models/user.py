@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -31,6 +31,7 @@ class User(Base):
     saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
     job_views = relationship("JobView", back_populates="user", cascade="all, delete-orphan")
     analytics = relationship("UserAnalytics", back_populates="user", cascade="all, delete-orphan")
+    notification_history = relationship("JobNotificationHistory", back_populates="user", cascade="all, delete-orphan")
 
 
 class SavedJob(Base):
@@ -80,3 +81,27 @@ class UserAnalytics(Base):
     
     # Relationship back to user
     user = relationship("User", back_populates="analytics")
+
+
+class JobNotificationHistory(Base):
+    __tablename__ = "job_notification_history"
+    __table_args__ = {'schema': 'iosapp'}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('iosapp.users.id', ondelete='CASCADE'), nullable=False)
+    job_unique_key = Column(String(255), nullable=False)  # company + title hash
+    job_id = Column(Integer, nullable=False)
+    job_title = Column(String(500), nullable=False)
+    job_company = Column(String(255), nullable=False)
+    job_source = Column(String(100))
+    matched_keywords = Column(JSONB, default=list)
+    notification_sent_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship back to user
+    user = relationship("User", back_populates="notification_history")
+    
+    # Unique constraint to prevent duplicate notifications for same job
+    __table_args__ = (
+        UniqueConstraint('user_id', 'job_unique_key', name='uq_user_job_notification'),
+        {'schema': 'iosapp'}
+    )
