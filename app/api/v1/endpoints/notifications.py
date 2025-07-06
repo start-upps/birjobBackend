@@ -266,6 +266,66 @@ async def cleanup_old_notifications(days_old: int = 30):
         logger.error(f"Error cleaning up notifications: {e}")
         raise HTTPException(status_code=500, detail="Failed to clean up notifications")
 
+@router.post("/token")
+async def register_push_token(request: dict):
+    """Register push token for notifications"""
+    try:
+        device_token = request.get("device_token")
+        device_info = request.get("device_info", {})
+        
+        if not device_token:
+            raise HTTPException(status_code=400, detail="device_token is required")
+        
+        # Use device token as device_id if no specific device_id provided
+        device_id = device_token
+        
+        # Create or update device token
+        device_query = """
+            SELECT id, user_id FROM iosapp.device_tokens 
+            WHERE device_token = $1 OR device_id = $2
+        """
+        device_result = await db_manager.execute_query(device_query, device_token, device_id)
+        
+        if device_result:
+            # Update existing device
+            update_query = """
+                UPDATE iosapp.device_tokens 
+                SET device_token = $1, device_info = $2, is_active = true, updated_at = NOW()
+                WHERE id = $3
+            """
+            await db_manager.execute_command(
+                update_query, device_token, json.dumps(device_info), device_result[0]['id']
+            )
+            user_id = device_result[0]['user_id']
+            message = "Push token updated successfully"
+        else:
+            # Create new user and device
+            user_query = "INSERT INTO iosapp.users DEFAULT VALUES RETURNING id"
+            user_result = await db_manager.execute_query(user_query)
+            user_id = user_result[0]['id']
+            
+            device_insert_query = """
+                INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
+                VALUES ($1, $2, $3, $4)
+            """
+            await db_manager.execute_command(
+                device_insert_query, user_id, device_id, device_token, json.dumps(device_info)
+            )
+            message = "Push token registered successfully"
+        
+        return {
+            "success": True,
+            "data": {
+                "device_id": device_id,
+                "user_id": str(user_id),
+                "message": message
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error registering push token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to register push token")
+
 @router.post("/test-run", response_model=JobNotificationTriggerResponse)
 async def test_run_notifications(dry_run: bool = False):
     """Test run notifications immediately - LIVE MODE by default"""
