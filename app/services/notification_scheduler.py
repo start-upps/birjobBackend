@@ -49,7 +49,7 @@ class NotificationScheduler:
                 if self._should_run_notifications():
                     self.logger.info("Running scheduled job notifications...")
                     
-                    # Process notifications
+                    # Process notifications in LIVE mode (no dry run)
                     stats = await job_notification_service.process_job_notifications(
                         limit=getattr(settings, 'NOTIFICATION_BATCH_SIZE', 200),
                         dry_run=False
@@ -103,7 +103,7 @@ notification_scheduler = NotificationScheduler()
 
 # For manual testing
 async def run_notifications_now(dry_run: bool = False) -> dict:
-    """Run notifications immediately (for testing)"""
+    """Run notifications immediately (for testing) - LIVE MODE by default"""
     return await job_notification_service.process_job_notifications(
         limit=100,
         dry_run=dry_run

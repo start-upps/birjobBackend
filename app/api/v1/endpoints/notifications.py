@@ -267,8 +267,8 @@ async def cleanup_old_notifications(days_old: int = 30):
         raise HTTPException(status_code=500, detail="Failed to clean up notifications")
 
 @router.post("/test-run", response_model=JobNotificationTriggerResponse)
-async def test_run_notifications(dry_run: bool = True):
-    """Test run notifications immediately (for testing purposes)"""
+async def test_run_notifications(dry_run: bool = False):
+    """Test run notifications immediately - LIVE MODE by default"""
     try:
         stats = await run_notifications_now(dry_run=dry_run)
         

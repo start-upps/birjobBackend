@@ -41,8 +41,36 @@ class PushNotificationService:
             self.logger.info(f"APNS_TEAM_ID: {settings.APNS_TEAM_ID}")
             self.logger.info(f"APNS_BUNDLE_ID: {settings.APNS_BUNDLE_ID}")
             
+            # Check for production APNs key in Render environment
+            production_key_path = "/etc/secrets/apn.p8"
+            if os.path.exists(production_key_path):
+                self.logger.info(f"Using production APNs key from: {production_key_path}")
+                
+                try:
+                    with open(production_key_path, 'r') as f:
+                        key_content = f.read()
+                        if key_content.strip():
+                            self.logger.info("Production APNs key content verified")
+                        else:
+                            self.logger.error("Production APNs key file is empty")
+                            return
+                except Exception as e:
+                    self.logger.error(f"Cannot read production APNs key file: {e}")
+                    return
+                
+                # Initialize APNs client with production key
+                self.apns_client = APNs(
+                    key=production_key_path,
+                    key_id=settings.APNS_KEY_ID,
+                    team_id=settings.APNS_TEAM_ID,
+                    topic=settings.APNS_BUNDLE_ID,
+                    use_sandbox=settings.APNS_SANDBOX
+                )
+                self.logger.info("APNs client initialized successfully with production key")
+                return
+                
             # Use private key from environment variable if available
-            if settings.APNS_PRIVATE_KEY:
+            elif settings.APNS_PRIVATE_KEY:
                 self.logger.info("Using APNs private key from environment variable")
                 
                 # Create temporary file for aioapns (it expects a file path)
