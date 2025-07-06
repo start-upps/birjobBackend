@@ -545,8 +545,10 @@ class PushNotificationService:
         # TODO: Implement timezone-aware quiet hours check
         # For now, use UTC time
         current_hour = datetime.now(timezone.utc).hour
-        return (current_hour >= settings.QUIET_HOURS_START or 
-                current_hour < settings.QUIET_HOURS_END)
+        # TEMPORARY: Disable quiet hours for testing
+        return False
+        # return (current_hour >= settings.QUIET_HOURS_START or 
+        #         current_hour < settings.QUIET_HOURS_END)
     
     async def _store_pending_notification(
         self,
