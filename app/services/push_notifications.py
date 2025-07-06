@@ -57,8 +57,10 @@ class PushNotificationService:
                 key_content = settings.APNS_PRIVATE_KEY.strip()
                 
                 # Remove extra quotes that might be added by environment variable parsing
-                if key_content.startswith('"') and key_content.endswith('"'):
-                    key_content = key_content[1:-1]
+                # Handle both single and double quotes, and nested quotes
+                while ((key_content.startswith('"') and key_content.endswith('"')) or 
+                       (key_content.startswith("'") and key_content.endswith("'"))):
+                    key_content = key_content[1:-1].strip()
                     self.logger.info("Removed extra quotes from environment key")
                 
                 # Fix potential line break issues in environment variables
