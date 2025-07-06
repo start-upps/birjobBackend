@@ -42,25 +42,39 @@ class PushNotificationService:
             self.logger.info(f"APNS_TEAM_ID: {settings.APNS_TEAM_ID}")
             self.logger.info(f"APNS_BUNDLE_ID: {settings.APNS_BUNDLE_ID}")
             
+            # Check if environment variable has the key
+            if settings.APNS_PRIVATE_KEY:
+                self.logger.info(f"Environment key length: {len(settings.APNS_PRIVATE_KEY)} chars")
+                self.logger.info(f"Environment key starts with: {settings.APNS_PRIVATE_KEY[:30]}...")
+            else:
+                self.logger.warning("No APNS_PRIVATE_KEY in environment variables")
+            
             # Use private key from environment variable if available (preferred)
             if settings.APNS_PRIVATE_KEY:
                 self.logger.info("Using APNs private key from environment variable")
                 
-                # Validate PEM format of environment variable
+                # Validate and fix PEM format of environment variable
                 key_content = settings.APNS_PRIVATE_KEY.strip()
+                
+                # Fix potential line break issues in environment variables
+                if '\\n' in key_content:
+                    key_content = key_content.replace('\\n', '\n')
+                    self.logger.info("Fixed escaped newlines in environment key")
+                
                 if not key_content.startswith('-----BEGIN PRIVATE KEY-----'):
                     self.logger.error("Environment APNs key is not in PEM format")
-                    self.logger.error(f"Key starts with: {key_content[:50]}...")
+                    self.logger.error(f"Key starts with: {repr(key_content[:50])}")
                     return
                 if not key_content.endswith('-----END PRIVATE KEY-----'):
                     self.logger.error("Environment APNs key is incomplete")
+                    self.logger.error(f"Key ends with: {repr(key_content[-50:])}")
                     return
                 
                 self.logger.info("Environment APNs key content verified and PEM format confirmed")
                 self.logger.info(f"Key content size: {len(key_content)} bytes")
                 
                 self._apns_config = {
-                    'key_content': settings.APNS_PRIVATE_KEY,
+                    'key_content': key_content,
                     'key_id': settings.APNS_KEY_ID,
                     'team_id': settings.APNS_TEAM_ID,
                     'topic': settings.APNS_BUNDLE_ID,

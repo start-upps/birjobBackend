@@ -13,6 +13,81 @@ from app.core.redis_client import redis_client
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.post("/token", response_model=DeviceRegisterResponse)
+async def register_push_token(
+    request: DeviceRegisterRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Register or update push token for device"""
+    try:
+        # This is the same logic as device registration but focused on token updates
+        device_id_value = None
+        if hasattr(request.device_info, 'device_id'):
+            device_id_value = request.device_info.device_id
+        elif isinstance(request.device_info.model_dump(), dict):
+            device_id_value = request.device_info.model_dump().get('device_id')
+        
+        if not device_id_value:
+            device_id_value = request.device_token
+            
+        # Find existing device by token or device_id
+        token_stmt = select(DeviceToken).where(DeviceToken.device_token == request.device_token)
+        token_result = await db.execute(token_stmt)
+        existing_device = token_result.scalar_one_or_none()
+        
+        if existing_device:
+            # Update existing device token
+            existing_device.device_info = request.device_info.model_dump()
+            existing_device.is_active = True
+            existing_device.device_id = device_id_value
+            await db.commit()
+            await db.refresh(existing_device)
+            
+            logger.info(f"Updated push token for device: {device_id_value}")
+            
+            return DeviceRegisterResponse(
+                data={
+                    "device_id": existing_device.device_id,
+                    "user_id": str(existing_device.user_id),
+                    "message": "Push token updated successfully"
+                }
+            )
+        else:
+            # Create new device with basic user
+            from app.models.user import User
+            user = User()
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            
+            device = DeviceToken(
+                user_id=user.id,
+                device_id=device_id_value,
+                device_token=request.device_token,
+                device_info=request.device_info.model_dump()
+            )
+            db.add(device)
+            await db.commit()
+            await db.refresh(device)
+            
+            logger.info(f"New push token registered for device: {device_id_value}")
+            
+            return DeviceRegisterResponse(
+                data={
+                    "device_id": device.device_id,
+                    "user_id": str(user.id),
+                    "message": "Push token registered successfully"
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Error registering push token: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register push token: {str(e)}"
+        )
+
 @router.post("/register", response_model=DeviceRegisterResponse)
 async def register_device(
     request: DeviceRegisterRequest,
