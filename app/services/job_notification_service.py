@@ -1,3 +1,4 @@
+
 import asyncio
 import logging
 import hashlib
@@ -76,16 +77,17 @@ class JobNotificationService:
         job_unique_key: str, 
         job_data: Dict[str, Any], 
         matched_keywords: List[str]
-    ) -> bool:
-        """Record that user has been notified about this job"""
+    ) -> Optional[str]:
+        """Record that user has been notified about this job and return the notification history ID"""
         try:
             query = """
                 INSERT INTO iosapp.job_notification_history 
                 (user_id, job_unique_key, job_id, job_title, job_company, job_source, matched_keywords)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (user_id, job_unique_key) DO NOTHING
+                RETURNING id
             """
-            await db_manager.execute_command(
+            result = await db_manager.execute_query(
                 query,
                 user_id,
                 job_unique_key,
@@ -95,10 +97,12 @@ class JobNotificationService:
                 job_data.get('source'),
                 json.dumps(matched_keywords)
             )
-            return True
+            if result:
+                return str(result[0]['id'])
+            return None
         except Exception as e:
             self.logger.error(f"Error recording notification: {e}")
-            return False
+            return None
     
     async def _get_active_users_with_keywords(self) -> List[Dict[str, Any]]:
         """Get all active users with their keywords and device tokens"""
@@ -207,22 +211,22 @@ class JobNotificationService:
                         matched_users_for_job += 1
                         
                         # Record notification (even in dry run to prevent duplicates)
-                        await self._record_notification(
+                        notification_history_id = await self._record_notification(
                             user['user_id'],
                             job_unique_key,
                             job,
                             matched_keywords
                         )
                         
-                        # Send notification if not dry run
-                        if not dry_run:
+                        # Send notification if not dry run and we got a valid history ID
+                        if not dry_run and notification_history_id:
                             try:
                                 success = await self.push_service.send_job_match_notification(
                                     device_token=user['device_token'],
                                     device_id=user['device_id'],
                                     job=job,
                                     matched_keywords=matched_keywords,
-                                    match_id=job_unique_key
+                                    match_id=notification_history_id
                                 )
                                 
                                 if success:
@@ -292,12 +296,16 @@ class JobNotificationService:
             }
             
             # Record notification
-            await self._record_notification(
+            notification_history_id = await self._record_notification(
                 user_data['user_id'],
                 job_unique_key,
                 job_data,
                 matched_keywords or []
             )
+            
+            if not notification_history_id:
+                self.logger.info(f"User {user_data['user_id']} already notified about this job")
+                return False
             
             # Send notification
             success = await self.push_service.send_job_match_notification(
@@ -305,7 +313,7 @@ class JobNotificationService:
                 device_id=user_data['device_id'],
                 job=job_data,
                 matched_keywords=matched_keywords or [],
-                match_id=job_unique_key
+                match_id=notification_history_id
             )
             
             return success

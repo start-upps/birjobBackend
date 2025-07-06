@@ -304,7 +304,7 @@ class PushNotificationService:
             
             query = """
                 INSERT INTO iosapp.push_notifications 
-                (id, device_id, user_id, match_id, notification_type, payload, status)
+                (id, device_id, user_id, job_notification_id, notification_type, payload, status)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             """
             
