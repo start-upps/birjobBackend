@@ -289,25 +289,30 @@ class PushNotificationService:
     ):
         """Store notification in database"""
         try:
-            # Get device_id from token
-            device_query = "SELECT id FROM iosapp.device_tokens WHERE device_token = $1"
+            # Get device info from token
+            device_query = """
+                SELECT dt.id as device_id, dt.user_id 
+                FROM iosapp.device_tokens dt 
+                WHERE dt.device_token = $1
+            """
             device_result = await db_manager.execute_query(device_query, device_token)
             
             if not device_result:
                 raise Exception(f"Device not found for token: {device_token}")
             
-            device_id = device_result[0]['id']
+            device_data = device_result[0]
             
             query = """
                 INSERT INTO iosapp.push_notifications 
-                (id, device_id, match_id, notification_type, payload, status)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                (id, device_id, user_id, match_id, notification_type, payload, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
             """
             
             await db_manager.execute_command(
                 query,
                 uuid.UUID(notification_id),
-                device_id,
+                device_data['device_id'],
+                device_data['user_id'],
                 uuid.UUID(match_id) if match_id else None,
                 notification_type,
                 json.dumps(payload),

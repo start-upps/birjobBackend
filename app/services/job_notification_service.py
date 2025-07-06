@@ -8,7 +8,6 @@ import re
 
 from app.core.database import db_manager
 from app.services.push_notifications import PushNotificationService
-from app.models.user import JobNotificationHistory
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +32,11 @@ class JobNotificationService:
         """Check if job matches user keywords"""
         matched_keywords = []
         
-        # Combine job fields for matching
+        # Combine job fields for matching - using available fields only
         job_text = " ".join([
             job_data.get('title', ''),
             job_data.get('company', ''),
-            job_data.get('description', ''),
-            job_data.get('location', ''),
-            job_data.get('category', ''),
-            job_data.get('type', ''),
-            " ".join(job_data.get('skills', []) if job_data.get('skills') else [])
+            job_data.get('source', '')
         ]).lower()
         
         # Check each keyword
@@ -131,13 +126,12 @@ class JobNotificationService:
     async def _get_recent_jobs(self, limit: int = 100, source_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get recent jobs from the scraper database"""
         try:
-            # Base query to get recent jobs
+            # Base query to get recent jobs - using actual schema
             base_query = """
                 SELECT 
-                    id, title, company, location, type, description, 
-                    source, url, salary, category, skills, posted_date
+                    id, title, company, apply_link, source, created_at
                 FROM scraper.jobs_jobpost
-                WHERE posted_date >= NOW() - INTERVAL '2 hours'
+                WHERE created_at >= NOW() - INTERVAL '2 hours'
             """
             
             params = []
@@ -145,7 +139,7 @@ class JobNotificationService:
                 base_query += " AND source = $1"
                 params.append(source_filter)
             
-            base_query += " ORDER BY posted_date DESC LIMIT $" + str(len(params) + 1)
+            base_query += " ORDER BY created_at DESC LIMIT $" + str(len(params) + 1)
             params.append(limit)
             
             result = await db_manager.execute_query(base_query, *params)
