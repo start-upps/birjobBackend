@@ -14,6 +14,21 @@ class UserCreate(UserBase):
     """Create user with minimal required fields"""
     pass
 
+class UserRegistrationRequest(BaseModel):
+    """Unified user registration with device token for iOS app"""
+    device_id: str = Field(..., description="Unique device identifier")
+    device_token: str = Field(..., description="APNs device token")
+    email: EmailStr = Field(..., description="User email")
+    keywords: List[str] = Field(..., description="Notification keywords")
+    preferred_sources: List[str] = Field(default_factory=list, description="Preferred job sources")
+    device_info: Dict[str, Any] = Field(..., description="Device information")
+
+class UserRegistrationResponse(BaseModel):
+    """User registration response"""
+    success: bool = True
+    message: str = "User registered successfully"
+    data: Dict[str, Any] = Field(default_factory=dict)
+
 class UserUpdate(BaseModel):
     """Update user - all fields optional"""
     email: Optional[EmailStr] = None

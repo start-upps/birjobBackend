@@ -24,6 +24,7 @@ class PushNotificationService:
     
     def __init__(self):
         self.apns_client = None
+        self._apns_config = None
         self.logger = logging.getLogger(__name__)
         
         if APNS_AVAILABLE:
@@ -58,40 +59,31 @@ class PushNotificationService:
                     self.logger.error(f"Cannot read production APNs key file: {e}")
                     return
                 
-                # Initialize APNs client with production key
-                self.apns_client = APNs(
-                    key=production_key_path,
-                    key_id=settings.APNS_KEY_ID,
-                    team_id=settings.APNS_TEAM_ID,
-                    topic=settings.APNS_BUNDLE_ID,
-                    use_sandbox=settings.APNS_SANDBOX
-                )
+                # Initialize APNs client with production key - lazy initialization
+                self._apns_config = {
+                    'key': production_key_path,
+                    'key_id': settings.APNS_KEY_ID,
+                    'team_id': settings.APNS_TEAM_ID,
+                    'topic': settings.APNS_BUNDLE_ID,
+                    'use_sandbox': settings.APNS_SANDBOX
+                }
+                self.apns_client = None  # Will be created on first use
+                
                 self.logger.info("APNs client initialized successfully with production key")
                 return
                 
             # Use private key from environment variable if available
             elif settings.APNS_PRIVATE_KEY:
-                self.logger.info("Using APNs private key from environment variable")
-                
-                # Create temporary file for aioapns (it expects a file path)
-                import tempfile
-                
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.p8', delete=False) as f:
-                    f.write(settings.APNS_PRIVATE_KEY)
-                    temp_key_path = f.name
-                
-                # Initialize APNs client
-                self.apns_client = APNs(
-                    key=temp_key_path,
-                    key_id=settings.APNS_KEY_ID,
-                    team_id=settings.APNS_TEAM_ID,
-                    topic=settings.APNS_BUNDLE_ID,
-                    use_sandbox=settings.APNS_SANDBOX
-                )
-                
-                # Clean up temporary file
-                os.unlink(temp_key_path)
-                self.logger.info("APNs client initialized successfully with environment key")
+                self._apns_config = {
+                    'key_content': settings.APNS_PRIVATE_KEY,
+                    'key_id': settings.APNS_KEY_ID,
+                    'team_id': settings.APNS_TEAM_ID,
+                    'topic': settings.APNS_BUNDLE_ID,
+                    'use_sandbox': settings.APNS_SANDBOX,
+                    'use_temp_file': True
+                }
+                self.apns_client = None
+                self.logger.info("APNs config prepared with environment key")
                 
             # Check if key file exists
             elif os.path.exists(settings.APNS_KEY_PATH):
@@ -110,15 +102,16 @@ class PushNotificationService:
                     self.logger.error(f"Cannot read APNs key file: {e}")
                     return
                 
-                # Initialize APNs client
-                self.apns_client = APNs(
-                    key=settings.APNS_KEY_PATH,
-                    key_id=settings.APNS_KEY_ID,
-                    team_id=settings.APNS_TEAM_ID,
-                    topic=settings.APNS_BUNDLE_ID,
-                    use_sandbox=settings.APNS_SANDBOX
-                )
-                self.logger.info("APNs client initialized successfully with key file")
+                # Store config for lazy initialization
+                self._apns_config = {
+                    'key': settings.APNS_KEY_PATH,
+                    'key_id': settings.APNS_KEY_ID,
+                    'team_id': settings.APNS_TEAM_ID,
+                    'topic': settings.APNS_BUNDLE_ID,
+                    'use_sandbox': settings.APNS_SANDBOX
+                }
+                self.apns_client = None
+                self.logger.info("APNs config prepared with key file")
                 
             else:
                 self.logger.error(f"APNs key file not found: {settings.APNS_KEY_PATH}")
@@ -138,6 +131,52 @@ class PushNotificationService:
             import traceback
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
             self.apns_client = None
+    
+    async def _get_apns_client(self):
+        """Get APNs client with lazy initialization"""
+        if self.apns_client is not None:
+            return self.apns_client
+            
+        if not self._apns_config:
+            self.logger.error("No APNs configuration available")
+            return None
+            
+        try:
+            import os
+            import tempfile
+            
+            if self._apns_config.get('use_temp_file'):
+                # Create temporary file for environment key
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.p8', delete=False) as f:
+                    f.write(self._apns_config['key_content'])
+                    temp_key_path = f.name
+                
+                self.apns_client = APNs(
+                    key=temp_key_path,
+                    key_id=self._apns_config['key_id'],
+                    team_id=self._apns_config['team_id'],
+                    topic=self._apns_config['topic'],
+                    use_sandbox=self._apns_config['use_sandbox']
+                )
+                
+                # Clean up temporary file
+                os.unlink(temp_key_path)
+            else:
+                # Use key file path
+                self.apns_client = APNs(
+                    key=self._apns_config['key'],
+                    key_id=self._apns_config['key_id'],
+                    team_id=self._apns_config['team_id'],
+                    topic=self._apns_config['topic'],
+                    use_sandbox=self._apns_config['use_sandbox']
+                )
+            
+            self.logger.info("APNs client created successfully")
+            return self.apns_client
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create APNs client: {e}")
+            return None
     
     async def send_job_match_notification(
         self,
@@ -277,7 +316,8 @@ class PushNotificationService:
                 device_token, notification_id, payload, notification_type, match_id
             )
             
-            if self.apns_client and APNS_AVAILABLE:
+            apns_client = await self._get_apns_client() if APNS_AVAILABLE else None
+            if apns_client:
                 # Send via APNs
                 request = NotificationRequest(
                     device_token=device_token,
@@ -285,7 +325,7 @@ class PushNotificationService:
                     push_type=PushType.ALERT
                 )
                 
-                response = await self.apns_client.send_notification(request)
+                response = await apns_client.send_notification(request)
                 
                 if response.is_successful:
                     await self._update_notification_status(notification_id, "sent", response)

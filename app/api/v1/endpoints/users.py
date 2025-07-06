@@ -9,6 +9,7 @@ from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse,
     AddKeywordRequest, RemoveKeywordRequest, UpdateKeywordsRequest,
     SaveJobRequest, JobViewRequest, EmailUserRequest, EmailKeywordRequest,
+    UserRegistrationRequest, UserRegistrationResponse,
     SuccessResponse, ErrorResponse
 )
 
@@ -163,7 +164,103 @@ async def remove_keyword_by_email(email: str = Query(...), keyword: str = Query(
 # Device-based User Management (iOS App)
 # =====================================
 
-@router.post("/register", response_model=SuccessResponse)
+@router.post("/register", response_model=UserRegistrationResponse)
+async def register_user_with_device(request: UserRegistrationRequest):
+    """Unified user registration with device token (iOS app)"""
+    try:
+        # First, create or find user
+        user_query = """
+            SELECT u.* FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, request.device_id)
+        
+        if user_result:
+            # Update existing user
+            user_id = user_result[0]['id']
+            update_query = """
+                UPDATE iosapp.users 
+                SET email = $1, keywords = $2, preferred_sources = $3, 
+                    notifications_enabled = true, updated_at = NOW()
+                WHERE id = $4
+            """
+            await db_manager.execute_command(
+                update_query,
+                request.email,
+                json.dumps(request.keywords),
+                json.dumps(request.preferred_sources),
+                user_id
+            )
+            
+            # Update device token
+            device_update_query = """
+                UPDATE iosapp.device_tokens 
+                SET device_token = $1, device_info = $2, updated_at = NOW()
+                WHERE user_id = $3 AND device_id = $4
+            """
+            await db_manager.execute_command(
+                device_update_query,
+                request.device_token,
+                json.dumps(request.device_info),
+                user_id,
+                request.device_id
+            )
+            
+            return UserRegistrationResponse(
+                message="User updated successfully",
+                data={
+                    "user_id": str(user_id),
+                    "device_id": request.device_id
+                }
+            )
+        else:
+            # Create new user
+            user_insert_query = """
+                INSERT INTO iosapp.users (email, keywords, preferred_sources, notifications_enabled)
+                VALUES ($1, $2, $3, true)
+                RETURNING id
+            """
+            user_insert_result = await db_manager.execute_query(
+                user_insert_query,
+                request.email,
+                json.dumps(request.keywords),
+                json.dumps(request.preferred_sources)
+            )
+            
+            if not user_insert_result:
+                raise Exception("Failed to create user")
+            
+            user_id = user_insert_result[0]['id']
+            
+            # Create device token
+            device_insert_query = """
+                INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
+                VALUES ($1, $2, $3, $4)
+            """
+            await db_manager.execute_command(
+                device_insert_query,
+                user_id,
+                request.device_id,
+                request.device_token,
+                json.dumps(request.device_info)
+            )
+            
+            logger.info(f"New user registered: {user_id} with device: {request.device_id}")
+            
+            return UserRegistrationResponse(
+                message="User registered successfully", 
+                data={
+                    "user_id": str(user_id),
+                    "device_id": request.device_id
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in unified user registration: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to register user: {str(e)}")
+
+@router.post("/register-basic", response_model=SuccessResponse)
 async def register_user(user_data: UserCreate):
     """Register new user with device_id (iOS app)"""
     try:
