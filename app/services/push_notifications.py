@@ -51,6 +51,14 @@ class PushNotificationService:
             
             # Check for production APNs key file first (preferred)
             production_key_path = "/etc/secrets/AuthKey_S64YC3U4ZX.p8"
+            local_key_path = "/Users/ismatsamadov/birjobBackend/AuthKey_S64YC3U4ZX.p8"
+            
+            # Use local key for testing, production key in production
+            if os.path.exists(local_key_path):
+                production_key_path = local_key_path
+                self.logger.info(f"Using local APNs key for testing: {local_key_path}")
+            elif os.path.exists("/etc/secrets/AuthKey_S64YC3U4ZX.p8"):
+                self.logger.info(f"Using production APNs key: /etc/secrets/AuthKey_S64YC3U4ZX.p8")
             if os.path.exists(production_key_path):
                 self.logger.info(f"Using production APNs key from: {production_key_path}")
                 
