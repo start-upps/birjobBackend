@@ -282,8 +282,7 @@ class PushNotificationService:
                 request = NotificationRequest(
                     device_token=device_token,
                     message=payload,
-                    push_type=PushType.ALERT,
-                    topic=settings.APNS_BUNDLE_ID
+                    push_type=PushType.ALERT
                 )
                 
                 response = await self.apns_client.send_notification(request)
