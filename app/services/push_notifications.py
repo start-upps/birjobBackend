@@ -42,7 +42,36 @@ class PushNotificationService:
             self.logger.info(f"APNS_TEAM_ID: {settings.APNS_TEAM_ID}")
             self.logger.info(f"APNS_BUNDLE_ID: {settings.APNS_BUNDLE_ID}")
             
-            # Check for production APNs key in Render environment
+            # Use private key from environment variable if available (preferred)
+            if settings.APNS_PRIVATE_KEY:
+                self.logger.info("Using APNs private key from environment variable")
+                
+                # Validate PEM format of environment variable
+                key_content = settings.APNS_PRIVATE_KEY.strip()
+                if not key_content.startswith('-----BEGIN PRIVATE KEY-----'):
+                    self.logger.error("Environment APNs key is not in PEM format")
+                    self.logger.error(f"Key starts with: {key_content[:50]}...")
+                    return
+                if not key_content.endswith('-----END PRIVATE KEY-----'):
+                    self.logger.error("Environment APNs key is incomplete")
+                    return
+                
+                self.logger.info("Environment APNs key content verified and PEM format confirmed")
+                self.logger.info(f"Key content size: {len(key_content)} bytes")
+                
+                self._apns_config = {
+                    'key_content': settings.APNS_PRIVATE_KEY,
+                    'key_id': settings.APNS_KEY_ID,
+                    'team_id': settings.APNS_TEAM_ID,
+                    'topic': settings.APNS_BUNDLE_ID,
+                    'use_sandbox': settings.APNS_SANDBOX,
+                    'use_temp_file': True
+                }
+                self.apns_client = None
+                self.logger.info("APNs config prepared with environment key")
+                return
+                
+            # Check for production APNs key file as fallback
             production_key_path = "/etc/secrets/apn.p8"
             if os.path.exists(production_key_path):
                 self.logger.info(f"Using production APNs key from: {production_key_path}")
@@ -51,7 +80,16 @@ class PushNotificationService:
                     with open(production_key_path, 'r') as f:
                         key_content = f.read()
                         if key_content.strip():
-                            self.logger.info("Production APNs key content verified")
+                            # Validate PEM format
+                            if not key_content.startswith('-----BEGIN PRIVATE KEY-----'):
+                                self.logger.error("Production APNs key file is not in PEM format")
+                                self.logger.error(f"Key starts with: {key_content[:50]}...")
+                                return
+                            if not key_content.strip().endswith('-----END PRIVATE KEY-----'):
+                                self.logger.error("Production APNs key file is incomplete")
+                                return
+                            self.logger.info("Production APNs key content verified and PEM format confirmed")
+                            self.logger.info(f"Key file size: {len(key_content)} bytes")
                         else:
                             self.logger.error("Production APNs key file is empty")
                             return
@@ -69,21 +107,8 @@ class PushNotificationService:
                 }
                 self.apns_client = None  # Will be created on first use
                 
-                self.logger.info("APNs client initialized successfully with production key")
+                self.logger.info("APNs config prepared with production key file")
                 return
-                
-            # Use private key from environment variable if available
-            elif settings.APNS_PRIVATE_KEY:
-                self._apns_config = {
-                    'key_content': settings.APNS_PRIVATE_KEY,
-                    'key_id': settings.APNS_KEY_ID,
-                    'team_id': settings.APNS_TEAM_ID,
-                    'topic': settings.APNS_BUNDLE_ID,
-                    'use_sandbox': settings.APNS_SANDBOX,
-                    'use_temp_file': True
-                }
-                self.apns_client = None
-                self.logger.info("APNs config prepared with environment key")
                 
             # Check if key file exists
             elif os.path.exists(settings.APNS_KEY_PATH):
@@ -162,9 +187,24 @@ class PushNotificationService:
                 # Clean up temporary file
                 os.unlink(temp_key_path)
             else:
-                # Use key file path
+                # Use key file path - validate file exists and is readable
+                key_path = self._apns_config['key']
+                if not os.path.exists(key_path):
+                    raise Exception(f"APNs key file not found: {key_path}")
+                
+                # Read and validate key content
+                with open(key_path, 'r') as f:
+                    key_content = f.read()
+                    if not key_content.strip():
+                        raise Exception("APNs key file is empty")
+                    if not key_content.startswith('-----BEGIN PRIVATE KEY-----'):
+                        raise Exception("APNs key file is not in proper PEM format")
+                    if not key_content.strip().endswith('-----END PRIVATE KEY-----'):
+                        raise Exception("APNs key file is incomplete or corrupted")
+                
+                self.logger.info(f"Creating APNs client with key file: {key_path}")
                 self.apns_client = APNs(
-                    key=self._apns_config['key'],
+                    key=key_path,
                     key_id=self._apns_config['key_id'],
                     team_id=self._apns_config['team_id'],
                     topic=self._apns_config['topic'],
