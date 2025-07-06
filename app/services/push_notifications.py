@@ -330,22 +330,49 @@ class PushNotificationService:
             
             device_data = device_result[0]
             
-            query = """
-                INSERT INTO iosapp.push_notifications 
-                (id, device_id, user_id, job_notification_id, notification_type, payload, status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """
-            
-            await db_manager.execute_command(
-                query,
-                uuid.UUID(notification_id),
-                device_data['device_id'],
-                device_data['user_id'],
-                uuid.UUID(match_id) if match_id else None,
-                notification_type,
-                json.dumps(payload),
-                "pending"
-            )
+            # Handle both old and new schema - check if job_notification_id exists, otherwise use match_id
+            try:
+                # Try with new schema (job_notification_id)
+                query = """
+                    INSERT INTO iosapp.push_notifications 
+                    (id, device_id, user_id, job_notification_id, notification_type, payload, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """
+                
+                await db_manager.execute_command(
+                    query,
+                    uuid.UUID(notification_id),
+                    device_data['device_id'],
+                    device_data['user_id'],
+                    uuid.UUID(match_id) if match_id else None,
+                    notification_type,
+                    json.dumps(payload),
+                    "pending"
+                )
+                
+            except Exception as schema_error:
+                # If that fails, try with old schema (match_id)
+                if "job_notification_id" in str(schema_error):
+                    self.logger.info("Falling back to old schema with match_id column")
+                    query = """
+                        INSERT INTO iosapp.push_notifications 
+                        (id, device_id, user_id, match_id, notification_type, payload, status)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """
+                    
+                    await db_manager.execute_command(
+                        query,
+                        uuid.UUID(notification_id),
+                        device_data['device_id'],
+                        device_data['user_id'],
+                        uuid.UUID(match_id) if match_id else None,
+                        notification_type,
+                        json.dumps(payload),
+                        "pending"
+                    )
+                else:
+                    # If it's a different error, re-raise it
+                    raise schema_error
             
         except Exception as e:
             self.logger.error(f"Error storing notification: {e}")
