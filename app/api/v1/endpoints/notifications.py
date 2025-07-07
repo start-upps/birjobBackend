@@ -478,7 +478,12 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
                 notifications_map[group_key]['job_count'] += 1
                 notifications_map[group_key]['title'] = f"{notifications_map[group_key]['job_count']} New Jobs Found!"
                 # Use the most recent notification ID and read status
-                if row['notification_sent_at'] > datetime.fromisoformat(notifications_map[group_key]['created_at'].replace('Z', '+00:00').replace('+00:00', '')):
+                # Compare timezone-aware datetimes
+                existing_time = datetime.fromisoformat(notifications_map[group_key]['created_at'].replace('Z', '+00:00'))
+                current_time = row['notification_sent_at']
+                if hasattr(current_time, 'tzinfo') and current_time.tzinfo is None:
+                    current_time = current_time.replace(tzinfo=timezone.utc)
+                if current_time > existing_time:
                     notifications_map[group_key]['id'] = str(row['id'])
                     notifications_map[group_key]['created_at'] = row['notification_sent_at'].isoformat()
                     notifications_map[group_key]['is_read'] = row['is_read'] or False

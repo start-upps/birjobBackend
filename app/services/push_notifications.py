@@ -49,16 +49,51 @@ class PushNotificationService:
             else:
                 self.logger.warning("No APNS_PRIVATE_KEY in environment variables")
             
-            # Check for production APNs key file first (preferred)
+            # Use private key from environment variable as fallback
+            elif settings.APNS_PRIVATE_KEY:
+                self.logger.info("Using APNs private key from environment variable")
+                
+                # Validate and fix PEM format of environment variable
+                key_content = settings.APNS_PRIVATE_KEY.strip()
+                
+                # Remove extra quotes that might be added by environment variable parsing
+                # Handle both single and double quotes, and nested quotes
+                while ((key_content.startswith('"') and key_content.endswith('"')) or 
+                       (key_content.startswith("'") and key_content.endswith("'"))):
+                    key_content = key_content[1:-1].strip()
+                    self.logger.info("Removed extra quotes from environment key")
+                
+                # Fix potential line break issues in environment variables
+                if '\\n' in key_content:
+                    key_content = key_content.replace('\\n', '\n')
+                    self.logger.info("Fixed escaped newlines in environment key")
+                
+                if not key_content.startswith('-----BEGIN PRIVATE KEY-----'):
+                    self.logger.error("Environment APNs key is not in PEM format")
+                    self.logger.error(f"Key starts with: {repr(key_content[:50])}")
+                    return
+                if not key_content.endswith('-----END PRIVATE KEY-----'):
+                    self.logger.error("Environment APNs key is incomplete")
+                    self.logger.error(f"Key ends with: {repr(key_content[-50:])}")
+                    return
+                
+                self.logger.info("Environment APNs key content verified and PEM format confirmed")
+                self.logger.info(f"Key content size: {len(key_content)} bytes")
+                
+                self._apns_config = {
+                    'key_content': key_content,
+                    'key_id': 'S64YC3U4ZX',  # Use correct key ID
+                    'team_id': settings.APNS_TEAM_ID,
+                    'topic': settings.APNS_BUNDLE_ID,
+                    'use_sandbox': settings.APNS_SANDBOX,
+                    'use_temp_file': True
+                }
+                self.apns_client = None
+                self.logger.info("APNs config prepared with environment key")
+                return
+                
+            # Check for production APNs key file as fallback
             production_key_path = "/etc/secrets/AuthKey_S64YC3U4ZX.p8"
-            local_key_path = "/Users/ismatsamadov/birjobBackend/AuthKey_S64YC3U4ZX.p8"
-            
-            # Use local key for testing, production key in production
-            if os.path.exists(local_key_path):
-                production_key_path = local_key_path
-                self.logger.info(f"Using local APNs key for testing: {local_key_path}")
-            elif os.path.exists("/etc/secrets/AuthKey_S64YC3U4ZX.p8"):
-                self.logger.info(f"Using production APNs key: /etc/secrets/AuthKey_S64YC3U4ZX.p8")
             if os.path.exists(production_key_path):
                 self.logger.info(f"Using production APNs key from: {production_key_path}")
                 
