@@ -73,12 +73,38 @@ class JobNotificationService:
     async def _record_notification(
         self, 
         user_id: str, 
-        job_unique_key: str, 
-        job_data: Dict[str, Any], 
-        matched_keywords: List[str]
+        job_id_or_unique_key, 
+        job_title_or_data=None, 
+        job_company=None, 
+        job_source=None, 
+        job_unique_key=None, 
+        matched_keywords=None
     ) -> Optional[str]:
         """Record that user has been notified about this job and return the notification history ID"""
         try:
+            # Handle both calling patterns:
+            # 1. _record_notification(user_id, job_unique_key, job_data, matched_keywords)
+            # 2. _record_notification(user_id, job_id, job_title, job_company, job_source, job_unique_key, matched_keywords)
+            
+            if isinstance(job_title_or_data, dict):
+                # Pattern 1: job_data is a dictionary
+                job_data = job_title_or_data
+                actual_job_unique_key = job_id_or_unique_key
+                actual_matched_keywords = job_company if job_company else []
+                
+                job_id = job_data.get('id')
+                job_title = job_data.get('title')
+                job_company_name = job_data.get('company')
+                job_source_name = job_data.get('source')
+            else:
+                # Pattern 2: individual parameters
+                job_id = job_id_or_unique_key
+                job_title = job_title_or_data
+                job_company_name = job_company
+                job_source_name = job_source
+                actual_job_unique_key = job_unique_key
+                actual_matched_keywords = matched_keywords if matched_keywords else []
+            
             query = """
                 INSERT INTO iosapp.job_notification_history 
                 (user_id, job_unique_key, job_id, job_title, job_company, job_source, matched_keywords)
@@ -89,12 +115,12 @@ class JobNotificationService:
             result = await db_manager.execute_query(
                 query,
                 user_id,
-                job_unique_key,
-                job_data.get('id'),
-                job_data.get('title'),
-                job_data.get('company'),
-                job_data.get('source'),
-                json.dumps(matched_keywords)
+                actual_job_unique_key,
+                job_id,
+                job_title,
+                job_company_name,
+                job_source_name,
+                json.dumps(actual_matched_keywords)
             )
             if result:
                 return str(result[0]['id'])
