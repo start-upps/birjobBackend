@@ -79,7 +79,7 @@ class PushNotificationService:
                         # Store config for lazy initialization (avoid event loop issues)
                         self._apns_config = {
                             'key_content': key_content,
-                            'key_id': 'S64YC3U4ZX',
+                            'key_id': settings.APNS_KEY_ID,
                             'team_id': settings.APNS_TEAM_ID,
                             'topic': settings.APNS_BUNDLE_ID,
                             'use_sandbox': settings.APNS_SANDBOX,
