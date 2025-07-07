@@ -444,11 +444,11 @@ class PushNotificationService:
                 response = await apns_client.send_notification(request)
                 
                 if response.is_successful:
-                    await self._update_notification_status(notification_id, "sent", response)
+                    await self._update_notification_status(notification_id, "sent", {"status": "success"})
                     self.logger.info(f"Push notification sent successfully: {notification_id}")
                     return True
                 else:
-                    await self._update_notification_status(notification_id, "failed", response)
+                    await self._update_notification_status(notification_id, "failed", {"error": response.description, "status": response.status})
                     self.logger.error(f"Push notification failed: {response.description}")
                     return False
             else:
@@ -499,7 +499,7 @@ class PushNotificationService:
                     uuid.UUID(notification_id),
                     device_data['device_id'],
                     device_data['user_id'],
-                    uuid.UUID(match_id) if match_id else None,
+                    uuid.UUID(match_id) if match_id and len(match_id) == 36 else None,
                     notification_type,
                     json.dumps(payload),
                     "pending"
@@ -520,7 +520,7 @@ class PushNotificationService:
                         uuid.UUID(notification_id),
                         device_data['device_id'],
                         device_data['user_id'],
-                        uuid.UUID(match_id) if match_id else None,
+                        uuid.UUID(match_id) if match_id and len(match_id) == 36 else None,
                         notification_type,
                         json.dumps(payload),
                         "pending"
