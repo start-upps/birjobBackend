@@ -76,18 +76,17 @@ class PushNotificationService:
                         self.logger.info("Environment APNs key content verified and PEM format confirmed")
                         self.logger.info(f"Key content size: {len(key_content)} bytes")
                         
-                        # Create the APNs client directly with key content
-                        from aioapns import APNs
-                        
-                        self.apns_client = APNs(
-                            key=key_content,
-                            key_id='S64YC3U4ZX',
-                            team_id=settings.APNS_TEAM_ID,
-                            topic=settings.APNS_BUNDLE_ID,
-                            use_sandbox=settings.APNS_SANDBOX
-                        )
-                        
-                        self.logger.info("APNs client created directly with environment key")
+                        # Store config for lazy initialization (avoid event loop issues)
+                        self._apns_config = {
+                            'key_content': key_content,
+                            'key_id': 'S64YC3U4ZX',
+                            'team_id': settings.APNS_TEAM_ID,
+                            'topic': settings.APNS_BUNDLE_ID,
+                            'use_sandbox': settings.APNS_SANDBOX,
+                            'use_direct_key': True
+                        }
+                        self.apns_client = None
+                        self.logger.info("APNs config prepared with environment key (lazy init)")
                         return
                 
             # Check for production APNs key file as fallback
@@ -232,7 +231,22 @@ class PushNotificationService:
             import os
             import tempfile
             
-            if self._apns_config.get('use_temp_file'):
+            if self._apns_config.get('use_direct_key'):
+                # Use key content directly with aioapns
+                self.logger.info("Creating APNs client with direct key content")
+                
+                self.apns_client = APNs(
+                    key=self._apns_config['key_content'],
+                    key_id=self._apns_config['key_id'],
+                    team_id=self._apns_config['team_id'],
+                    topic=self._apns_config['topic'],
+                    use_sandbox=self._apns_config['use_sandbox']
+                )
+                
+                self.logger.info("APNs client created successfully with direct key")
+                return self.apns_client
+                
+            elif self._apns_config.get('use_temp_file'):
                 # Create temporary file for environment key
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.p8', delete=False) as f:
                     f.write(self._apns_config['key_content'])
