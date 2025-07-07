@@ -18,8 +18,8 @@ async def test_backend_push_service():
     # Initialize the service
     push_service = PushNotificationService()
     
-    # Test device token from iOS app
-    device_token = 'a68b7b14e6ae95b0e1c9bd5c32d242957ac207501f7bf5389e4c59a7370e5b60'
+    # Test device token from iOS app (NEW)
+    device_token = '328b1bcf9414e941a07f5d102260b4e48245f83cc07291e62ff2eb16c478a442'
     device_id = 'test-device'
     
     # Test job match notification
