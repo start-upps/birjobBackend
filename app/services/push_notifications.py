@@ -76,16 +76,18 @@ class PushNotificationService:
                         self.logger.info("Environment APNs key content verified and PEM format confirmed")
                         self.logger.info(f"Key content size: {len(key_content)} bytes")
                         
-                        self._apns_config = {
-                            'key_content': key_content,
-                            'key_id': 'S64YC3U4ZX',  # Use correct key ID
-                            'team_id': settings.APNS_TEAM_ID,
-                            'topic': settings.APNS_BUNDLE_ID,
-                            'use_sandbox': settings.APNS_SANDBOX,
-                            'use_temp_file': True
-                        }
-                        self.apns_client = None
-                        self.logger.info("APNs config prepared with environment key")
+                        # Create the APNs client directly with key content
+                        from aioapns import APNs
+                        
+                        self.apns_client = APNs(
+                            key=key_content,
+                            key_id='S64YC3U4ZX',
+                            team_id=settings.APNS_TEAM_ID,
+                            topic=settings.APNS_BUNDLE_ID,
+                            use_sandbox=settings.APNS_SANDBOX
+                        )
+                        
+                        self.logger.info("APNs client created directly with environment key")
                         return
                 
             # Check for production APNs key file as fallback
