@@ -164,3 +164,32 @@ logs/
 
 # Docker
 .dockerignore
+
+# Development and test files
+test_*.py
+*_test.py
+debug_*.py
+*_debug.py
+apns_diagnostic.py
+comprehensive_*.py
+manual_*.py
+validate_*.py
+setup_and_*.py
+send_single_*.py
+fresh_*.py
+fixed_*.py
+final_*.py
+check_*.py
+topic_*.py
+time_*.py
+
+# Documentation (keep only main README)
+*_GUIDE.md
+*_CHECKLIST.md
+PRODUCTION_*.md
+NOTIFICATION_*.md
+
+# Temporary files
+*.tmp
+*.temp
+.claude/
