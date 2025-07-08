@@ -20,15 +20,28 @@ async def register_push_token(
 ):
     """Register or update push token for device"""
     try:
-        # This is the same logic as device registration but focused on token updates
+        # Extract stable device identifier from device_info
         device_id_value = None
-        if hasattr(request.device_info, 'device_id'):
-            device_id_value = request.device_info.device_id
-        elif isinstance(request.device_info.model_dump(), dict):
-            device_id_value = request.device_info.model_dump().get('device_id')
+        device_info_dict = request.device_info.model_dump()
         
+        # Try to get a stable device identifier from device_info
+        if 'device_id' in device_info_dict:
+            device_id_value = device_info_dict['device_id']
+        elif 'deviceId' in device_info_dict:
+            device_id_value = device_info_dict['deviceId']
+        elif 'identifier' in device_info_dict:
+            device_id_value = device_info_dict['identifier']
+        elif 'uuid' in device_info_dict:
+            device_id_value = device_info_dict['uuid']
+        
+        # If no stable device_id provided, create one based on device model + a hash
         if not device_id_value:
-            device_id_value = request.device_token
+            import hashlib
+            device_model = device_info_dict.get('deviceModel', 'unknown')
+            timezone = device_info_dict.get('timezone', 'unknown')
+            # Create a more stable identifier
+            stable_id = f"{device_model}_{timezone}_{request.device_token[:16]}"
+            device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
             
         # Find existing device by device_id first (this should be unique per device)
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
@@ -114,16 +127,29 @@ async def register_device(
     try:
         from app.models.user import User  # Import here to avoid circular imports
         
-        # Extract device_id from device_info if available, otherwise use device_token
+        # Extract device_id from device_info - this should be a stable device identifier
         device_id_value = None
-        if hasattr(request.device_info, 'device_id'):
-            device_id_value = request.device_info.device_id
-        elif isinstance(request.device_info.model_dump(), dict):
-            device_id_value = request.device_info.model_dump().get('device_id')
+        device_info_dict = request.device_info.model_dump()
         
-        # If no device_id in device_info, use the device_token as device_id
+        # Try to get a stable device identifier from device_info
+        if 'device_id' in device_info_dict:
+            device_id_value = device_info_dict['device_id']
+        elif 'deviceId' in device_info_dict:
+            device_id_value = device_info_dict['deviceId']
+        elif 'identifier' in device_info_dict:
+            device_id_value = device_info_dict['identifier']
+        elif 'uuid' in device_info_dict:
+            device_id_value = device_info_dict['uuid']
+        
+        # If no stable device_id provided, create one based on device model + a hash
+        # This prevents creating new users for every token refresh
         if not device_id_value:
-            device_id_value = request.device_token
+            import hashlib
+            device_model = device_info_dict.get('deviceModel', 'unknown')
+            timezone = device_info_dict.get('timezone', 'unknown')
+            # Create a more stable identifier
+            stable_id = f"{device_model}_{timezone}_{request.device_token[:16]}"
+            device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
             
         # First, find or create user based on device_id (now in device_tokens table)
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
