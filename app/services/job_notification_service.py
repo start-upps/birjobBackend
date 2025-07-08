@@ -92,13 +92,29 @@ class JobNotificationService:
                 actual_job_unique_key = job_id_or_unique_key
                 actual_matched_keywords = job_company if job_company else []
                 
+                # Get the actual integer job ID from the job data
                 job_id = job_data.get('id')
+                # Ensure job_id is an integer
+                if job_id is not None:
+                    try:
+                        job_id = int(job_id)
+                    except (ValueError, TypeError):
+                        job_id = None
+                
                 job_title = job_data.get('title')
                 job_company_name = job_data.get('company')
                 job_source_name = job_data.get('source')
             else:
                 # Pattern 2: individual parameters
+                # job_id_or_unique_key should be the actual integer job ID here
                 job_id = job_id_or_unique_key
+                # Ensure job_id is an integer
+                if job_id is not None:
+                    try:
+                        job_id = int(job_id)
+                    except (ValueError, TypeError):
+                        job_id = None
+                
                 job_title = job_title_or_data
                 job_company_name = job_company
                 job_source_name = job_source
@@ -212,9 +228,13 @@ class JobNotificationService:
             # Process each job against all users
             for job in recent_jobs:
                 stats['processed_jobs'] += 1
+                
+                # Convert Record object to dict for easier access
+                job_dict = dict(job) if hasattr(job, 'keys') else job
+                
                 job_unique_key = self._generate_job_unique_key(
-                    job.get('title', ''), 
-                    job.get('company', '')
+                    job_dict.get('title', ''), 
+                    job_dict.get('company', '')
                 )
                 
                 matched_users_for_job = 0
@@ -230,7 +250,7 @@ class JobNotificationService:
                         continue
                     
                     # Check for keyword matches
-                    matched_keywords = self._match_keywords(job, user_keywords)
+                    matched_keywords = self._match_keywords(job_dict, user_keywords)
                     
                     if matched_keywords:
                         matched_users_for_job += 1
@@ -239,7 +259,7 @@ class JobNotificationService:
                         notification_history_id = await self._record_notification(
                             user['user_id'],
                             job_unique_key,
-                            job,
+                            job_dict,
                             matched_keywords
                         )
                         
@@ -249,14 +269,14 @@ class JobNotificationService:
                                 success = await self.push_service.send_job_match_notification(
                                     device_token=user['device_token'],
                                     device_id=user['device_id'],
-                                    job=job,
+                                    job=job_dict,
                                     matched_keywords=matched_keywords,
                                     match_id=notification_history_id
                                 )
                                 
                                 if success:
                                     stats['notifications_sent'] += 1
-                                    self.logger.info(f"Sent notification to user {user['user_id']} for job {job.get('id')}")
+                                    self.logger.info(f"Sent notification to user {user['user_id']} for job {job_dict.get('id')}")
                                 else:
                                     stats['errors'] += 1
                                     self.logger.warning(f"Failed to send notification to user {user['user_id']}")
@@ -266,11 +286,11 @@ class JobNotificationService:
                                 self.logger.error(f"Error sending notification: {e}")
                         else:
                             stats['notifications_sent'] += 1  # Count as sent in dry run
-                            self.logger.info(f"DRY RUN: Would send notification to user {user['user_id']} for job {job.get('id')}")
+                            self.logger.info(f"DRY RUN: Would send notification to user {user['user_id']} for job {job_dict.get('id')}")
                 
                 if matched_users_for_job > 0:
                     stats['matched_users'] += matched_users_for_job
-                    self.logger.info(f"Job {job.get('id')} matched {matched_users_for_job} users")
+                    self.logger.info(f"Job {job_dict.get('id')} matched {matched_users_for_job} users")
             
             self.logger.info(f"Job notification processing completed: {stats}")
             return stats
