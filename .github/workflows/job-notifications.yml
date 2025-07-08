@@ -35,8 +35,8 @@ jobs:
       run: |
         echo "🔍 Scanning database for job matches every 40 minutes..."
         
-        # Call the notification processing endpoint
-        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/run-real-notifications")
+        # Call the notification processing endpoint with higher limit
+        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/run-real-notifications?limit=2000")
         
         # Parse results
         JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.data.processed_jobs // 0')

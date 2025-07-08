@@ -39,9 +39,9 @@ class JobNotificationService:
             job_data.get('source', '')
         ]).lower()
         
-        # Debug logging
-        self.logger.debug(f"Job text: '{job_text}'")
-        self.logger.debug(f"User keywords: {user_keywords}")
+        # Debug logging - temporarily use INFO level
+        self.logger.info(f"Job text: '{job_text}'")
+        self.logger.info(f"User keywords: {user_keywords}")
         
         # Check each keyword
         for keyword in user_keywords:
@@ -55,12 +55,12 @@ class JobNotificationService:
                 # Check if it's a word boundary match (not just substring)
                 if re.search(r'\b' + re.escape(keyword_lower) + r'\b', job_text):
                     matched_keywords.append(keyword)
-                    self.logger.debug(f"Word boundary match: '{keyword_lower}' in '{job_text}'")
+                    self.logger.info(f"Word boundary match: '{keyword_lower}' in '{job_text}'")
                 elif len(keyword_lower) >= 3:  # For shorter keywords, allow substring match
                     matched_keywords.append(keyword)
-                    self.logger.debug(f"Substring match: '{keyword_lower}' in '{job_text}'")
+                    self.logger.info(f"Substring match: '{keyword_lower}' in '{job_text}'")
         
-        self.logger.debug(f"Matched keywords: {matched_keywords}")
+        self.logger.info(f"Matched keywords: {matched_keywords}")
         return matched_keywords
     
     async def _has_been_notified(self, user_id: str, job_unique_key: str) -> bool:
@@ -183,7 +183,8 @@ class JobNotificationService:
                 SELECT 
                     id, title, company, apply_link, source, created_at
                 FROM scraper.jobs_jobpost
-                WHERE created_at >= NOW() - INTERVAL '2 hours'
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
             """
             
             params = []
@@ -191,7 +192,7 @@ class JobNotificationService:
                 base_query += " AND source = $1"
                 params.append(source_filter)
             
-            base_query += " ORDER BY created_at DESC LIMIT $" + str(len(params) + 1)
+            base_query += " LIMIT $" + str(len(params) + 1)
             params.append(limit)
             
             result = await db_manager.execute_query(base_query, *params)

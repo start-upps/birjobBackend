@@ -356,8 +356,8 @@ class PushNotificationService:
         # Create bulk notification payload
         payload = self._create_bulk_job_payload(jobs, notification_ids)
         
-        # Send notification
-        success = await self._send_notification(device_token, payload, "bulk_job_match", notification_ids[0] if notification_ids else "bulk")
+        # Send notification (use 'job_match' type as 'bulk_job_match' is not in DB constraint)
+        success = await self._send_notification(device_token, payload, "job_match", notification_ids[0] if notification_ids else "bulk")
         
         if success:
             # Update notification counts

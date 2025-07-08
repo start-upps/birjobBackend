@@ -19,15 +19,27 @@ def validate_device_token(token: str) -> bool:
     if not token:
         return False
     
-    # Remove any spaces or special characters
-    token = token.replace(" ", "").replace("-", "")
+    # Check for obvious placeholder patterns first
+    placeholder_indicators = [
+        'placeholder', 'test', 'fake', 'dummy', 'simulator',
+        'B6BDBB52', '0B43E135', 'ABCDEF', 'abcdef',
+        'xxxx', '____', '----'
+    ]
     
-    # Check if it's a valid hex string of 64 characters (32 bytes)
-    if len(token) != 64:
+    token_lower = token.lower()
+    for indicator in placeholder_indicators:
+        if indicator.lower() in token_lower:
+            return False
+    
+    # Remove any spaces, hyphens, underscores
+    clean_token = token.replace(" ", "").replace("-", "").replace("_", "")
+    
+    # APNs tokens must be exactly 64 hex characters (32 bytes)
+    if len(clean_token) != 64:
         return False
     
     # Check if it's all hex characters
-    if not re.match(r'^[0-9a-fA-F]+$', token):
+    if not re.match(r'^[0-9a-fA-F]+$', clean_token):
         return False
     
     # Check for common placeholder patterns
@@ -35,13 +47,13 @@ def validate_device_token(token: str) -> bool:
         r'^0+$',  # All zeros
         r'^1+$',  # All ones
         r'^[fF]+$',  # All Fs
-        r'^(0B43E135|0b43e135)',  # Common simulator tokens
-        r'^(ABCDEF|abcdef)',  # Common test tokens
-        r'^(123456|654321)',  # Sequential patterns
+        r'^(123456)+',  # Repeating 123456
+        r'^(abcdef)+',  # Repeating abcdef
+        r'^(fedcba)+',  # Repeating fedcba
     ]
     
     for pattern in placeholder_patterns:
-        if re.match(pattern, token):
+        if re.match(pattern, clean_token):
             return False
     
     return True
@@ -54,12 +66,14 @@ async def register_push_token(
     """Register or update push token for device"""
     try:
         # Validate device token format
+        logger.info(f"Validating device token: {request.device_token}")
         if not validate_device_token(request.device_token):
             logger.warning(f"Invalid device token rejected: {request.device_token}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
             )
+        logger.info(f"Device token validation passed: {request.device_token}")
         # Extract stable device identifier from device_info
         device_id_value = None
         device_info_dict = request.device_info.model_dump()
@@ -74,14 +88,16 @@ async def register_push_token(
         elif 'uuid' in device_info_dict:
             device_id_value = device_info_dict['uuid']
         
-        # If no stable device_id provided, create one based on device model + a hash
+        # If no stable device_id provided, create one based on device model + timezone (NOT token)
         if not device_id_value:
             import hashlib
             device_model = device_info_dict.get('deviceModel', 'unknown')
-            timezone = device_info_dict.get('timezone', 'unknown')
-            # Create a more stable identifier
-            stable_id = f"{device_model}_{timezone}_{request.device_token[:16]}"
+            timezone = device_info_dict.get('timezone', 'unknown') 
+            os_version = device_info_dict.get('os_version', 'unknown')
+            # Create a stable identifier without using token (which can change)
+            stable_id = f"{device_model}_{timezone}_{os_version}"
             device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
+            logger.info(f"Generated stable device ID: {device_id_value} from {stable_id}")
             
         # Find existing device by device_id first (this should be unique per device)
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
@@ -166,12 +182,14 @@ async def register_device(
     """Register a new iOS device for push notifications"""
     try:
         # Validate device token format
+        logger.info(f"Validating device token: {request.device_token}")
         if not validate_device_token(request.device_token):
             logger.warning(f"Invalid device token rejected: {request.device_token}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
             )
+        logger.info(f"Device token validation passed: {request.device_token}")
         from app.models.user import User  # Import here to avoid circular imports
         
         # Extract device_id from device_info - this should be a stable device identifier
