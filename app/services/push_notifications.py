@@ -331,6 +331,90 @@ class PushNotificationService:
         
         return success
     
+    async def send_bulk_job_notifications(
+        self,
+        device_token: str,
+        device_id: str,
+        jobs: List[Dict[str, Any]],
+        notification_ids: List[str]
+    ) -> bool:
+        """Send bulk job notifications to a user"""
+        
+        # Check throttling
+        if not await self._check_notification_throttling(device_id):
+            self.logger.info(f"Bulk notification throttled for device {device_id}")
+            return False
+        
+        # Check quiet hours
+        if await self._is_quiet_hours(device_id):
+            self.logger.info(f"Bulk notification suppressed (quiet hours) for device {device_id}")
+            return False
+        
+        if not jobs:
+            return False
+        
+        # Create bulk notification payload
+        payload = self._create_bulk_job_payload(jobs, notification_ids)
+        
+        # Send notification
+        success = await self._send_notification(device_token, payload, "bulk_job_match", notification_ids[0] if notification_ids else "bulk")
+        
+        if success:
+            # Update notification counts
+            await self._update_notification_counts(device_id)
+            self.logger.info(f"Bulk notification sent successfully to device {device_id} for {len(jobs)} jobs")
+        else:
+            self.logger.warning(f"Failed to send bulk notification to device {device_id}")
+        
+        return success
+    
+    def _create_bulk_job_payload(
+        self,
+        jobs: List[Dict[str, Any]],
+        notification_ids: List[str]
+    ) -> Dict[str, Any]:
+        """Create push notification payload for bulk job matches"""
+        
+        job_count = len(jobs)
+        
+        if job_count == 1:
+            # Single job - use regular format
+            job = jobs[0]['job_dict']
+            matched_keywords = jobs[0]['matched_keywords']
+            return self._create_job_match_payload(job, matched_keywords, notification_ids[0])
+        
+        # Multiple jobs - create summary
+        companies = list(set([job['job_dict'].get('company', 'Unknown') for job in jobs[:5]]))
+        company_text = companies[0] if len(companies) == 1 else f"{companies[0]} and {len(companies)-1} others"
+        
+        all_keywords = []
+        for job in jobs:
+            all_keywords.extend(job['matched_keywords'])
+        unique_keywords = list(set(all_keywords))
+        keywords_text = ', '.join(unique_keywords[:3])
+        
+        return {
+            "aps": {
+                "alert": {
+                    "title": f"🎯 {job_count} New Job Matches!",
+                    "subtitle": f"At {company_text}",
+                    "body": f"Matching: {keywords_text}"
+                },
+                "badge": job_count,
+                "sound": "default",
+                "category": "BULK_JOB_MATCH",
+                "thread-id": "job-matches"
+            },
+            "custom_data": {
+                "type": "bulk_job_match",
+                "match_count": job_count,
+                "notification_ids": notification_ids,
+                "job_ids": [job['job_dict'].get('id') for job in jobs],
+                "matched_keywords": unique_keywords,
+                "deep_link": "birjob://jobs/matches"
+            }
+        }
+    
     def _create_job_match_payload(
         self,
         job: Dict[str, Any],

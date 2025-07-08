@@ -61,3 +61,6 @@ jobs:
         
         # Log timestamp for monitoring
         echo "🕐 Completed at: $(date)"
+        
+        # Force exit to ensure GitHub Action terminates
+        exit 0

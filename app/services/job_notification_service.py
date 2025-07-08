@@ -39,6 +39,10 @@ class JobNotificationService:
             job_data.get('source', '')
         ]).lower()
         
+        # Debug logging
+        self.logger.debug(f"Job text: '{job_text}'")
+        self.logger.debug(f"User keywords: {user_keywords}")
+        
         # Check each keyword
         for keyword in user_keywords:
             if not keyword:
@@ -51,9 +55,12 @@ class JobNotificationService:
                 # Check if it's a word boundary match (not just substring)
                 if re.search(r'\b' + re.escape(keyword_lower) + r'\b', job_text):
                     matched_keywords.append(keyword)
+                    self.logger.debug(f"Word boundary match: '{keyword_lower}' in '{job_text}'")
                 elif len(keyword_lower) >= 3:  # For shorter keywords, allow substring match
                     matched_keywords.append(keyword)
+                    self.logger.debug(f"Substring match: '{keyword_lower}' in '{job_text}'")
         
+        self.logger.debug(f"Matched keywords: {matched_keywords}")
         return matched_keywords
     
     async def _has_been_notified(self, user_id: str, job_unique_key: str) -> bool:
@@ -199,7 +206,7 @@ class JobNotificationService:
         limit: int = 100,
         dry_run: bool = False
     ) -> Dict[str, Any]:
-        """Process job notifications for all active users"""
+        """Process job notifications for all active users - optimized for bulk sending"""
         
         stats = {
             'processed_jobs': 0,
@@ -225,7 +232,11 @@ class JobNotificationService:
             if not recent_jobs:
                 return stats
             
-            # Process each job against all users
+            # Group matches by user for bulk notifications
+            user_job_matches = {}  # user_id -> list of job matches
+            
+            self.logger.info("Pre-processing job-user matches...")
+            
             for job in recent_jobs:
                 stats['processed_jobs'] += 1
                 
@@ -237,68 +248,115 @@ class JobNotificationService:
                     job_dict.get('company', '')
                 )
                 
-                matched_users_for_job = 0
-                
                 # Check each user for keyword matches
                 for user in active_users:
                     user_keywords = user.get('keywords', [])
                     if not user_keywords:
                         continue
                     
-                    # Check if user has already been notified about this job
-                    if await self._has_been_notified(user['user_id'], job_unique_key):
-                        continue
-                    
-                    # Check for keyword matches
+                    # Check for keyword matches first (cheaper than DB query)
                     matched_keywords = self._match_keywords(job_dict, user_keywords)
                     
                     if matched_keywords:
-                        matched_users_for_job += 1
+                        user_id = user['user_id']
                         
-                        # Record notification (even in dry run to prevent duplicates)
-                        notification_history_id = await self._record_notification(
-                            user['user_id'],
-                            job_unique_key,
-                            job_dict,
-                            matched_keywords
+                        # Check if user already notified about this job
+                        if not await self._has_been_notified(user_id, job_unique_key):
+                            if user_id not in user_job_matches:
+                                user_job_matches[user_id] = {
+                                    'user': user,
+                                    'jobs': []
+                                }
+                            
+                            user_job_matches[user_id]['jobs'].append({
+                                'job_dict': job_dict,
+                                'job_unique_key': job_unique_key,
+                                'matched_keywords': matched_keywords
+                            })
+            
+            self.logger.info(f"Found {len(user_job_matches)} users with job matches")
+            
+            # Send bulk notifications per user
+            for user_id, user_matches in user_job_matches.items():
+                user = user_matches['user']
+                jobs = user_matches['jobs']
+                
+                if not jobs:
+                    continue
+                
+                stats['matched_users'] += len(jobs)
+                
+                # Record all notifications for this user
+                notification_ids = []
+                for job_match in jobs:
+                    notification_id = await self._record_notification(
+                        user_id,
+                        job_match['job_unique_key'],
+                        job_match['job_dict'],
+                        job_match['matched_keywords']
+                    )
+                    if notification_id:
+                        notification_ids.append(notification_id)
+                
+                # Send bulk notification to user
+                if not dry_run and notification_ids:
+                    try:
+                        success = await self.push_service.send_bulk_job_notifications(
+                            device_token=user['device_token'],
+                            device_id=user['device_id'],
+                            jobs=jobs,
+                            notification_ids=notification_ids
                         )
                         
-                        # Send notification if not dry run and we got a valid history ID
-                        if not dry_run and notification_history_id:
-                            try:
-                                success = await self.push_service.send_job_match_notification(
-                                    device_token=user['device_token'],
-                                    device_id=user['device_id'],
-                                    job=job_dict,
-                                    matched_keywords=matched_keywords,
-                                    match_id=notification_history_id
-                                )
-                                
-                                if success:
-                                    stats['notifications_sent'] += 1
-                                    self.logger.info(f"Sent notification to user {user['user_id']} for job {job_dict.get('id')}")
-                                else:
-                                    stats['errors'] += 1
-                                    self.logger.warning(f"Failed to send notification to user {user['user_id']}")
-                                    
-                            except Exception as e:
-                                stats['errors'] += 1
-                                self.logger.error(f"Error sending notification: {e}")
+                        if success:
+                            stats['notifications_sent'] += len(jobs)
+                            self.logger.info(f"Sent bulk notification to user {user_id} for {len(jobs)} jobs")
                         else:
-                            stats['notifications_sent'] += 1  # Count as sent in dry run
-                            self.logger.info(f"DRY RUN: Would send notification to user {user['user_id']} for job {job_dict.get('id')}")
-                
-                if matched_users_for_job > 0:
-                    stats['matched_users'] += matched_users_for_job
-                    self.logger.info(f"Job {job_dict.get('id')} matched {matched_users_for_job} users")
+                            stats['errors'] += len(jobs)
+                            self.logger.warning(f"Failed to send bulk notification to user {user_id}")
+                            
+                    except Exception as e:
+                        stats['errors'] += len(jobs)
+                        self.logger.error(f"Error sending bulk notification to user {user_id}: {e}")
+                else:
+                    stats['notifications_sent'] += len(jobs)  # Count as sent in dry run
+                    self.logger.info(f"DRY RUN: Would send bulk notification to user {user_id} for {len(jobs)} jobs")
             
-            self.logger.info(f"Job notification processing completed: {stats}")
+            self.logger.info(f"Bulk job notification processing completed: {stats}")
             return stats
             
         except Exception as e:
             self.logger.error(f"Error processing job notifications: {e}")
             stats['errors'] += 1
             return stats
+    
+    async def _send_notification_with_error_handling(
+        self, 
+        user: Dict[str, Any], 
+        job_dict: Dict[str, Any], 
+        matched_keywords: List[str], 
+        notification_history_id: str
+    ) -> bool:
+        """Send notification with error handling"""
+        try:
+            success = await self.push_service.send_job_match_notification(
+                device_token=user['device_token'],
+                device_id=user['device_id'],
+                job=job_dict,
+                matched_keywords=matched_keywords,
+                match_id=notification_history_id
+            )
+            
+            if success:
+                self.logger.info(f"Sent notification to user {user['user_id']} for job {job_dict.get('id')}")
+            else:
+                self.logger.warning(f"Failed to send notification to user {user['user_id']}")
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error sending notification: {e}")
+            return False
     
     async def send_single_job_notification(
         self, 

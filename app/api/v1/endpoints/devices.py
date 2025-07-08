@@ -4,6 +4,7 @@ from sqlalchemy import select
 from typing import Dict, Any
 import uuid
 import logging
+import re
 
 from app.core.database import get_db
 from app.models.device import DeviceToken
@@ -13,6 +14,38 @@ from app.core.redis_client import redis_client
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+def validate_device_token(token: str) -> bool:
+    """Validate that device token is a valid APNs token format"""
+    if not token:
+        return False
+    
+    # Remove any spaces or special characters
+    token = token.replace(" ", "").replace("-", "")
+    
+    # Check if it's a valid hex string of 64 characters (32 bytes)
+    if len(token) != 64:
+        return False
+    
+    # Check if it's all hex characters
+    if not re.match(r'^[0-9a-fA-F]+$', token):
+        return False
+    
+    # Check for common placeholder patterns
+    placeholder_patterns = [
+        r'^0+$',  # All zeros
+        r'^1+$',  # All ones
+        r'^[fF]+$',  # All Fs
+        r'^(0B43E135|0b43e135)',  # Common simulator tokens
+        r'^(ABCDEF|abcdef)',  # Common test tokens
+        r'^(123456|654321)',  # Sequential patterns
+    ]
+    
+    for pattern in placeholder_patterns:
+        if re.match(pattern, token):
+            return False
+    
+    return True
+
 @router.post("/token", response_model=DeviceRegisterResponse)
 async def register_push_token(
     request: DeviceRegisterRequest,
@@ -20,6 +53,13 @@ async def register_push_token(
 ):
     """Register or update push token for device"""
     try:
+        # Validate device token format
+        if not validate_device_token(request.device_token):
+            logger.warning(f"Invalid device token rejected: {request.device_token}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
+            )
         # Extract stable device identifier from device_info
         device_id_value = None
         device_info_dict = request.device_info.model_dump()
@@ -125,6 +165,13 @@ async def register_device(
 ):
     """Register a new iOS device for push notifications"""
     try:
+        # Validate device token format
+        if not validate_device_token(request.device_token):
+            logger.warning(f"Invalid device token rejected: {request.device_token}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
+            )
         from app.models.user import User  # Import here to avoid circular imports
         
         # Extract device_id from device_info - this should be a stable device identifier
