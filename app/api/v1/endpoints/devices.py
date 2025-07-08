@@ -53,12 +53,29 @@ async def register_push_token(
                 }
             )
         else:
-            # Create new device with basic user
+            # Look for existing user or create new one
             from app.models.user import User
-            user = User()
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            
+            # First check if there's an existing user with email (if provided)
+            email = None
+            if hasattr(request.device_info, 'email') and request.device_info.email:
+                email = request.device_info.email
+            elif isinstance(request.device_info.model_dump(), dict):
+                email = request.device_info.model_dump().get('email')
+            
+            user = None
+            if email:
+                # Look for existing user by email
+                user_stmt = select(User).where(User.email == email)
+                user_result = await db.execute(user_stmt)
+                user = user_result.scalar_one_or_none()
+            
+            if not user:
+                # Create new device with basic user
+                user = User(email=email if email else None)
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
             
             device = DeviceToken(
                 user_id=user.id,
@@ -121,12 +138,26 @@ async def register_device(
             user = user_result.scalar_one_or_none()
         
         if not user:
-            # Create a basic user profile for device registration
-            user = User()  # No device_id field in users table anymore
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            logger.info(f"Created new user for device registration: {user.id}")
+            # First check if there's an existing user with email (if provided)
+            email = None
+            if hasattr(request.device_info, 'email') and request.device_info.email:
+                email = request.device_info.email
+            elif isinstance(request.device_info.model_dump(), dict):
+                email = request.device_info.model_dump().get('email')
+            
+            if email:
+                # Look for existing user by email
+                user_stmt = select(User).where(User.email == email)
+                user_result = await db.execute(user_stmt)
+                user = user_result.scalar_one_or_none()
+            
+            if not user:
+                # Create a basic user profile for device registration
+                user = User(email=email if email else None)
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+                logger.info(f"Created new user for device registration: {user.id}")
         
         # Check if device already exists by device_id
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
