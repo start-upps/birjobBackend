@@ -39,9 +39,10 @@ class JobNotificationService:
             job_data.get('source', '')
         ]).lower()
         
-        # Debug logging - temporarily use INFO level
-        self.logger.info(f"Job text: '{job_text}'")
-        self.logger.info(f"User keywords: {user_keywords}")
+        # Only log when we actually find matches
+        if matched_keywords:
+            self.logger.info(f"Job text: '{job_text}'")
+            self.logger.info(f"User keywords: {user_keywords}")
         
         # Check each keyword
         for keyword in user_keywords:
@@ -55,12 +56,13 @@ class JobNotificationService:
                 # Check if it's a word boundary match (not just substring)
                 if re.search(r'\b' + re.escape(keyword_lower) + r'\b', job_text):
                     matched_keywords.append(keyword)
-                    self.logger.info(f"Word boundary match: '{keyword_lower}' in '{job_text}'")
+                    self.logger.info(f"✅ MATCH! Word boundary: '{keyword_lower}' in '{job_text}'")
                 elif len(keyword_lower) >= 3:  # For shorter keywords, allow substring match
                     matched_keywords.append(keyword)
-                    self.logger.info(f"Substring match: '{keyword_lower}' in '{job_text}'")
+                    self.logger.info(f"✅ MATCH! Substring: '{keyword_lower}' in '{job_text}'")
         
-        self.logger.info(f"Matched keywords: {matched_keywords}")
+        if matched_keywords:
+            self.logger.info(f"✅ Found {len(matched_keywords)} matched keywords: {matched_keywords}")
         return matched_keywords
     
     async def _has_been_notified(self, user_id: str, job_unique_key: str) -> bool:
@@ -170,6 +172,32 @@ class JobNotificationService:
                     AND jsonb_array_length(u.keywords) > 0
             """
             result = await db_manager.execute_query(query)
+            
+            # Parse keywords if they're JSON strings and filter out empty strings
+            import json
+            for user in result:
+                keywords = user.get('keywords')
+                self.logger.info(f"Raw keywords from DB for user {user.get('user_id')}: type={type(keywords)}, value={repr(keywords)}")
+                
+                if isinstance(keywords, str):
+                    try:
+                        parsed_keywords = json.loads(keywords)
+                        if isinstance(parsed_keywords, list):
+                            # Filter out empty strings and None values
+                            user['keywords'] = [k.strip() for k in parsed_keywords if k and str(k).strip()]
+                        else:
+                            user['keywords'] = []
+                    except (json.JSONDecodeError, TypeError) as e:
+                        self.logger.error(f"Failed to parse keywords JSON for user {user.get('user_id')}: {e}")
+                        user['keywords'] = []
+                elif isinstance(keywords, list):
+                    # Filter out empty strings and None values
+                    user['keywords'] = [k.strip() for k in keywords if k and str(k).strip()]
+                else:
+                    user['keywords'] = []
+                    
+                self.logger.info(f"Parsed keywords for user {user.get('user_id')}: {user['keywords']}")
+                    
             return result
         except Exception as e:
             self.logger.error(f"Error getting active users: {e}")
@@ -242,6 +270,7 @@ class JobNotificationService:
             user_job_matches = {}  # user_id -> list of job matches
             
             self.logger.info("Pre-processing job-user matches...")
+            self.logger.info(f"Active users data: {active_users}")
             
             for job in recent_jobs:
                 stats['processed_jobs'] += 1
@@ -257,7 +286,10 @@ class JobNotificationService:
                 # Check each user for keyword matches
                 for user in active_users:
                     user_keywords = user.get('keywords', [])
+                    self.logger.info(f"User {user.get('user_id')}: keywords type={type(user_keywords)}, value={user_keywords}")
+                    
                     if not user_keywords:
+                        self.logger.info(f"User {user.get('user_id')} has no keywords, skipping")
                         continue
                     
                     # Check for keyword matches first (cheaper than DB query)
@@ -279,6 +311,11 @@ class JobNotificationService:
                                 'job_unique_key': job_unique_key,
                                 'matched_keywords': matched_keywords
                             })
+                            
+                # Only process first 5 jobs for debugging
+                if stats['processed_jobs'] >= 5:
+                    self.logger.info(f"DEBUG: Stopping after {stats['processed_jobs']} jobs for debugging")
+                    break
             
             self.logger.info(f"Found {len(user_job_matches)} users with job matches")
             
