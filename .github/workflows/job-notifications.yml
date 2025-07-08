@@ -1,0 +1,63 @@
+name: Job Notifications
+
+on:
+  # Run every 40 minutes
+  schedule:
+    - cron: '*/40 * * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  send-job-notifications:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check Active Users
+      run: |
+        echo "👤 Checking active users with keywords..."
+        
+        # Get list of devices for verification
+        DEVICES_RESPONSE=$(curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/devices")
+        DEVICE_COUNT=$(echo "$DEVICES_RESPONSE" | jq '.devices | length')
+        
+        echo "Active devices found: $DEVICE_COUNT"
+        
+        if [ "$DEVICE_COUNT" -eq 0 ]; then
+          echo "❌ No active devices found!"
+          exit 1
+        fi
+        
+        # Show device info
+        echo "$DEVICES_RESPONSE" | jq '.devices[] | {device_id: .device_id, keywords: .keywords | length, notifications_enabled: .notifications_enabled}'
+    
+    - name: Process Job Notifications
+      run: |
+        echo "🔍 Scanning database for job matches every 40 minutes..."
+        
+        # Call the notification processing endpoint
+        RESPONSE=$(curl -s -X POST "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/run-real-notifications")
+        
+        # Parse results
+        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.data.processed_jobs // 0')
+        USERS_MATCHED=$(echo "$RESPONSE" | jq -r '.data.matched_users // 0') 
+        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.data.notifications_sent // 0')
+        ERRORS=$(echo "$RESPONSE" | jq -r '.data.errors // 0')
+        
+        echo "📊 Results:"
+        echo "- Jobs processed: $JOBS_PROCESSED"
+        echo "- Users matched: $USERS_MATCHED" 
+        echo "- Notifications sent: $NOTIFICATIONS_SENT"
+        echo "- Errors: $ERRORS"
+        
+        # Show success/failure
+        if [ "$NOTIFICATIONS_SENT" -gt 0 ]; then
+          echo "✅ SUCCESS: $NOTIFICATIONS_SENT notifications sent!"
+        elif [ "$USERS_MATCHED" -gt 0 ]; then
+          echo "⚠️ Users matched but no notifications sent (check APNs configuration)"
+        else
+          echo "ℹ️ No matching jobs found for current user keywords"
+        fi
+        
+        # Log timestamp for monitoring
+        echo "🕐 Completed at: $(date)"
