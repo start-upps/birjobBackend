@@ -866,7 +866,7 @@ async def run_real_notifications_now():
         # Run the actual notification processing (not dry run)
         stats = await job_notification_service.process_job_notifications(
             source_filter=None,  # Check all job sources
-            limit=500,  # Check more jobs
+            limit=None,  # Check ALL jobs from last 24 hours
             dry_run=False  # REAL notifications
         )
         

@@ -175,10 +175,10 @@ class JobNotificationService:
             self.logger.error(f"Error getting active users: {e}")
             return []
     
-    async def _get_recent_jobs(self, limit: int = 100, source_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get recent jobs from the scraper database"""
+    async def _get_recent_jobs(self, limit: int = None, source_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get ALL recent jobs from the scraper database"""
         try:
-            # Base query to get recent jobs - using actual schema
+            # Base query to get ALL recent jobs - using actual schema
             base_query = """
                 SELECT 
                     id, title, company, apply_link, source, created_at
@@ -192,8 +192,10 @@ class JobNotificationService:
                 base_query += " AND source = $1"
                 params.append(source_filter)
             
-            base_query += " LIMIT $" + str(len(params) + 1)
-            params.append(limit)
+            # Only add LIMIT if explicitly specified and not None
+            if limit is not None and limit > 0:
+                base_query += " LIMIT $" + str(len(params) + 1)
+                params.append(limit)
             
             result = await db_manager.execute_query(base_query, *params)
             return result
@@ -204,10 +206,10 @@ class JobNotificationService:
     async def process_job_notifications(
         self, 
         source_filter: Optional[str] = None,
-        limit: int = 100,
+        limit: int = None,
         dry_run: bool = False
     ) -> Dict[str, Any]:
-        """Process job notifications for all active users - optimized for bulk sending"""
+        """Process job notifications for all active users - scans ALL jobs by default"""
         
         stats = {
             'processed_jobs': 0,
@@ -226,7 +228,10 @@ class JobNotificationService:
                 return stats
             
             # Get recent jobs
-            self.logger.info(f"Getting recent jobs (limit: {limit})...")
+            if limit:
+                self.logger.info(f"Getting recent jobs (limit: {limit})...")
+            else:
+                self.logger.info("Getting ALL recent jobs from last 24 hours...")
             recent_jobs = await self._get_recent_jobs(limit, source_filter)
             self.logger.info(f"Found {len(recent_jobs)} recent jobs")
             
