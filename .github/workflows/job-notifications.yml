@@ -18,7 +18,7 @@ jobs:
         echo "👤 Checking active users with keywords..."
         
         # Get list of devices for verification
-        DEVICES_RESPONSE=$(curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/devices")
+        DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
         DEVICE_COUNT=$(echo "$DEVICES_RESPONSE" | jq '.devices | length')
         
         echo "Active devices found: $DEVICE_COUNT"
@@ -36,7 +36,7 @@ jobs:
         echo "🔍 Scanning database for job matches every 40 minutes..."
         
         # Call the notification processing endpoint
-        RESPONSE=$(curl -s -X POST "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/run-real-notifications")
+        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/run-real-notifications")
         
         # Parse results
         JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.data.processed_jobs // 0')
