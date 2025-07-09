@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import uuid
 import json
+import traceback
 
 try:
     from aioapns import APNs, NotificationRequest, PushType
@@ -509,9 +510,29 @@ class PushNotificationService:
         notification_type: str,
         match_id: Optional[str] = None
     ) -> bool:
-        """Send push notification via APNs"""
+        """Send push notification via APNs with comprehensive debugging"""
         
         notification_id = str(uuid.uuid4())
+        start_time = datetime.now(timezone.utc)
+        
+        # Comprehensive pre-send logging
+        self.logger.info(f"🔔 PUSH NOTIFICATION ATTEMPT [{notification_id}]")
+        self.logger.info(f"   Device Token: {device_token[:20]}...{device_token[-10:]}")
+        self.logger.info(f"   Type: {notification_type}")
+        self.logger.info(f"   Match ID: {match_id}")
+        self.logger.info(f"   Payload Size: {len(json.dumps(payload))} bytes")
+        self.logger.info(f"   Timestamp: {start_time.isoformat()}")
+        
+        # Validate device token format
+        if not self._validate_device_token(device_token):
+            self.logger.error(f"❌ Invalid device token format: {device_token[:20]}...")
+            return False
+        
+        # Validate payload size (APNs limit is 4KB)
+        payload_size = len(json.dumps(payload))
+        if payload_size > 4096:
+            self.logger.error(f"❌ Payload too large: {payload_size} bytes (max 4096)")
+            return False
         
         try:
             # Store notification in database first
@@ -521,6 +542,14 @@ class PushNotificationService:
             
             apns_client = await self._get_apns_client() if APNS_AVAILABLE else None
             if apns_client:
+                # Log APNs configuration details
+                self.logger.info(f"📡 APNs Configuration:")
+                self.logger.info(f"   Team ID: {self._apns_config.get('team_id')}")
+                self.logger.info(f"   Bundle ID: {self._apns_config.get('topic')}")
+                self.logger.info(f"   Key ID: {self._apns_config.get('key_id')}")
+                self.logger.info(f"   Sandbox: {self._apns_config.get('use_sandbox')}")
+                self.logger.info(f"   Server: {'sandbox' if self._apns_config.get('use_sandbox') else 'production'}")
+                
                 # Send via APNs
                 request = NotificationRequest(
                     device_token=device_token,
@@ -528,25 +557,65 @@ class PushNotificationService:
                     push_type=PushType.ALERT
                 )
                 
+                self.logger.info(f"🚀 Sending to APNs...")
                 response = await apns_client.send_notification(request)
                 
+                # Calculate processing time
+                processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+                
+                # Detailed response logging
+                self.logger.info(f"📥 APNs Response:")
+                self.logger.info(f"   Status: {response.status}")
+                self.logger.info(f"   Success: {response.is_successful}")
+                self.logger.info(f"   Description: {response.description}")
+                self.logger.info(f"   Processing Time: {processing_time:.3f}s")
+                
+                if hasattr(response, 'apns_id'):
+                    self.logger.info(f"   APNs ID: {response.apns_id}")
+                if hasattr(response, 'timestamp'):
+                    self.logger.info(f"   Timestamp: {response.timestamp}")
+                
                 if response.is_successful:
-                    await self._update_notification_status(notification_id, "sent", {"status": "success"})
-                    self.logger.info(f"Push notification sent successfully: {notification_id}")
+                    response_data = {
+                        "status": "success",
+                        "apns_status": response.status,
+                        "processing_time": processing_time,
+                        "apns_id": getattr(response, 'apns_id', None)
+                    }
+                    await self._update_notification_status(notification_id, "sent", response_data)
+                    self.logger.info(f"✅ Push notification sent successfully: {notification_id}")
                     return True
                 else:
-                    await self._update_notification_status(notification_id, "failed", {"error": response.description, "status": response.status})
-                    self.logger.error(f"Push notification failed: {response.description}")
+                    # Handle specific APNs errors
+                    error_details = self._parse_apns_error(response)
+                    response_data = {
+                        "error": response.description,
+                        "apns_status": response.status,
+                        "processing_time": processing_time,
+                        "error_details": error_details
+                    }
+                    await self._update_notification_status(notification_id, "failed", response_data)
+                    self.logger.error(f"❌ Push notification failed: {response.description}")
+                    self.logger.error(f"   Error Details: {error_details}")
                     return False
             else:
                 # Mock mode for development
-                self.logger.info(f"Mock push notification sent: {notification_id}")
+                self.logger.info(f"🧪 Mock push notification sent: {notification_id}")
+                self.logger.info(f"   Would send to: {device_token[:20]}...")
+                self.logger.info(f"   Payload: {json.dumps(payload, indent=2)}")
                 await self._update_notification_status(notification_id, "sent", {"mock": True})
                 return True
                 
         except Exception as e:
-            self.logger.error(f"Error sending push notification: {e}")
-            await self._update_notification_status(notification_id, "failed", {"error": str(e)})
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            error_details = {
+                "error": str(e),
+                "processing_time": processing_time,
+                "traceback": self._get_error_traceback(e)
+            }
+            self.logger.error(f"💥 Error sending push notification: {e}")
+            self.logger.error(f"   Processing Time: {processing_time:.3f}s")
+            await self._update_notification_status(notification_id, "failed", error_details)
             return False
     
     async def _store_notification(
@@ -696,3 +765,211 @@ class PushNotificationService:
         # TODO: Implement pending notification storage
         # This would store notifications to be sent when quiet hours end
         pass
+    
+    def _validate_device_token(self, device_token: str) -> bool:
+        """Validate APNs device token format"""
+        if not device_token:
+            return False
+        
+        # APNs device tokens should be 64 characters (hex)
+        if len(device_token) != 64:
+            self.logger.error(f"Invalid token length: {len(device_token)} (expected 64)")
+            return False
+        
+        # Should only contain hex characters
+        try:
+            int(device_token, 16)
+            return True
+        except ValueError:
+            self.logger.error(f"Invalid token format: contains non-hex characters")
+            return False
+    
+    def _parse_apns_error(self, response) -> Dict[str, Any]:
+        """Parse APNs error response for detailed debugging"""
+        error_details = {
+            "status_code": response.status,
+            "description": response.description,
+            "recommendations": []
+        }
+        
+        # Map common APNs errors to actionable recommendations
+        error_map = {
+            400: {
+                "BadDeviceToken": "Device token is malformed or invalid",
+                "BadExpirationDate": "Expiration date is invalid",
+                "BadMessageId": "Message ID is invalid",
+                "BadPriority": "Priority value is invalid",
+                "BadTopic": "Topic/Bundle ID is invalid or doesn't match certificate",
+                "DeviceTokenNotForTopic": "Device token doesn't match the topic",
+                "DuplicateHeaders": "Duplicate headers in request",
+                "IdleTimeout": "Connection was idle too long",
+                "MissingDeviceToken": "Device token is missing",
+                "MissingTopic": "Topic is missing",
+                "PayloadEmpty": "Payload is empty",
+                "TopicDisallowed": "Topic is not allowed"
+            },
+            403: {
+                "BadCertificate": "Certificate is invalid",
+                "BadCertificateEnvironment": "Certificate environment mismatch",
+                "ExpiredProviderToken": "Provider token is expired",
+                "Forbidden": "Request is forbidden",
+                "InvalidProviderToken": "Provider token is invalid",
+                "MissingProviderToken": "Provider token is missing"
+            },
+            404: {
+                "BadPath": "Request path is invalid"
+            },
+            405: {
+                "MethodNotAllowed": "HTTP method not allowed"
+            },
+            410: {
+                "Unregistered": "Device token is no longer valid"
+            },
+            413: {
+                "PayloadTooLarge": "Payload exceeds 4KB limit"
+            },
+            429: {
+                "TooManyRequests": "Too many requests sent to APNs"
+            },
+            500: {
+                "InternalServerError": "APNs internal server error"
+            },
+            503: {
+                "ServiceUnavailable": "APNs service unavailable"
+            }
+        }
+        
+        status_errors = error_map.get(response.status, {})
+        
+        # Add specific recommendations based on error
+        if response.status == 400:
+            if "BadTopic" in response.description:
+                error_details["recommendations"].append("Check that Bundle ID matches your app's bundle identifier")
+                error_details["recommendations"].append("Verify APNs certificate/key is for the correct app")
+            elif "BadDeviceToken" in response.description:
+                error_details["recommendations"].append("Verify device token format (64 hex characters)")
+                error_details["recommendations"].append("Check that device token is from the correct environment")
+        elif response.status == 403:
+            error_details["recommendations"].append("Check APNs certificate/key validity")
+            error_details["recommendations"].append("Verify Team ID and Key ID are correct")
+            error_details["recommendations"].append("Ensure using correct environment (sandbox vs production)")
+        elif response.status == 410:
+            error_details["recommendations"].append("Device token is no longer valid - remove from database")
+            error_details["recommendations"].append("App may have been uninstalled or token refreshed")
+        
+        return error_details
+    
+    def _get_error_traceback(self, error: Exception) -> str:
+        """Get formatted error traceback for debugging"""
+        import traceback
+        return traceback.format_exc()
+    
+    async def validate_device_token_with_apns(self, device_token: str) -> Dict[str, Any]:
+        """Validate device token by sending a test notification to APNs"""
+        validation_result = {
+            "device_token": device_token[:20] + "..." + device_token[-10:],
+            "valid": False,
+            "error": None,
+            "recommendations": [],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        try:
+            # Basic format validation
+            if not self._validate_device_token(device_token):
+                validation_result["error"] = "Invalid device token format"
+                validation_result["recommendations"].append("Ensure token is 64 hex characters")
+                return validation_result
+            
+            # Test with minimal payload
+            test_payload = {
+                "aps": {
+                    "alert": {
+                        "title": "Connection Test",
+                        "body": "Testing APNs connection"
+                    },
+                    "badge": 0,
+                    "sound": "default"
+                }
+            }
+            
+            apns_client = await self._get_apns_client() if APNS_AVAILABLE else None
+            if not apns_client:
+                validation_result["error"] = "APNs client not available"
+                validation_result["recommendations"].append("Check APNs configuration")
+                return validation_result
+            
+            request = NotificationRequest(
+                device_token=device_token,
+                message=test_payload,
+                push_type=PushType.ALERT
+            )
+            
+            response = await apns_client.send_notification(request)
+            
+            if response.is_successful:
+                validation_result["valid"] = True
+                validation_result["apns_id"] = getattr(response, 'apns_id', None)
+            else:
+                validation_result["error"] = response.description
+                validation_result["apns_status"] = response.status
+                validation_result["error_details"] = self._parse_apns_error(response)
+                validation_result["recommendations"] = validation_result["error_details"]["recommendations"]
+            
+            return validation_result
+            
+        except Exception as e:
+            validation_result["error"] = str(e)
+            validation_result["recommendations"].append("Check APNs configuration and network connectivity")
+            return validation_result
+    
+    async def get_apns_diagnostics(self) -> Dict[str, Any]:
+        """Get comprehensive APNs configuration diagnostics"""
+        diagnostics = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "apns_available": APNS_AVAILABLE,
+            "client_initialized": self.apns_client is not None,
+            "configuration": {},
+            "environment": {},
+            "validation": {}
+        }
+        
+        if self._apns_config:
+            diagnostics["configuration"] = {
+                "team_id": self._apns_config.get('team_id'),
+                "key_id": self._apns_config.get('key_id'),
+                "bundle_id": self._apns_config.get('topic'),
+                "sandbox": self._apns_config.get('use_sandbox'),
+                "server": 'sandbox' if self._apns_config.get('use_sandbox') else 'production',
+                "key_source": "environment" if self._apns_config.get('use_direct_key') else "file",
+                "key_path": self._apns_config.get('key') if not self._apns_config.get('use_direct_key') else None
+            }
+        
+        # Environment validation
+        import os
+        diagnostics["environment"] = {
+            "has_private_key_env": bool(settings.APNS_PRIVATE_KEY),
+            "key_file_exists": os.path.exists(settings.APNS_KEY_PATH),
+            "production_key_exists": os.path.exists("/etc/secrets/AuthKey_ZV2X5Y7D76.p8"),
+            "settings_valid": all([
+                settings.APNS_TEAM_ID,
+                settings.APNS_KEY_ID,
+                settings.APNS_BUNDLE_ID
+            ])
+        }
+        
+        # Validation checks
+        diagnostics["validation"] = {
+            "config_complete": bool(self._apns_config),
+            "required_fields": {
+                "team_id": bool(self._apns_config and self._apns_config.get('team_id')),
+                "key_id": bool(self._apns_config and self._apns_config.get('key_id')),
+                "bundle_id": bool(self._apns_config and self._apns_config.get('topic')),
+                "key_available": bool(self._apns_config and (
+                    self._apns_config.get('key_content') or 
+                    self._apns_config.get('key')
+                ))
+            }
+        }
+        
+        return diagnostics
