@@ -175,30 +175,42 @@ class JobNotificationService:
             
             # Parse keywords if they're JSON strings and filter out empty strings
             import json
+            valid_users = []
             for user in result:
-                keywords = user.get('keywords')
-                self.logger.info(f"Raw keywords from DB for user {user.get('user_id')}: type={type(keywords)}, value={repr(keywords)}")
-                
-                if isinstance(keywords, str):
-                    try:
-                        parsed_keywords = json.loads(keywords)
-                        if isinstance(parsed_keywords, list):
-                            # Filter out empty strings and None values
-                            user['keywords'] = [k.strip() for k in parsed_keywords if k and str(k).strip()]
-                        else:
+                try:
+                    keywords = user.get('keywords')
+                    self.logger.info(f"Raw keywords from DB for user {user.get('user_id')}: type={type(keywords)}, value={repr(keywords)}")
+                    
+                    if isinstance(keywords, str):
+                        try:
+                            parsed_keywords = json.loads(keywords)
+                            if isinstance(parsed_keywords, list):
+                                # Filter out empty strings and None values
+                                user['keywords'] = [k.strip() for k in parsed_keywords if k and str(k).strip()]
+                            else:
+                                user['keywords'] = []
+                        except (json.JSONDecodeError, TypeError) as e:
+                            self.logger.error(f"Failed to parse keywords JSON for user {user.get('user_id')}: {e}")
                             user['keywords'] = []
-                    except (json.JSONDecodeError, TypeError) as e:
-                        self.logger.error(f"Failed to parse keywords JSON for user {user.get('user_id')}: {e}")
+                    elif isinstance(keywords, list):
+                        # Filter out empty strings and None values
+                        user['keywords'] = [k.strip() for k in keywords if k and str(k).strip()]
+                    else:
                         user['keywords'] = []
-                elif isinstance(keywords, list):
-                    # Filter out empty strings and None values
-                    user['keywords'] = [k.strip() for k in keywords if k and str(k).strip()]
-                else:
-                    user['keywords'] = []
+                        
+                    self.logger.info(f"Parsed keywords for user {user.get('user_id')}: {user['keywords']}")
                     
-                self.logger.info(f"Parsed keywords for user {user.get('user_id')}: {user['keywords']}")
+                    # Only include users with valid keywords
+                    if user['keywords']:
+                        valid_users.append(user)
+                    else:
+                        self.logger.warning(f"User {user.get('user_id')} has no valid keywords after parsing")
+                        
+                except Exception as e:
+                    self.logger.error(f"Error processing user {user.get('user_id', 'unknown')}: {e}")
+                    continue
                     
-            return result
+            return valid_users
         except Exception as e:
             self.logger.error(f"Error getting active users: {e}")
             return []
@@ -253,6 +265,7 @@ class JobNotificationService:
             self.logger.info(f"Found {len(active_users)} active users")
             
             if not active_users:
+                self.logger.warning("No active users found - returning early")
                 return stats
             
             # Get recent jobs
@@ -260,62 +273,79 @@ class JobNotificationService:
                 self.logger.info(f"Getting recent jobs (limit: {limit})...")
             else:
                 self.logger.info("Getting ALL recent jobs from last 24 hours...")
-            recent_jobs = await self._get_recent_jobs(limit, source_filter)
-            self.logger.info(f"Found {len(recent_jobs)} recent jobs")
+            
+            try:
+                recent_jobs = await self._get_recent_jobs(limit, source_filter)
+                self.logger.info(f"Found {len(recent_jobs)} recent jobs")
+            except Exception as e:
+                self.logger.error(f"Error getting recent jobs: {e}")
+                stats['errors'] += 1
+                return stats
             
             if not recent_jobs:
+                self.logger.warning("No recent jobs found - returning early")
                 return stats
             
             # Group matches by user for bulk notifications
             user_job_matches = {}  # user_id -> list of job matches
             
             self.logger.info("Pre-processing job-user matches...")
-            self.logger.info(f"Active users data: {active_users}")
+            self.logger.info(f"Active users count: {len(active_users)}")
             
-            for job in recent_jobs:
-                stats['processed_jobs'] += 1
-                
-                # Convert Record object to dict for easier access
-                job_dict = dict(job) if hasattr(job, 'keys') else job
-                
-                job_unique_key = self._generate_job_unique_key(
-                    job_dict.get('title', ''), 
-                    job_dict.get('company', '')
-                )
-                
-                # Check each user for keyword matches
-                for user in active_users:
-                    user_keywords = user.get('keywords', [])
-                    self.logger.info(f"User {user.get('user_id')}: keywords type={type(user_keywords)}, value={user_keywords}")
+            try:
+                for job in recent_jobs:
+                    stats['processed_jobs'] += 1
                     
-                    if not user_keywords:
-                        self.logger.info(f"User {user.get('user_id')} has no keywords, skipping")
-                        continue
+                    # Convert Record object to dict for easier access
+                    job_dict = dict(job) if hasattr(job, 'keys') else job
                     
-                    # Check for keyword matches first (cheaper than DB query)
-                    matched_keywords = self._match_keywords(job_dict, user_keywords)
+                    job_unique_key = self._generate_job_unique_key(
+                        job_dict.get('title', ''), 
+                        job_dict.get('company', '')
+                    )
                     
-                    if matched_keywords:
-                        user_id = user['user_id']
+                    # Check each user for keyword matches
+                    for user in active_users:
+                        user_keywords = user.get('keywords', [])
+                        if stats['processed_jobs'] == 1:  # Only log for first job to avoid spam
+                            self.logger.info(f"User {user.get('user_id')}: keywords type={type(user_keywords)}, value={user_keywords}")
                         
-                        # Check if user already notified about this job
-                        if not await self._has_been_notified(user_id, job_unique_key):
-                            if user_id not in user_job_matches:
-                                user_job_matches[user_id] = {
-                                    'user': user,
-                                    'jobs': []
-                                }
+                        if not user_keywords:
+                            if stats['processed_jobs'] == 1:
+                                self.logger.info(f"User {user.get('user_id')} has no keywords, skipping")
+                            continue
+                        
+                        # Check for keyword matches first (cheaper than DB query)
+                        matched_keywords = self._match_keywords(job_dict, user_keywords)
+                        
+                        if matched_keywords:
+                            user_id = user['user_id']
                             
-                            user_job_matches[user_id]['jobs'].append({
-                                'job_dict': job_dict,
-                                'job_unique_key': job_unique_key,
-                                'matched_keywords': matched_keywords
-                            })
-                            
-                # Only process first 5 jobs for debugging
-                if stats['processed_jobs'] >= 5:
-                    self.logger.info(f"DEBUG: Stopping after {stats['processed_jobs']} jobs for debugging")
-                    break
+                            # Check if user already notified about this job
+                            if not await self._has_been_notified(user_id, job_unique_key):
+                                if user_id not in user_job_matches:
+                                    user_job_matches[user_id] = {
+                                        'user': user,
+                                        'jobs': []
+                                    }
+                                
+                                user_job_matches[user_id]['jobs'].append({
+                                    'job_dict': job_dict,
+                                    'job_unique_key': job_unique_key,
+                                    'matched_keywords': matched_keywords
+                                })
+                                
+                    # Only process first 5 jobs for debugging
+                    if stats['processed_jobs'] >= 5:
+                        self.logger.info(f"DEBUG: Stopping after {stats['processed_jobs']} jobs for debugging")
+                        break
+                        
+            except Exception as e:
+                self.logger.error(f"Error in job processing loop: {e}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                stats['errors'] += 1
+                return stats
             
             self.logger.info(f"Found {len(user_job_matches)} users with job matches")
             

@@ -23,7 +23,7 @@ def validate_device_token(token: str) -> bool:
     placeholder_indicators = [
         'placeholder', 'test', 'fake', 'dummy', 'simulator',
         'B6BDBB52', '0B43E135', 'ABCDEF', 'abcdef',
-        'xxxx', '____', '----'
+        '1C1108D7', 'xxxx', '____', '----', 'chars_min'
     ]
     
     token_lower = token.lower()
