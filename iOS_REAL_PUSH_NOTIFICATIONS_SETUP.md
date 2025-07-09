@@ -91,6 +91,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     // MARK: - Send Token to Backend
     private func sendDeviceTokenToBackend(token: String) {
+        // Store token locally first to prevent duplicate calls
+        let tokenKey = "stored_device_token"
+        let storedToken = UserDefaults.standard.string(forKey: tokenKey)
+        
+        if storedToken == token {
+            print("📱 Device token already registered, skipping duplicate call")
+            return
+        }
+        
         // Get device information
         let deviceInfo = DeviceInfo(
             deviceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
@@ -110,9 +119,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             switch result {
             case .success:
                 print("✅ Device token successfully registered with backend")
+                // Store token to prevent duplicate calls
+                UserDefaults.standard.set(token, forKey: tokenKey)
             case .failure(let error):
                 print("❌ Failed to register device token: \(error)")
-                // You might want to retry later
+                // Don't store token if failed, so we can retry
             }
         }
     }
@@ -225,6 +236,7 @@ Add this method to your existing `APIService.swift`:
 
 ```swift
 extension APIService {
+    // MARK: - Device Registration (call once per device)
     func registerDevice(request: DeviceRegistrationRequest, completion: @escaping (Result<DeviceRegistrationResponse, Error>) -> Void) {
         
         let url = URL(string: "\(baseURL)/api/v1/devices/register")!
@@ -263,6 +275,43 @@ extension APIService {
                 DispatchQueue.main.async {
                     completion(.failure(error))
                 }
+            }
+        }.resume()
+    }
+    
+    // MARK: - Update User Profile (call when user enters email/keywords)
+    func updateUserProfile(email: String?, keywords: [String], completion: @escaping (Result<Void, Error>) -> Void) {
+        
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        
+        let url = URL(string: "\(baseURL)/api/v1/users/profile")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PUT"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let updateRequest = [
+            "device_id": deviceId,
+            "email": email ?? "",
+            "keywords": keywords
+        ] as [String: Any]
+        
+        do {
+            urlRequest.httpBody = try JSONSerialization.data(withJSONObject: updateRequest)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+        
+        URLSession.shared.dataTask(with: urlRequest) { data, response, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
+                return
+            }
+            
+            DispatchQueue.main.async {
+                completion(.success(()))
             }
         }.resume()
     }
