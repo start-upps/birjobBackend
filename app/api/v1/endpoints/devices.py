@@ -140,7 +140,7 @@ async def register_push_token(
                 }
             )
         else:
-            # Create new device and user
+            # Create new device and link to existing user if possible
             from app.models.user import User
             
             # Get email from device info if provided
@@ -150,11 +150,23 @@ async def register_push_token(
             elif isinstance(request.device_info.model_dump(), dict):
                 email = request.device_info.model_dump().get('email')
             
-            # Create new user
-            user = User(email=email if email else None)
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            # Try to find existing user by email first
+            user = None
+            if email:
+                user_stmt = select(User).where(User.email == email)
+                user_result = await db.execute(user_stmt)
+                user = user_result.scalar_one_or_none()
+                logger.info(f"Found existing user by email {email}: {user.id if user else 'None'}")
+            
+            # Create new user only if no existing user found
+            if not user:
+                user = User(email=email if email else None)
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+                logger.info(f"Created new user with email: {email}")
+            else:
+                logger.info(f"Linking device to existing user: {user.id}")
             
             # Create new device
             device = DeviceToken(
