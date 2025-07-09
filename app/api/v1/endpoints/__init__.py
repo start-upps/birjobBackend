@@ -2,7 +2,6 @@
 from . import (
     analytics,
     chatbot,
-    debug_notifications,
     devices,
     health,
     jobs,
@@ -12,8 +11,7 @@ from . import (
 
 __all__ = [
     "analytics",
-    "chatbot", 
-    "debug_notifications",
+    "chatbot",
     "devices",
     "health",
     "jobs",
