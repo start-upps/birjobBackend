@@ -19,12 +19,17 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["*"]
     
     # Apple Push Notifications
-    APNS_PRIVATE_KEY: Optional[str] = None
-    APNS_KEY_PATH: str = "/etc/secrets/apn.p8"  # Path to your APNS key file
-    APNS_KEY_ID: str = "your-apns-key-id"
-    APNS_TEAM_ID: str = "your-team-id"
-    APNS_BUNDLE_ID: str = "com.yourcompany.birjob"
-    APNS_SANDBOX: bool = True
+    APNS_PRIVATE_KEY: Optional[str] = """-----BEGIN PRIVATE KEY-----
+MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgrOxq/lSe01cgSrMH
+nkF1KrQI5cUjn43qqZFnsIWaHhSgCgYIKoZIzj0DAQehRANCAATIK3apIL+/6Oqn
+9apRsv7kW3nGc8TWLWPSdcg/AhBVIN61PqiI2Hkm1t064JNR+EBHOhwfVRYrj7nC
+OvjzFGyZ
+-----END PRIVATE KEY-----"""
+    APNS_KEY_PATH: str = "/etc/secrets/AuthKey_ZV2X5Y7D76.p8"  # Path to your APNS key file
+    APNS_KEY_ID: str = "ZV2X5Y7D76"  # New production key ID
+    APNS_TEAM_ID: str = "G9KT8SLBVR"  # Apple Developer Team ID
+    APNS_BUNDLE_ID: str = "az.birjob.jobapp"  # iOS app bundle ID
+    APNS_SANDBOX: bool = False  # Production mode for TestFlight
     
     # Background Jobs
     CELERY_BROKER_URL: Optional[str] = None

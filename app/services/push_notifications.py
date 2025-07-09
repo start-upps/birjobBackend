@@ -90,7 +90,7 @@ class PushNotificationService:
                         return
                 
             # Check for production APNs key file as fallback
-            production_key_path = "/etc/secrets/AuthKey_S64YC3U4ZX.p8"
+            production_key_path = "/etc/secrets/AuthKey_ZV2X5Y7D76.p8"
             if os.path.exists(production_key_path):
                 self.logger.info(f"Using production APNs key from: {production_key_path}")
                 
@@ -118,7 +118,7 @@ class PushNotificationService:
                 # Initialize APNs client with production key - lazy initialization
                 self._apns_config = {
                     'key': production_key_path,
-                    'key_id': 'S64YC3U4ZX',  # Use correct key ID from filename
+                    'key_id': 'ZV2X5Y7D76',  # Use correct key ID from filename
                     'team_id': settings.APNS_TEAM_ID,
                     'topic': settings.APNS_BUNDLE_ID,
                     'use_sandbox': settings.APNS_SANDBOX
