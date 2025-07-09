@@ -27,8 +27,8 @@ OvjzFGyZ
 -----END PRIVATE KEY-----"""
     APNS_KEY_PATH: str = "/etc/secrets/AuthKey_ZV2X5Y7D76.p8"  # Path to your APNS key file
     APNS_KEY_ID: str = "ZV2X5Y7D76"  # New production key ID
-    APNS_TEAM_ID: str = "G9KT8SLBVR"  # Apple Developer Team ID
-    APNS_BUNDLE_ID: str = "az.birjob.jobapp"  # iOS app bundle ID
+    APNS_TEAM_ID: str = "KK5HUUQ3HR"  # Apple Developer Team ID  
+    APNS_BUNDLE_ID: str = "com.ismats.birjob"  # iOS app bundle ID
     APNS_SANDBOX: bool = False  # Production mode for TestFlight
     
     # Background Jobs
