@@ -176,8 +176,10 @@ class JobNotificationService:
             # Parse keywords if they're JSON strings and filter out empty strings
             import json
             valid_users = []
-            for user in result:
+            for record in result:
                 try:
+                    # Convert asyncpg.Record to dict first
+                    user = dict(record)
                     keywords = user.get('keywords')
                     self.logger.info(f"Raw keywords from DB for user {user.get('user_id')}: type={type(keywords)}, value={repr(keywords)}")
                     
@@ -207,7 +209,7 @@ class JobNotificationService:
                         self.logger.warning(f"User {user.get('user_id')} has no valid keywords after parsing")
                         
                 except Exception as e:
-                    self.logger.error(f"Error processing user {user.get('user_id', 'unknown')}: {e}")
+                    self.logger.error(f"Error processing user {record.get('user_id', 'unknown') if hasattr(record, 'get') else 'unknown'}: {e}")
                     continue
                     
             return valid_users
