@@ -29,40 +29,26 @@ class JobNotificationService:
         return hashlib.md5(combined.encode()).hexdigest()
     
     def _match_keywords(self, job_data: Dict[str, Any], user_keywords: List[str]) -> List[str]:
-        """Check if job matches user keywords"""
+        """Check if job matches user keywords using LIKE pattern matching"""
         matched_keywords = []
         
-        # Combine job fields for matching - using available fields only
-        job_text = " ".join([
-            job_data.get('title', ''),
-            job_data.get('company', ''),
-            job_data.get('source', '')
-        ]).lower()
+        # Get job title and company (main fields to search)
+        job_title = (job_data.get('title', '') or '').lower()
+        job_company = (job_data.get('company', '') or '').lower()
         
-        # Only log when we actually find matches
-        if matched_keywords:
-            self.logger.info(f"Job text: '{job_text}'")
-            self.logger.info(f"User keywords: {user_keywords}")
-        
-        # Check each keyword
+        # Check each keyword with simple LIKE pattern matching
         for keyword in user_keywords:
             if not keyword:
                 continue
                 
             keyword_lower = keyword.lower().strip()
             
-            # Support both exact match and word boundary match
-            if keyword_lower in job_text:
-                # Check if it's a word boundary match (not just substring)
-                if re.search(r'\b' + re.escape(keyword_lower) + r'\b', job_text):
-                    matched_keywords.append(keyword)
-                    self.logger.info(f"✅ MATCH! Word boundary: '{keyword_lower}' in '{job_text}'")
-                elif len(keyword_lower) >= 3:  # For shorter keywords, allow substring match
-                    matched_keywords.append(keyword)
-                    self.logger.info(f"✅ MATCH! Substring: '{keyword_lower}' in '{job_text}'")
+            # Simple LIKE pattern: if keyword is contained in title OR company
+            if keyword_lower in job_title or keyword_lower in job_company:
+                matched_keywords.append(keyword)
+                if len(matched_keywords) == 1:  # Only log first match to avoid spam
+                    self.logger.info(f"✅ MATCH! '{keyword}' found in job: {job_data.get('title', '')} at {job_data.get('company', '')}")
         
-        if matched_keywords:
-            self.logger.info(f"✅ Found {len(matched_keywords)} matched keywords: {matched_keywords}")
         return matched_keywords
     
     async def _has_been_notified(self, user_id: str, job_unique_key: str) -> bool:
@@ -309,12 +295,8 @@ class JobNotificationService:
                     # Check each user for keyword matches
                     for user in active_users:
                         user_keywords = user.get('keywords', [])
-                        if stats['processed_jobs'] == 1:  # Only log for first job to avoid spam
-                            self.logger.info(f"User {user.get('user_id')}: keywords type={type(user_keywords)}, value={user_keywords}")
                         
                         if not user_keywords:
-                            if stats['processed_jobs'] == 1:
-                                self.logger.info(f"User {user.get('user_id')} has no keywords, skipping")
                             continue
                         
                         # Check for keyword matches first (cheaper than DB query)
@@ -337,10 +319,9 @@ class JobNotificationService:
                                     'matched_keywords': matched_keywords
                                 })
                                 
-                    # Only process first 5 jobs for debugging
-                    if stats['processed_jobs'] >= 5:
-                        self.logger.info(f"DEBUG: Stopping after {stats['processed_jobs']} jobs for debugging")
-                        break
+                    # Log progress every 1000 jobs
+                    if stats['processed_jobs'] % 1000 == 0:
+                        self.logger.info(f"Processed {stats['processed_jobs']} jobs, found {len(user_job_matches)} users with matches so far")
                         
             except Exception as e:
                 self.logger.error(f"Error in job processing loop: {e}")
