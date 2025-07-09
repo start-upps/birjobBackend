@@ -357,6 +357,9 @@ class PushNotificationService:
         payload = self._create_bulk_job_payload(jobs, notification_ids)
         
         # Send notification (use 'job_match' type as 'bulk_job_match' is not in DB constraint)
+        self.logger.info(f"Attempting to send bulk notification to device {device_id}")
+        self.logger.info(f"Device token: {device_token}")
+        self.logger.info(f"APNs config - Team ID: {self._apns_config.get('team_id')}, Bundle ID: {self._apns_config.get('topic')}, Sandbox: {self._apns_config.get('use_sandbox')}")
         success = await self._send_notification(device_token, payload, "job_match", notification_ids[0] if notification_ids else "bulk")
         
         if success:

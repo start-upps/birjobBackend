@@ -23,15 +23,17 @@ services:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: APNS_SANDBOX
-        value: "true"
+        value: "false"
       - key: APNS_KEY_PATH
-        value: "/etc/secrets/apn.p8"
+        value: "/etc/secrets/AuthKey_ZV2X5Y7D76.p8"
       - key: APNS_KEY_ID
-        value: "DKK5M29XQJ"
+        value: "ZV2X5Y7D76"
       - key: APNS_TEAM_ID
-        value: "G9KT8SLBVR"  
+        value: "KK5HUUQ3HR"  
       - key: APNS_BUNDLE_ID
-        value: "az.birjob.jobapp"
+        value: "com.ismats.birjob"
+      - key: APNS_PRIVATE_KEY
+        value: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgrOxq/lSe01cgSrMH\nnkF1KrQI5cUjn43qqZFnsIWaHhSgCgYIKoZIzj0DAQehRANCAATIK3apIL+/6Oqn\n9apRsv7kW3nGc8TWLWPSdcg/AhBVIN61PqiI2Hkm1t064JNR+EBHOhwfVRYrj7nC\nOvjzFGyZ\n-----END PRIVATE KEY-----"
     healthCheckPath: /api/v1/health
     autoDeploy: false
     
