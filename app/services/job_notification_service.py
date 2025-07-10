@@ -141,19 +141,20 @@ class JobNotificationService:
             return None
     
     async def _get_active_users_with_keywords(self) -> List[Dict[str, Any]]:
-        """Get all active users with their keywords and device tokens"""
+        """Get all active users with their keywords and device info"""
         try:
             query = """
                 SELECT DISTINCT
                     u.id as user_id,
                     u.keywords,
                     u.notifications_enabled,
-                    dt.device_token,
-                    dt.device_id
+                    COALESCE(dt.device_token, NULL) as device_token,
+                    ud.device_id
                 FROM iosapp.users u
-                JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+                JOIN iosapp.user_devices ud ON u.id = ud.user_id
+                LEFT JOIN iosapp.device_tokens dt ON u.id = dt.user_id AND dt.device_id = ud.device_id
                 WHERE u.notifications_enabled = true 
-                    AND dt.is_active = true
+                    AND ud.is_active = true
                     AND u.keywords IS NOT NULL
                     AND jsonb_array_length(u.keywords) > 0
             """
