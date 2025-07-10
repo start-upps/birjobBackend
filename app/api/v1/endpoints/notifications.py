@@ -482,7 +482,7 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
                     'id': str(row['id']),
                     'type': 'job_match',
                     'title': f"{len([row])} New Job{'s' if len([row]) != 1 else ''} Found!",
-                    'message': f"We found jobs matching your keywords: {', '.join(matched_keywords[:3]) if matched_keywords else 'N/A'}",
+                    'message': f"💼 {', '.join(matched_keywords[:3]) if matched_keywords else 'New jobs'}",
                     'matched_keywords': matched_keywords,
                     'job_count': 1,
                     'created_at': row['notification_sent_at'].isoformat(),

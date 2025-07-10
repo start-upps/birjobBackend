@@ -391,6 +391,12 @@ class PushNotificationService:
         companies = list(set([job['job_dict'].get('company', 'Unknown') for job in jobs[:5]]))
         company_count = len(companies)
         
+        # Get unique keywords for custom_data
+        all_keywords = []
+        for job in jobs:
+            all_keywords.extend(job['matched_keywords'])
+        unique_keywords = list(set(all_keywords))
+        
         # Create emoji variety for engagement
         job_emojis = ['💼', '🎯', '⭐', '🔥', '✨']
         company_emojis = ['🏢', '🏬', '🏭', '🏪', '🏦']
@@ -437,9 +443,9 @@ class PushNotificationService:
         return {
             "aps": {
                 "alert": {
-                    "title": "New Job Match! 🎯",
-                    "subtitle": f"{title} at {company}",
-                    "body": f"Matches your keywords: {keywords_text}"
+                    "title": f"🎯 {title}",
+                    "subtitle": f"🏢 {company}",
+                    "body": f"💼 {keywords_text}"
                 },
                 "badge": 1,
                 "sound": "default",
