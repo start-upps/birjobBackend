@@ -34,8 +34,9 @@ def validate_device_token(token: str) -> bool:
     # Remove any spaces, hyphens, underscores
     clean_token = token.replace(" ", "").replace("-", "").replace("_", "")
     
-    # APNs tokens must be exactly 64 hex characters (32 bytes)
-    if len(clean_token) != 64:
+    # APNs tokens can be 64 hex characters (32 bytes) or 160 hex characters (80 bytes)
+    # Some iOS configurations generate longer tokens
+    if len(clean_token) not in [64, 160]:
         return False
     
     # Check if it's all hex characters
