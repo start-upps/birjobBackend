@@ -459,42 +459,18 @@ async def create_or_update_profile_post(profile_data: UserCreate):
 async def _create_or_update_profile_internal(profile_data: UserCreate):
     """Create or update user profile via device ID"""
     try:
-        # Validate device_id format to prevent bad data
-        if not profile_data.device_id or not isinstance(profile_data.device_id, str):
-            raise HTTPException(status_code=400, detail="device_id is required and must be a string")
-        
-        profile_data.device_id = profile_data.device_id.strip()
-        
-        if len(profile_data.device_id) < 8:
-            raise HTTPException(status_code=400, detail="device_id must be at least 8 characters")
-        
-        # Validate email format if provided
-        if profile_data.email:
-            import re
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-            if not re.match(email_pattern, profile_data.email):
-                raise HTTPException(status_code=400, detail="Invalid email format")
-        
-        # Validate keywords array
-        if profile_data.keywords and not isinstance(profile_data.keywords, list):
-            raise HTTPException(status_code=400, detail="keywords must be an array")
-        
-        # Limit keywords count and length
-        if profile_data.keywords and len(profile_data.keywords) > 50:
-            raise HTTPException(status_code=400, detail="Maximum 50 keywords allowed")
-        
-        for keyword in (profile_data.keywords or []):
-            if not isinstance(keyword, str) or len(keyword.strip()) == 0:
-                raise HTTPException(status_code=400, detail="Each keyword must be a non-empty string")
-            if len(keyword) > 100:
-                raise HTTPException(status_code=400, detail="Each keyword must be less than 100 characters")
+        # Validate all input data to prevent bad data entry
+        device_id = validate_device_id(profile_data.device_id)
+        email = validate_email(profile_data.email) if profile_data.email else None
+        keywords = validate_keywords(profile_data.keywords)
+        preferred_sources = validate_keywords(profile_data.preferred_sources) if profile_data.preferred_sources else []
         # First check if user exists via device_id
         check_query = """
             SELECT u.id FROM iosapp.users u
             JOIN iosapp.device_tokens dt ON u.id = dt.user_id
             WHERE dt.device_id = $1 AND dt.is_active = true
         """
-        existing_result = await db_manager.execute_query(check_query, profile_data.device_id)
+        existing_result = await db_manager.execute_query(check_query, device_id)
         
         if existing_result:
             # Update existing user
@@ -508,9 +484,9 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             """
             result = await db_manager.execute_query(
                 update_query, 
-                profile_data.email,
-                json.dumps(profile_data.keywords or []),
-                json.dumps(profile_data.preferred_sources or []),
+                email,
+                json.dumps(keywords),
+                json.dumps(preferred_sources),
                 profile_data.notifications_enabled,
                 user_id
             )
@@ -521,7 +497,7 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
                     message="Profile updated successfully",
                     data={
                         "id": str(user["id"]),
-                        "device_id": profile_data.device_id,
+                        "device_id": device_id,
                         "email": user["email"],
                         "keywords": user["keywords"] or [],
                         "preferred_sources": user["preferred_sources"] or [],
@@ -545,9 +521,9 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             """
             user_result = await db_manager.execute_query(
                 create_user_query,
-                profile_data.email,
-                json.dumps(profile_data.keywords or []),
-                json.dumps(profile_data.preferred_sources or []),
+                email,
+                json.dumps(keywords),
+                json.dumps(preferred_sources),
                 profile_data.notifications_enabled
             )
             
@@ -561,7 +537,7 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
                     message="Profile created successfully",
                     data={
                         "id": str(user["id"]),
-                        "device_id": profile_data.device_id,
+                        "device_id": device_id,
                         "email": user["email"],
                         "keywords": user["keywords"] or [],
                         "preferred_sources": user["preferred_sources"] or [],
