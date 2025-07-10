@@ -68,13 +68,8 @@ async def register_push_token(
     try:
         # Validate device token format
         logger.info(f"Validating device token: {request.device_token}")
-        if not validate_device_token(request.device_token):
-            logger.warning(f"Invalid device token rejected: {request.device_token}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
-            )
-        logger.info(f"Device token validation passed: {request.device_token}")
+        validated_token = validate_device_token(request.device_token)
+        logger.info(f"Device token validation passed: {validated_token}")
         # Extract stable device identifier from device_info
         device_id_value = None
         device_info_dict = request.device_info.model_dump()
@@ -233,13 +228,13 @@ async def register_push_token(
                     user = user_result.scalar_one_or_none()
                     logger.info(f"Found existing user profile for device_id {device_id_value}: {user.id if user else 'None'}")
             
-            # Create new user only if no existing user found
+            # Require existing user - don't create new users in token endpoint
             if not user:
-                user = User(email=email if email else None)
-                db.add(user)
-                await db.commit()
-                await db.refresh(user)
-                logger.info(f"Created new user with email: {email}")
+                logger.error(f"No existing user found for device registration. Use /devices/register first.")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User must be registered first. Use /devices/register endpoint."
+                )
             else:
                 logger.info(f"Linking device to existing user: {user.id}")
             
@@ -281,13 +276,8 @@ async def register_device(
     try:
         # Validate device token format
         logger.info(f"Validating device token: {request.device_token}")
-        if not validate_device_token(request.device_token):
-            logger.warning(f"Invalid device token rejected: {request.device_token}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid device token format. Please ensure you're using a real APNs token from your iOS device."
-            )
-        logger.info(f"Device token validation passed: {request.device_token}")
+        validated_token = validate_device_token(request.device_token)
+        logger.info(f"Device token validation passed: {validated_token}")
         from app.models.user import User  # Import here to avoid circular imports
         
         # Extract device_id from device_info - this should be a stable device identifier
@@ -392,7 +382,7 @@ async def register_device(
         
         if existing_device:
             # Update existing device
-            existing_device.device_token = request.device_token  # Update token (it may change)
+            existing_device.device_token = validated_token  # Update token (it may change)
             existing_device.device_info = request.device_info.model_dump()
             existing_device.is_active = True
             existing_device.user_id = user.id  # Ensure user_id is set
@@ -412,7 +402,7 @@ async def register_device(
             device = DeviceToken(
                 user_id=user.id,  # Required field in new schema
                 device_id=device_id_value,  # Store device_id for linking
-                device_token=request.device_token,
+                device_token=validated_token,
                 device_info=request.device_info.model_dump()
             )
             db.add(device)
