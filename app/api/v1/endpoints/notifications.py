@@ -75,11 +75,11 @@ async def get_notification_history(device_id: str, limit: int = 50):
 async def update_notification_settings(request: NotificationSettingsRequest):
     """Update notification settings for a user"""
     try:
-        # Find user via device_tokens relationship
+        # Find user via user_devices mapping
         user_query = """
             SELECT u.id as user_id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
@@ -280,40 +280,19 @@ async def register_push_token(request: dict):
         if not device_token:
             raise HTTPException(status_code=400, detail="device_token is required")
         
-        # Validate device token format to prevent bad data
-        if not isinstance(device_token, str):
-            raise HTTPException(status_code=400, detail="device_token must be a string")
-        
-        device_token = device_token.strip()
-        
-        # Validate APNs token format (64 hex characters)
-        if len(device_token) != 64:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"device_token must be exactly 64 characters (got {len(device_token)})"
-            )
-        
-        # Check if it's hex
-        try:
-            int(device_token, 16)
-        except ValueError:
-            raise HTTPException(
-                status_code=400, 
-                detail="device_token must contain only hexadecimal characters (0-9, a-f)"
-            )
-        
-        # Prevent temporary/fake tokens
-        if device_token.startswith(('temp_', 'placeholder_', 'fake_', 'test_')):
-            raise HTTPException(
-                status_code=400, 
-                detail="Invalid device_token: temporary or placeholder tokens not allowed"
-            )
+        # Use comprehensive validation function
+        from app.utils.validation import validate_device_token
+        device_token = validate_device_token(device_token)
         
         # Get device_id from request or generate one
         device_id = request.get("device_id")
         if not device_id:
             # If no device_id provided, look for existing device by token
             device_id = device_token  # Temporary fallback
+        else:
+            # Validate device_id if provided
+            from app.utils.validation import validate_device_id
+            device_id = validate_device_id(device_id)
         
         # Create or update device token - check both device_id and token
         device_query = """
@@ -440,8 +419,8 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
         # Get user_id from device_id
         user_query = """
             SELECT u.id as user_id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, device_id)
         

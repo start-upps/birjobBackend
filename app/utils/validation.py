@@ -12,7 +12,7 @@ def validate_device_token(device_token: str) -> str:
         device_token: Raw device token string
         
     Returns:
-        str: Validated and cleaned device token
+        str: Validated and cleaned device token (64 hex characters)
         
     Raises:
         HTTPException: If token is invalid
@@ -26,20 +26,58 @@ def validate_device_token(device_token: str) -> str:
     # Clean whitespace
     device_token = device_token.strip()
     
-    # Validate APNs token format (64 hex characters)
-    if len(device_token) != 64:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"device_token must be exactly 64 characters (got {len(device_token)})"
-        )
+    # Handle different token formats from iOS
+    # Case 1: 64 hex characters (32 bytes - standard APNs token)
+    if len(device_token) == 64:
+        try:
+            int(device_token, 16)
+            # Valid 64-character hex token
+            pass
+        except ValueError:
+            raise HTTPException(
+                status_code=400, 
+                detail="device_token must contain only hexadecimal characters (0-9, a-f)"
+            )
     
-    # Check if it's hex only
-    try:
-        int(device_token, 16)
-    except ValueError:
+    # Case 2: 160 characters (80 bytes - extended APNs token format)
+    elif len(device_token) == 160:
+        try:
+            int(device_token, 16)
+            # Valid 160-character hex token (80 bytes)
+            # Some iOS configurations can generate longer tokens
+            pass
+        except ValueError:
+            raise HTTPException(
+                status_code=400, 
+                detail="device_token must contain only hexadecimal characters (0-9, a-f)"
+            )
+    
+    # Case 3: Data.description format with spaces/brackets (extract hex)
+    elif '<' in device_token and '>' in device_token:
+        # Handle iOS Data.description format: "<801845f8 5177a58d ...>"
+        import re
+        hex_only = re.sub(r'[^0-9a-fA-F]', '', device_token)
+        
+        if len(hex_only) in [64, 160]:  # Accept both 32-byte and 80-byte tokens
+            try:
+                int(hex_only, 16)
+                device_token = hex_only.lower()  # Normalize to lowercase
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Invalid hexadecimal characters in device token"
+                )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Extracted token has invalid length: {len(hex_only)} (expected 64 or 160)"
+            )
+    
+    # Case 4: Other lengths - invalid
+    else:
         raise HTTPException(
             status_code=400, 
-            detail="device_token must contain only hexadecimal characters (0-9, a-f)"
+            detail=f"device_token must be 64 or 160 hex characters, or iOS Data format (got {len(device_token)} characters)"
         )
     
     # Prevent temporary/fake tokens that bypass real validation

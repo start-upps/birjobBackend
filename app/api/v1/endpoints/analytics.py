@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 async def record_analytics_event(request: AnalyticsEventRequest):
     """Record a simple analytics event for a user"""
     try:
-        # Find user via device_tokens relationship
+        # Find user via user_devices mapping
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
@@ -72,11 +72,11 @@ async def get_user_analytics(
 ):
     """Get analytics summary for a specific user"""
     try:
-        # Find user via device_tokens relationship
+        # Find user via user_devices relationship
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, device_id)
         
@@ -180,11 +180,11 @@ async def get_analytics_stats():
 async def clear_user_analytics(device_id: str):
     """Clear analytics data for a specific user (GDPR compliance)"""
     try:
-        # Find user via device_tokens relationship
+        # Find user via user_devices relationship
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, device_id)
         
