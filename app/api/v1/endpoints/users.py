@@ -331,7 +331,7 @@ async def register_user(user_data: UserCreate):
             device_token_query,
             user_id,
             user_data.device_id,
-            f"placeholder_token_64_chars_min_{user_data.device_id}_{'x' * 20}",  # 64+ char token
+            None,  # No placeholder token - wait for real APNs token
             json.dumps({})
         )
         
@@ -537,7 +537,7 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
                     device_query,
                     user["id"],
                     profile_data.device_id,
-                    f"placeholder_token_64_chars_min_{profile_data.device_id}_{'x' * 20}",  # 64+ char token
+                    None,  # No placeholder token - wait for real APNs token
                     json.dumps({})
                 )
                 
