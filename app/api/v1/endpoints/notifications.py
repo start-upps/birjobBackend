@@ -276,8 +276,38 @@ async def register_push_token(request: dict):
         device_token = request.get("device_token")
         device_info = request.get("device_info", {})
         
+        # Validate required fields
         if not device_token:
             raise HTTPException(status_code=400, detail="device_token is required")
+        
+        # Validate device token format to prevent bad data
+        if not isinstance(device_token, str):
+            raise HTTPException(status_code=400, detail="device_token must be a string")
+        
+        device_token = device_token.strip()
+        
+        # Validate APNs token format (64 hex characters)
+        if len(device_token) != 64:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"device_token must be exactly 64 characters (got {len(device_token)})"
+            )
+        
+        # Check if it's hex
+        try:
+            int(device_token, 16)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, 
+                detail="device_token must contain only hexadecimal characters (0-9, a-f)"
+            )
+        
+        # Prevent temporary/fake tokens
+        if device_token.startswith(('temp_', 'placeholder_', 'fake_', 'test_')):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid device_token: temporary or placeholder tokens not allowed"
+            )
         
         # Get device_id from request or generate one
         device_id = request.get("device_id")

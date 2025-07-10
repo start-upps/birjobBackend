@@ -528,9 +528,9 @@ class PushNotificationService:
             self.logger.error(f"❌ Invalid device token format: {device_token[:20]}...")
             return False
         
-        # Skip temporary tokens
-        if device_token.startswith('temp_'):
-            self.logger.warning(f"⚠️ Skipping notification - temporary token: {device_token[:20]}...")
+        # Skip NULL, empty, or temporary tokens
+        if not device_token or device_token.startswith('temp_'):
+            self.logger.warning(f"⚠️ Skipping notification - no valid token for device")
             self.logger.warning(f"   Device needs to register real APNs token via /notifications/token endpoint")
             return False
         

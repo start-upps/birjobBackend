@@ -322,19 +322,16 @@ async def register_user(user_data: UserCreate):
             else:
                 raise HTTPException(status_code=500, detail="Failed to create user")
         
-        # Create device token entry
+        # Create device token entry without actual token (will be added when APNs token is available)
         device_token_query = """
-            INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO iosapp.device_tokens (user_id, device_id, device_info)
+            VALUES ($1, $2, $3)
         """
-        # Use a temporary token that meets constraints but won't work for APNs
-        temp_token = f"temp_{user_data.device_id[:32]}_{'0' * (64 - len(user_data.device_id[:32]) - 5)}"
         
         await db_manager.execute_query(
             device_token_query,
             user_id,
             user_data.device_id,
-            temp_token,  # Temporary 64-char token that meets DB constraints  
             json.dumps({})
         )
         
@@ -464,6 +461,35 @@ async def create_or_update_profile_post(profile_data: UserCreate):
 async def _create_or_update_profile_internal(profile_data: UserCreate):
     """Create or update user profile via device ID"""
     try:
+        # Validate device_id format to prevent bad data
+        if not profile_data.device_id or not isinstance(profile_data.device_id, str):
+            raise HTTPException(status_code=400, detail="device_id is required and must be a string")
+        
+        profile_data.device_id = profile_data.device_id.strip()
+        
+        if len(profile_data.device_id) < 8:
+            raise HTTPException(status_code=400, detail="device_id must be at least 8 characters")
+        
+        # Validate email format if provided
+        if profile_data.email:
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, profile_data.email):
+                raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Validate keywords array
+        if profile_data.keywords and not isinstance(profile_data.keywords, list):
+            raise HTTPException(status_code=400, detail="keywords must be an array")
+        
+        # Limit keywords count and length
+        if profile_data.keywords and len(profile_data.keywords) > 50:
+            raise HTTPException(status_code=400, detail="Maximum 50 keywords allowed")
+        
+        for keyword in (profile_data.keywords or []):
+            if not isinstance(keyword, str) or len(keyword.strip()) == 0:
+                raise HTTPException(status_code=400, detail="Each keyword must be a non-empty string")
+            if len(keyword) > 100:
+                raise HTTPException(status_code=400, detail="Each keyword must be less than 100 characters")
         # First check if user exists via device_id
         check_query = """
             SELECT u.id FROM iosapp.users u
@@ -530,22 +556,23 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             if user_result:
                 user = user_result[0]
                 
-                # Create device token entry (if not exists) with temporary token
+                # Only create device token entry if we have actual device info
+                # Don't create entries with placeholder/temp data that could cause issues
                 device_query = """
-                    INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (device_id) DO UPDATE SET user_id = $1, is_active = true
+                    INSERT INTO iosapp.device_tokens (user_id, device_id, is_active)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (device_id) DO UPDATE SET 
+                        user_id = EXCLUDED.user_id, 
+                        is_active = EXCLUDED.is_active,
+                        updated_at = NOW()
                 """
                 
-                # Use a temporary token that meets constraints but won't work for APNs
-                temp_token = f"temp_{profile_data.device_id[:32]}_{'0' * (64 - len(profile_data.device_id[:32]) - 5)}"
-                
+                # Create device entry without device_token - it will be added when APNs token is available
                 await db_manager.execute_query(
                     device_query,
                     user["id"],
                     profile_data.device_id,
-                    temp_token,  # Temporary 64-char token that meets DB constraints
-                    json.dumps({})
+                    True  # Set as active, but no device_token yet
                 )
                 
                 return SuccessResponse(
