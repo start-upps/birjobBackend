@@ -275,8 +275,8 @@ async def register_user(user_data: UserCreate):
         # Check if device already exists
         device_query = """
             SELECT u.* FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         device_result = await db_manager.execute_query(device_query, user_data.device_id)
         
@@ -330,8 +330,17 @@ async def register_user(user_data: UserCreate):
             else:
                 raise HTTPException(status_code=500, detail="Failed to create user")
         
-        # NOTE: Device token registration is now handled separately via /notifications/token endpoint
-        # This endpoint only creates user profiles - no device tokens without proper validation
+        # Create user_devices mapping for profile retrieval
+        device_mapping_query = """
+            INSERT INTO iosapp.user_devices (user_id, device_id, is_active)
+            VALUES ($1, $2, $3)
+        """
+        await db_manager.execute_command(
+            device_mapping_query,
+            user_id,
+            user_data.device_id,
+            True
+        )
         
         return SuccessResponse(
             message="User registered successfully",
@@ -347,13 +356,13 @@ async def register_user(user_data: UserCreate):
 
 @router.get("/profile/{device_id}", response_model=SuccessResponse)
 async def get_user_profile(device_id: str):
-    """Get user profile by device_id (using device_tokens relationship)"""
+    """Get user profile by device_id (using user_devices mapping)"""
     try:
-        # Query user via device_tokens table (new RDBMS relationship)
+        # Query user via user_devices mapping table
         query = """
             SELECT u.* FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         result = await db_manager.execute_query(query, device_id)
         
@@ -387,8 +396,8 @@ async def check_profile_exists(device_id: str):
     try:
         query = """
             SELECT COUNT(*) as count FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         result = await db_manager.execute_query(query, device_id)
         
@@ -407,11 +416,11 @@ async def check_profile_exists(device_id: str):
 async def delete_user_profile(device_id: str):
     """Delete user profile and all associated data by device_id (GDPR compliance)"""
     try:
-        # Find user via device_tokens relationship
+        # Find user via user_devices mapping
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, device_id)
         
@@ -420,7 +429,7 @@ async def delete_user_profile(device_id: str):
         
         user_id = user_result[0]["id"]
         
-        # Delete user (CASCADE will handle related tables: device_tokens, saved_jobs, job_views, user_analytics)
+        # Delete user (CASCADE will handle related tables: user_devices, device_tokens, saved_jobs, job_views, user_analytics)
         delete_query = "DELETE FROM iosapp.users WHERE id = $1 RETURNING id"
         delete_result = await db_manager.execute_query(delete_query, user_id)
         
@@ -464,11 +473,11 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
         email = validate_email(profile_data.email) if profile_data.email else None
         keywords = validate_keywords(profile_data.keywords)
         preferred_sources = validate_keywords(profile_data.preferred_sources) if profile_data.preferred_sources else []
-        # First check if user exists via device_id
+        # First check if user exists via device_id using user_devices mapping
         check_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         existing_result = await db_manager.execute_query(check_query, device_id)
         
@@ -530,8 +539,21 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             if user_result:
                 user = user_result[0]
                 
-                # NOTE: Device token registration is now handled separately via /notifications/token endpoint
-                # User profile created successfully - device token should be registered separately with proper validation
+                # Create user_devices mapping for profile retrieval
+                device_mapping_query = """
+                    INSERT INTO iosapp.user_devices (user_id, device_id, is_active)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (device_id) DO UPDATE SET 
+                        user_id = EXCLUDED.user_id, 
+                        is_active = EXCLUDED.is_active,
+                        updated_at = NOW()
+                """
+                await db_manager.execute_command(
+                    device_mapping_query,
+                    user["id"],
+                    device_id,
+                    True
+                )
                 
                 return SuccessResponse(
                     message="Profile created successfully",
@@ -586,10 +608,10 @@ async def update_user(device_id: str, user_data: UserUpdate):
         query = f"""
             UPDATE iosapp.users 
             SET {', '.join(updates)}
-            FROM iosapp.device_tokens dt
-            WHERE iosapp.users.id = dt.user_id 
-            AND dt.device_id = ${len(values)}
-            AND dt.is_active = true
+            FROM iosapp.user_devices ud
+            WHERE iosapp.users.id = ud.user_id 
+            AND ud.device_id = ${len(values)}
+            AND ud.is_active = true
             RETURNING iosapp.users.*
         """
         
@@ -620,11 +642,11 @@ async def update_user(device_id: str, user_data: UserUpdate):
 async def save_job(request: SaveJobRequest):
     """Save job for user"""
     try:
-        # Check if user exists via device_tokens
+        # Check if user exists via user_devices
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
@@ -668,11 +690,11 @@ async def save_job(request: SaveJobRequest):
 async def view_job(request: JobViewRequest):
     """Record job view"""
     try:
-        # Check if user exists via device_tokens
+        # Check if user exists via user_devices
         user_query = """
             SELECT u.id FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true
+            JOIN iosapp.user_devices ud ON u.id = ud.user_id
+            WHERE ud.device_id = $1 AND ud.is_active = true
         """
         user_result = await db_manager.execute_query(user_query, request.device_id)
         
