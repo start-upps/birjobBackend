@@ -79,6 +79,9 @@ async def register_push_token(
         device_id_value = None
         device_info_dict = request.device_info.model_dump()
         
+        # Log what we received to debug device_id issue
+        logger.info(f"Device info received: {device_info_dict}")
+        
         # Try to get a stable device identifier from device_info
         if 'device_id' in device_info_dict:
             device_id_value = device_info_dict['device_id']
@@ -88,6 +91,8 @@ async def register_push_token(
             device_id_value = device_info_dict['identifier']
         elif 'uuid' in device_info_dict:
             device_id_value = device_info_dict['uuid']
+        
+        logger.info(f"Extracted device_id: {device_id_value}")
         
         # If no stable device_id provided, create one based on device model + timezone (NOT token)
         if not device_id_value:
@@ -220,6 +225,9 @@ async def register_device(
         device_id_value = None
         device_info_dict = request.device_info.model_dump()
         
+        # Log what we received to debug device_id issue
+        logger.info(f"Device info received: {device_info_dict}")
+        
         # Try to get a stable device identifier from device_info
         if 'device_id' in device_info_dict:
             device_id_value = device_info_dict['device_id']
@@ -229,6 +237,8 @@ async def register_device(
             device_id_value = device_info_dict['identifier']
         elif 'uuid' in device_info_dict:
             device_id_value = device_info_dict['uuid']
+        
+        logger.info(f"Extracted device_id: {device_id_value}")
         
         # If no stable device_id provided, create one based on device model + a hash
         # This prevents creating new users for every token refresh
