@@ -327,11 +327,14 @@ async def register_user(user_data: UserCreate):
             INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
             VALUES ($1, $2, $3, $4)
         """
+        # Use a temporary token that meets constraints but won't work for APNs
+        temp_token = f"temp_{user_data.device_id[:32]}_{'0' * (64 - len(user_data.device_id[:32]) - 5)}"
+        
         await db_manager.execute_query(
             device_token_query,
             user_id,
             user_data.device_id,
-            None,  # No placeholder token - wait for real APNs token
+            temp_token,  # Temporary 64-char token that meets DB constraints  
             json.dumps({})
         )
         
@@ -527,17 +530,21 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             if user_result:
                 user = user_result[0]
                 
-                # Create device token entry (if not exists)
+                # Create device token entry (if not exists) with temporary token
                 device_query = """
                     INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
                     VALUES ($1, $2, $3, $4)
                     ON CONFLICT (device_id) DO UPDATE SET user_id = $1, is_active = true
                 """
+                
+                # Use a temporary token that meets constraints but won't work for APNs
+                temp_token = f"temp_{profile_data.device_id[:32]}_{'0' * (64 - len(profile_data.device_id[:32]) - 5)}"
+                
                 await db_manager.execute_query(
                     device_query,
                     user["id"],
                     profile_data.device_id,
-                    None,  # No placeholder token - wait for real APNs token
+                    temp_token,  # Temporary 64-char token that meets DB constraints
                     json.dumps({})
                 )
                 

@@ -528,6 +528,12 @@ class PushNotificationService:
             self.logger.error(f"❌ Invalid device token format: {device_token[:20]}...")
             return False
         
+        # Skip temporary tokens
+        if device_token.startswith('temp_'):
+            self.logger.warning(f"⚠️ Skipping notification - temporary token: {device_token[:20]}...")
+            self.logger.warning(f"   Device needs to register real APNs token via /notifications/token endpoint")
+            return False
+        
         # Validate payload size (APNs limit is 4KB)
         payload_size = len(json.dumps(payload))
         if payload_size > 4096:
