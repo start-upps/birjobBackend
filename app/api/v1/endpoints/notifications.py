@@ -470,7 +470,18 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
         for row in notifications_result:
             # Create a grouping key based on time and keywords (notifications sent within 1 hour with same keywords)
             notification_time = row['notification_sent_at']
-            matched_keywords = row['matched_keywords'] or []
+            
+            # Parse matched_keywords from JSON string
+            matched_keywords = []
+            if row['matched_keywords']:
+                try:
+                    import json
+                    if isinstance(row['matched_keywords'], str):
+                        matched_keywords = json.loads(row['matched_keywords'])
+                    elif isinstance(row['matched_keywords'], list):
+                        matched_keywords = row['matched_keywords']
+                except (json.JSONDecodeError, TypeError):
+                    matched_keywords = []
             
             # Simple grouping: use date + hour + keywords as key
             time_key = notification_time.strftime('%Y-%m-%d-%H')
