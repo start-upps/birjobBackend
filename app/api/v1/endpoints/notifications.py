@@ -284,9 +284,9 @@ async def register_push_token(request: dict):
         # Create or update device token
         device_query = """
             SELECT id, user_id FROM iosapp.device_tokens 
-            WHERE device_token = $1 OR device_id = $2
+            WHERE device_id = $1
         """
-        device_result = await db_manager.execute_query(device_query, device_token, device_id)
+        device_result = await db_manager.execute_query(device_query, device_id)
         
         if device_result:
             # Update existing device
