@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import devices, health, jobs, users, analytics, chatbot, notifications, debug_notifications
+from app.api.v1.endpoints import devices, health, jobs, users, analytics, chatbot, notifications
+from app.api.v1.endpoints import debug_notifications
 # from app.api.v1.endpoints import keywords  # Disabled - requires KeywordSubscription model
 
 api_router = APIRouter()
