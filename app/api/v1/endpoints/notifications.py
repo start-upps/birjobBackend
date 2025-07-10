@@ -1079,6 +1079,133 @@ async def get_device_info(device_id: str):
         logger.error(f"Error getting device info: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get device info: {str(e)}")
 
+@router.post("/refresh-token/{device_id}")
+async def refresh_device_token(device_id: str, request: dict):
+    """Refresh device token for a specific device (for fixing BadDeviceToken errors)"""
+    try:
+        new_device_token = request.get("device_token")
+        
+        if not new_device_token:
+            raise HTTPException(status_code=400, detail="device_token is required")
+        
+        # Validate token format
+        from app.services.push_notifications import PushNotificationService
+        push_service = PushNotificationService()
+        
+        if not push_service._validate_device_token(new_device_token):
+            raise HTTPException(status_code=400, detail="Invalid device token format")
+        
+        # Update device token
+        update_query = """
+            UPDATE iosapp.device_tokens 
+            SET device_token = $1, updated_at = NOW()
+            WHERE device_id = $2
+        """
+        
+        await db_manager.execute_command(update_query, new_device_token, device_id)
+        
+        # Test the new token immediately
+        test_success = await push_service.send_system_notification(
+            device_token=new_device_token,
+            device_id=device_id,
+            title="🔄 Token Refreshed",
+            message="Your device token has been updated successfully!",
+            data={"type": "token_refresh_test"}
+        )
+        
+        return {
+            "success": True,
+            "message": "Device token refreshed successfully",
+            "data": {
+                "device_id": device_id,
+                "new_token_preview": new_device_token[:20] + "...",
+                "test_notification_sent": test_success,
+                "recommendation": "Check your device for the test notification" if test_success else "Token updated but test notification failed - check APNs logs"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refreshing device token: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to refresh token: {str(e)}")
+
+@router.delete("/invalid-tokens")
+async def cleanup_invalid_tokens():
+    """Mark devices with invalid tokens as inactive (for fixing BadDeviceToken issues)"""
+    try:
+        # Get all active device tokens
+        tokens_query = """
+            SELECT dt.id, dt.device_token, dt.device_id
+            FROM iosapp.device_tokens dt
+            WHERE dt.is_active = true AND dt.device_token IS NOT NULL
+        """
+        
+        tokens_result = await db_manager.execute_query(tokens_query)
+        
+        from app.services.push_notifications import PushNotificationService
+        push_service = PushNotificationService()
+        
+        invalid_tokens = []
+        valid_tokens = []
+        
+        for token_data in tokens_result:
+            device_token = token_data['device_token']
+            device_id = token_data['device_id']
+            
+            # Validate token format first
+            if not push_service._validate_device_token(device_token):
+                invalid_tokens.append({
+                    "device_id": device_id,
+                    "reason": "Invalid format",
+                    "token_preview": device_token[:20] + "..."
+                })
+                continue
+            
+            # Test with APNs (this will show in logs if token is bad)
+            validation_result = await push_service.validate_device_token_with_apns(device_token)
+            
+            if not validation_result.get('valid', False):
+                invalid_tokens.append({
+                    "device_id": device_id,
+                    "reason": validation_result.get('error', 'Unknown error'),
+                    "token_preview": device_token[:20] + "..."
+                })
+            else:
+                valid_tokens.append({
+                    "device_id": device_id,
+                    "token_preview": device_token[:20] + "..."
+                })
+        
+        # Mark invalid tokens as inactive
+        deactivated_count = 0
+        if invalid_tokens:
+            for invalid_token in invalid_tokens:
+                deactivate_query = """
+                    UPDATE iosapp.device_tokens 
+                    SET is_active = false, updated_at = NOW()
+                    WHERE device_id = $1
+                """
+                await db_manager.execute_command(deactivate_query, invalid_token['device_id'])
+                deactivated_count += 1
+        
+        return {
+            "success": True,
+            "message": f"Token cleanup completed. {deactivated_count} invalid tokens deactivated.",
+            "data": {
+                "total_tokens_checked": len(tokens_result),
+                "valid_tokens": len(valid_tokens),
+                "invalid_tokens": len(invalid_tokens),
+                "deactivated_count": deactivated_count,
+                "valid_devices": valid_tokens,
+                "invalid_devices": invalid_tokens
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up invalid tokens: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup tokens: {str(e)}")
+
 @router.post("/setup-keywords/{device_id}")
 async def setup_keywords_for_device(device_id: str, keywords: list = None):
     """Setup keywords and enable notifications for a device"""
