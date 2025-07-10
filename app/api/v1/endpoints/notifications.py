@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from typing import Dict, Any, Optional
 import logging
+import json
 from datetime import datetime, timezone
 
 from app.core.database import db_manager
@@ -278,15 +279,18 @@ async def register_push_token(request: dict):
         if not device_token:
             raise HTTPException(status_code=400, detail="device_token is required")
         
-        # Use device token as device_id if no specific device_id provided
-        device_id = device_token
+        # Get device_id from request or generate one
+        device_id = request.get("device_id")
+        if not device_id:
+            # If no device_id provided, look for existing device by token
+            device_id = device_token  # Temporary fallback
         
-        # Create or update device token
+        # Create or update device token - check both device_id and token
         device_query = """
             SELECT id, user_id FROM iosapp.device_tokens 
-            WHERE device_id = $1
+            WHERE device_id = $1 OR device_token = $2
         """
-        device_result = await db_manager.execute_query(device_query, device_id)
+        device_result = await db_manager.execute_query(device_query, device_id, device_token)
         
         if device_result:
             # Update existing device
@@ -326,7 +330,9 @@ async def register_push_token(request: dict):
         
     except Exception as e:
         logger.error(f"Error registering push token: {e}")
-        raise HTTPException(status_code=500, detail="Failed to register push token")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to register push token: {str(e)}")
 
 @router.get("/quick-test/{device_id}")
 async def quick_test_for_device(device_id: str):
