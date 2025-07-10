@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import devices, health, jobs, users, analytics, chatbot, notifications
-from app.api.v1.endpoints.debug_notifications import router as debug_router
+# from app.api.v1.endpoints.debug_notifications import router as debug_router
 # from app.api.v1.endpoints import keywords  # Disabled - requires KeywordSubscription model
 
 api_router = APIRouter()
@@ -15,4 +15,4 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(chatbot.router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
-api_router.include_router(debug_router, prefix="/debug", tags=["debug"])
+# api_router.include_router(debug_router, prefix="/debug", tags=["debug"])
