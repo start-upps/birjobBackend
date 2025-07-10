@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 
 from app.core.database import db_manager
+from app.utils.validation import validate_device_token, validate_device_id, validate_email, validate_keywords
 from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse,
     AddKeywordRequest, RemoveKeywordRequest, UpdateKeywordsRequest,
@@ -166,15 +167,22 @@ async def remove_keyword_by_email(email: str = Query(...), keyword: str = Query(
 
 @router.post("/register", response_model=UserRegistrationResponse)
 async def register_user_with_device(request: UserRegistrationRequest):
-    """Unified user registration with device token (iOS app)"""
+    """Unified user registration with device token (iOS app) - REQUIRES VALID DEVICE TOKEN"""
     try:
+        # VALIDATE DEVICE TOKEN FIRST - no fake data allowed
+        device_token = validate_device_token(request.device_token)
+        device_id = validate_device_id(request.device_id)
+        email = validate_email(request.email) if request.email else None
+        keywords = validate_keywords(request.keywords)
+        preferred_sources = validate_keywords(request.preferred_sources) if request.preferred_sources else []
+        
         # First, create or find user
         user_query = """
             SELECT u.* FROM iosapp.users u
             JOIN iosapp.device_tokens dt ON u.id = dt.user_id
             WHERE dt.device_id = $1 AND dt.is_active = true
         """
-        user_result = await db_manager.execute_query(user_query, request.device_id)
+        user_result = await db_manager.execute_query(user_query, device_id)
         
         if user_result:
             # Update existing user
@@ -187,13 +195,13 @@ async def register_user_with_device(request: UserRegistrationRequest):
             """
             await db_manager.execute_command(
                 update_query,
-                request.email,
-                json.dumps(request.keywords),
-                json.dumps(request.preferred_sources),
+                email,
+                json.dumps(keywords),
+                json.dumps(preferred_sources),
                 user_id
             )
             
-            # Update device token
+            # Update device token with VALIDATED token
             device_update_query = """
                 UPDATE iosapp.device_tokens 
                 SET device_token = $1, device_info = $2, updated_at = NOW()
@@ -201,17 +209,17 @@ async def register_user_with_device(request: UserRegistrationRequest):
             """
             await db_manager.execute_command(
                 device_update_query,
-                request.device_token,
+                device_token,  # Use validated token
                 json.dumps(request.device_info),
                 user_id,
-                request.device_id
+                device_id
             )
             
             return UserRegistrationResponse(
                 message="User updated successfully",
                 data={
                     "user_id": str(user_id),
-                    "device_id": request.device_id
+                    "device_id": device_id
                 }
             )
         else:
@@ -223,9 +231,9 @@ async def register_user_with_device(request: UserRegistrationRequest):
             """
             user_insert_result = await db_manager.execute_query(
                 user_insert_query,
-                request.email,
-                json.dumps(request.keywords),
-                json.dumps(request.preferred_sources)
+                email,
+                json.dumps(keywords),
+                json.dumps(preferred_sources)
             )
             
             if not user_insert_result:
@@ -233,7 +241,7 @@ async def register_user_with_device(request: UserRegistrationRequest):
             
             user_id = user_insert_result[0]['id']
             
-            # Create device token
+            # Create device token with VALIDATED token
             device_insert_query = """
                 INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
                 VALUES ($1, $2, $3, $4)
@@ -241,18 +249,18 @@ async def register_user_with_device(request: UserRegistrationRequest):
             await db_manager.execute_command(
                 device_insert_query,
                 user_id,
-                request.device_id,
-                request.device_token,
+                device_id,
+                device_token,  # Use validated token
                 json.dumps(request.device_info)
             )
             
-            logger.info(f"New user registered: {user_id} with device: {request.device_id}")
+            logger.info(f"New user registered: {user_id} with device: {device_id}")
             
             return UserRegistrationResponse(
                 message="User registered successfully", 
                 data={
                     "user_id": str(user_id),
-                    "device_id": request.device_id
+                    "device_id": device_id
                 }
             )
             
@@ -322,18 +330,8 @@ async def register_user(user_data: UserCreate):
             else:
                 raise HTTPException(status_code=500, detail="Failed to create user")
         
-        # Create device token entry without actual token (will be added when APNs token is available)
-        device_token_query = """
-            INSERT INTO iosapp.device_tokens (user_id, device_id, device_info)
-            VALUES ($1, $2, $3)
-        """
-        
-        await db_manager.execute_query(
-            device_token_query,
-            user_id,
-            user_data.device_id,
-            json.dumps({})
-        )
+        # NOTE: Device token registration is now handled separately via /notifications/token endpoint
+        # This endpoint only creates user profiles - no device tokens without proper validation
         
         return SuccessResponse(
             message="User registered successfully",
@@ -556,24 +554,8 @@ async def _create_or_update_profile_internal(profile_data: UserCreate):
             if user_result:
                 user = user_result[0]
                 
-                # Only create device token entry if we have actual device info
-                # Don't create entries with placeholder/temp data that could cause issues
-                device_query = """
-                    INSERT INTO iosapp.device_tokens (user_id, device_id, is_active)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (device_id) DO UPDATE SET 
-                        user_id = EXCLUDED.user_id, 
-                        is_active = EXCLUDED.is_active,
-                        updated_at = NOW()
-                """
-                
-                # Create device entry without device_token - it will be added when APNs token is available
-                await db_manager.execute_query(
-                    device_query,
-                    user["id"],
-                    profile_data.device_id,
-                    True  # Set as active, but no device_token yet
-                )
+                # NOTE: Device token registration is now handled separately via /notifications/token endpoint
+                # User profile created successfully - device token should be registered separately with proper validation
                 
                 return SuccessResponse(
                     message="Profile created successfully",
