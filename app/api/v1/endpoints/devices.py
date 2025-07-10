@@ -94,16 +94,69 @@ async def register_push_token(
         
         logger.info(f"Extracted device_id: {device_id_value}")
         
-        # If no stable device_id provided, create one based on device model + timezone (NOT token)
+        # If no stable device_id provided, check if we can link to existing user profile first
         if not device_id_value:
-            import hashlib
-            device_model = device_info_dict.get('deviceModel', 'unknown')
-            timezone = device_info_dict.get('timezone', 'unknown') 
-            os_version = device_info_dict.get('os_version', 'unknown')
-            # Create a stable identifier without using token (which can change)
-            stable_id = f"{device_model}_{timezone}_{os_version}"
-            device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
-            logger.info(f"Generated stable device ID: {device_id_value} from {stable_id}")
+            # WORKAROUND: Try to find existing user profile without device token
+            # This handles the case where iOS app doesn't send device_id in device_info
+            from app.models.user import User
+            
+            # Get email from device info if provided
+            email = None
+            if hasattr(request.device_info, 'email') and request.device_info.email:
+                email = request.device_info.email
+            elif isinstance(request.device_info.model_dump(), dict):
+                email = request.device_info.model_dump().get('email')
+            
+            # Try to find user profile that exists but has no device token
+            existing_user = None
+            from app.core.database import db_manager
+            
+            # First try by email if provided
+            if email:
+                user_without_token_query = """
+                    SELECT u.id, ud.device_id FROM iosapp.users u
+                    JOIN iosapp.user_devices ud ON u.id = ud.user_id
+                    LEFT JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+                    WHERE u.email = $1 AND dt.id IS NULL AND ud.is_active = true
+                    LIMIT 1
+                """
+                result = await db_manager.execute_query(user_without_token_query, email)
+                if result:
+                    existing_user = {'id': result[0]['id'], 'device_id': result[0]['device_id']}
+                    logger.info(f"Found existing user profile without device token by email: {existing_user}")
+            
+            # If no email match, try to find any user with keywords but no device token
+            # This handles the case where user created profile but iOS doesn't send email
+            if not existing_user:
+                any_user_without_token_query = """
+                    SELECT u.id, ud.device_id FROM iosapp.users u
+                    JOIN iosapp.user_devices ud ON u.id = ud.user_id
+                    LEFT JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+                    WHERE dt.id IS NULL AND ud.is_active = true
+                        AND u.keywords IS NOT NULL 
+                        AND jsonb_array_length(u.keywords) > 0
+                    ORDER BY u.created_at DESC
+                    LIMIT 1
+                """
+                result = await db_manager.execute_query(any_user_without_token_query)
+                if result:
+                    existing_user = {'id': result[0]['id'], 'device_id': result[0]['device_id']}
+                    logger.info(f"Found existing user profile without device token by keywords: {existing_user}")
+            
+            if existing_user:
+                # Link this device token to the existing user profile
+                device_id_value = existing_user['device_id']
+                logger.info(f"Linking device token to existing profile with device_id: {device_id_value}")
+            else:
+                # Fall back to generating device_id as before
+                import hashlib
+                device_model = device_info_dict.get('deviceModel', 'unknown')
+                timezone = device_info_dict.get('timezone', 'unknown') 
+                os_version = device_info_dict.get('os_version', 'unknown')
+                # Create a stable identifier without using token (which can change)
+                stable_id = f"{device_model}_{timezone}_{os_version}"
+                device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
+                logger.info(f"Generated stable device ID: {device_id_value} from {stable_id}")
             
         # Find existing device by device_id first (this should be unique per device)
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
@@ -163,6 +216,22 @@ async def register_push_token(
                 user_result = await db.execute(user_stmt)
                 user = user_result.scalar_one_or_none()
                 logger.info(f"Found existing user by email {email}: {user.id if user else 'None'}")
+            
+            # Special case: If we're using an existing profile's device_id, find that user
+            if not user:
+                # Check if this device_id belongs to an existing user profile
+                from app.core.database import db_manager
+                profile_check_query = """
+                    SELECT u.id FROM iosapp.users u
+                    JOIN iosapp.user_devices ud ON u.id = ud.user_id
+                    WHERE ud.device_id = $1 AND ud.is_active = true
+                """
+                profile_result = await db_manager.execute_query(profile_check_query, device_id_value)
+                if profile_result:
+                    user_stmt = select(User).where(User.id == profile_result[0]['id'])
+                    user_result = await db.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+                    logger.info(f"Found existing user profile for device_id {device_id_value}: {user.id if user else 'None'}")
             
             # Create new user only if no existing user found
             if not user:
@@ -240,15 +309,47 @@ async def register_device(
         
         logger.info(f"Extracted device_id: {device_id_value}")
         
-        # If no stable device_id provided, create one based on device model + a hash
-        # This prevents creating new users for every token refresh
+        # If no stable device_id provided, check if we can link to existing user profile first
         if not device_id_value:
-            import hashlib
-            device_model = device_info_dict.get('deviceModel', 'unknown')
-            timezone = device_info_dict.get('timezone', 'unknown')
-            # Create a more stable identifier
-            stable_id = f"{device_model}_{timezone}_{request.device_token[:16]}"
-            device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
+            # WORKAROUND: Try to find existing user profile without device token
+            # This handles the case where iOS app doesn't send device_id in device_info
+            
+            # Get email from device info if provided
+            email = None
+            if hasattr(request.device_info, 'email') and request.device_info.email:
+                email = request.device_info.email
+            elif isinstance(request.device_info.model_dump(), dict):
+                email = request.device_info.model_dump().get('email')
+            
+            # Try to find user profile that exists but has no device token
+            existing_user = None
+            if email:
+                # Look for user with email but no device token using db_manager
+                from app.core.database import db_manager
+                user_without_token_query = """
+                    SELECT u.id, ud.device_id FROM iosapp.users u
+                    JOIN iosapp.user_devices ud ON u.id = ud.user_id
+                    LEFT JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+                    WHERE u.email = $1 AND dt.id IS NULL AND ud.is_active = true
+                    LIMIT 1
+                """
+                result = await db_manager.execute_query(user_without_token_query, email)
+                if result:
+                    existing_user = {'id': result[0]['id'], 'device_id': result[0]['device_id']}
+                    logger.info(f"Found existing user profile without device token: {existing_user}")
+            
+            if existing_user:
+                # Link this device token to the existing user profile
+                device_id_value = existing_user['device_id']
+                logger.info(f"Linking device token to existing profile with device_id: {device_id_value}")
+            else:
+                # Fall back to generating device_id as before
+                import hashlib
+                device_model = device_info_dict.get('deviceModel', 'unknown')
+                timezone = device_info_dict.get('timezone', 'unknown')
+                # Create a more stable identifier
+                stable_id = f"{device_model}_{timezone}_{request.device_token[:16]}"
+                device_id_value = hashlib.md5(stable_id.encode()).hexdigest()
             
         # First, find or create user based on device_id (now in device_tokens table)
         device_stmt = select(DeviceToken).where(DeviceToken.device_id == device_id_value)
