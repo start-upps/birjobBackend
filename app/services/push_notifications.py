@@ -570,6 +570,17 @@ class PushNotificationService:
                 self.logger.info(f"   Description: {response.description}")
                 self.logger.info(f"   Processing Time: {processing_time:.3f}s")
                 
+                # Additional error context for BadDeviceToken
+                if response.status == 400 and "BadDeviceToken" in response.description:
+                    self.logger.error(f"🚨 BadDeviceToken Analysis:")
+                    self.logger.error(f"   This is typically caused by:")
+                    self.logger.error(f"   1. TestFlight app using production APNs (should use sandbox)")
+                    self.logger.error(f"   2. Development app using production APNs")
+                    self.logger.error(f"   3. Token from different bundle ID/certificate")
+                    self.logger.error(f"   4. Expired or revoked token")
+                    self.logger.error(f"   Current config: {'Production' if not self._apns_config.get('use_sandbox') else 'Sandbox'} APNs")
+                    self.logger.error(f"   Recommendation: Verify app distribution method matches APNs environment")
+                
                 if hasattr(response, 'apns_id'):
                     self.logger.info(f"   APNs ID: {response.apns_id}")
                 if hasattr(response, 'timestamp'):

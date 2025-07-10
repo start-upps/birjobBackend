@@ -1253,6 +1253,80 @@ async def setup_keywords_for_device(device_id: str, keywords: list = None):
         logger.error(f"Error setting up keywords: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to setup keywords: {str(e)}")
 
+@router.get("/apns-environment-check")
+async def check_apns_environment():
+    """Check APNs environment configuration and provide recommendations"""
+    try:
+        from app.services.push_notifications import PushNotificationService
+        push_service = PushNotificationService()
+        
+        # Get diagnostics
+        diagnostics = await push_service.get_apns_diagnostics()
+        
+        # Determine environment issues
+        is_sandbox = diagnostics.get('configuration', {}).get('sandbox', False)
+        
+        environment_analysis = {
+            "current_config": {
+                "apns_environment": "sandbox" if is_sandbox else "production",
+                "apns_server": "api.development.push.apple.com" if is_sandbox else "api.push.apple.com",
+                "bundle_id": diagnostics.get('configuration', {}).get('bundle_id'),
+                "key_id": diagnostics.get('configuration', {}).get('key_id'),
+                "team_id": diagnostics.get('configuration', {}).get('team_id')
+            },
+            "troubleshooting": {
+                "badDeviceToken_solutions": [
+                    {
+                        "scenario": "TestFlight App",
+                        "issue": "TestFlight apps generate SANDBOX tokens but you're using PRODUCTION APNs",
+                        "solution": "Use sandbox APNs for TestFlight apps",
+                        "current_mismatch": not is_sandbox  # We're using production but TestFlight needs sandbox
+                    },
+                    {
+                        "scenario": "App Store App", 
+                        "issue": "App Store apps generate PRODUCTION tokens",
+                        "solution": "Use production APNs for App Store apps",
+                        "current_match": not is_sandbox  # We're using production which is correct
+                    },
+                    {
+                        "scenario": "Development/Debug App",
+                        "issue": "Development apps generate SANDBOX tokens",
+                        "solution": "Use sandbox APNs for development apps", 
+                        "current_mismatch": not is_sandbox
+                    }
+                ],
+                "recommendations": []
+            }
+        }
+        
+        # Add specific recommendations based on current config
+        if not is_sandbox:
+            environment_analysis["troubleshooting"]["recommendations"] = [
+                "✅ Currently configured for PRODUCTION APNs",
+                "🎯 This works ONLY for App Store distributed apps",
+                "⚠️  If using TestFlight, tokens will be INVALID (BadDeviceToken)",
+                "⚠️  If using Development/Debug build, tokens will be INVALID",
+                "💡 Verify your app distribution method:",
+                "   - App Store: ✅ Current config is correct",
+                "   - TestFlight: ❌ Need to use sandbox APNs",
+                "   - Development: ❌ Need to use sandbox APNs"
+            ]
+        else:
+            environment_analysis["troubleshooting"]["recommendations"] = [
+                "✅ Currently configured for SANDBOX APNs",
+                "🎯 This works for TestFlight and Development apps",
+                "⚠️  App Store apps will get INVALID tokens with this config"
+            ]
+        
+        return {
+            "success": True,
+            "data": environment_analysis
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking APNs environment: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check environment: {str(e)}")
+
 @router.get("/auto-setup-and-notify/{device_id}")
 async def auto_setup_and_notify(device_id: str):
     """Automatically setup keywords and send real notifications (GET endpoint for easy testing)"""
