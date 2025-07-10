@@ -389,20 +389,22 @@ class PushNotificationService:
         
         # Multiple jobs - create summary
         companies = list(set([job['job_dict'].get('company', 'Unknown') for job in jobs[:5]]))
-        company_text = companies[0] if len(companies) == 1 else f"{companies[0]} and {len(companies)-1} others"
+        company_count = len(companies)
         
-        all_keywords = []
-        for job in jobs:
-            all_keywords.extend(job['matched_keywords'])
-        unique_keywords = list(set(all_keywords))
-        keywords_text = ', '.join(unique_keywords[:3])
+        # Create emoji variety for engagement
+        job_emojis = ['💼', '🎯', '⭐', '🔥', '✨']
+        company_emojis = ['🏢', '🏬', '🏭', '🏪', '🏦']
+        
+        # Use different emojis based on count to avoid repetition
+        job_emoji = job_emojis[min(job_count-1, len(job_emojis)-1)]
+        company_emoji = company_emojis[min(company_count-1, len(company_emojis)-1)]
         
         return {
             "aps": {
                 "alert": {
-                    "title": f"🎯 {job_count} New Job Matches!",
-                    "subtitle": f"At {company_text}",
-                    "body": f"Matching: {keywords_text}"
+                    "title": f"{job_emoji} {job_count} jobs",
+                    "subtitle": f"{company_emoji} {company_count} companies",
+                    "body": ""
                 },
                 "badge": job_count,
                 "sound": "default",
