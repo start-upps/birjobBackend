@@ -46,8 +46,9 @@ class JobNotificationService:
             # Simple LIKE pattern: if keyword is contained in title OR company
             if keyword_lower in job_title or keyword_lower in job_company:
                 matched_keywords.append(keyword)
-                if len(matched_keywords) == 1:  # Only log first match to avoid spam
-                    self.logger.info(f"✅ MATCH! '{keyword}' found in job: {job_data.get('title', '')} at {job_data.get('company', '')}")
+                # Only log first match and reduce verbosity
+                if len(matched_keywords) == 1:
+                    self.logger.debug(f"Match: '{keyword}' in {job_data.get('title', '')[:50]}...")
         
         return matched_keywords
     
@@ -141,20 +142,21 @@ class JobNotificationService:
             return None
     
     async def _get_active_users_with_keywords(self) -> List[Dict[str, Any]]:
-        """Get all active users with their keywords and device info"""
+        """Get all active users with their keywords and device info (only users with valid device tokens)"""
         try:
             query = """
                 SELECT DISTINCT
                     u.id as user_id,
                     u.keywords,
                     u.notifications_enabled,
-                    COALESCE(dt.device_token, NULL) as device_token,
-                    ud.device_id
+                    dt.device_token,
+                    dt.device_id
                 FROM iosapp.users u
-                JOIN iosapp.user_devices ud ON u.id = ud.user_id
-                LEFT JOIN iosapp.device_tokens dt ON u.id = dt.user_id AND dt.device_id = ud.device_id
+                JOIN iosapp.device_tokens dt ON u.id = dt.user_id
                 WHERE u.notifications_enabled = true 
-                    AND ud.is_active = true
+                    AND dt.is_active = true
+                    AND dt.device_token IS NOT NULL
+                    AND dt.device_token != ''
                     AND u.keywords IS NOT NULL
                     AND jsonb_array_length(u.keywords) > 0
             """
@@ -168,7 +170,11 @@ class JobNotificationService:
                     # Convert asyncpg.Record to dict first
                     user = dict(record)
                     keywords = user.get('keywords')
-                    self.logger.info(f"Raw keywords from DB for user {user.get('user_id')}: type={type(keywords)}, value={repr(keywords)}")
+                    
+                    # Validate device token
+                    if not user.get('device_token'):
+                        self.logger.warning(f"User {user.get('user_id')} has no device token, skipping")
+                        continue
                     
                     if isinstance(keywords, str):
                         try:
@@ -186,14 +192,13 @@ class JobNotificationService:
                         user['keywords'] = [k.strip() for k in keywords if k and str(k).strip()]
                     else:
                         user['keywords'] = []
-                        
-                    self.logger.info(f"Parsed keywords for user {user.get('user_id')}: {user['keywords']}")
                     
-                    # Only include users with valid keywords
-                    if user['keywords']:
+                    # Only include users with valid keywords and device tokens
+                    if user['keywords'] and user.get('device_token'):
                         valid_users.append(user)
+                        self.logger.debug(f"Added user {user.get('user_id')} with {len(user['keywords'])} keywords")
                     else:
-                        self.logger.warning(f"User {user.get('user_id')} has no valid keywords after parsing")
+                        self.logger.warning(f"User {user.get('user_id')} excluded: keywords={bool(user['keywords'])}, device_token={bool(user.get('device_token'))}")
                         
                 except Exception as e:
                     self.logger.error(f"Error processing user {record.get('user_id', 'unknown') if hasattr(record, 'get') else 'unknown'}: {e}")
@@ -322,7 +327,7 @@ class JobNotificationService:
                                 
                     # Log progress every 1000 jobs
                     if stats['processed_jobs'] % 1000 == 0:
-                        self.logger.info(f"Processed {stats['processed_jobs']} jobs, found {len(user_job_matches)} users with matches so far")
+                        self.logger.info(f"Processed {stats['processed_jobs']}/{len(recent_jobs)} jobs, found {len(user_job_matches)} users with matches")
                         
             except Exception as e:
                 self.logger.error(f"Error in job processing loop: {e}")
@@ -331,7 +336,12 @@ class JobNotificationService:
                 stats['errors'] += 1
                 return stats
             
-            self.logger.info(f"Found {len(user_job_matches)} users with job matches")
+            self.logger.info(f"Job processing complete: {len(recent_jobs)} jobs processed, {len(user_job_matches)} users have matches")
+            
+            # Log summary of users with matches
+            for user_id, user_matches in user_job_matches.items():
+                job_count = len(user_matches['jobs'])
+                self.logger.info(f"User {user_id}: {job_count} job matches")
             
             # Send bulk notifications per user
             for user_id, user_matches in user_job_matches.items():
@@ -357,6 +367,17 @@ class JobNotificationService:
                 
                 # Send bulk notification to user
                 if not dry_run and notification_ids:
+                    # Validate user has device token before attempting to send
+                    if not user.get('device_token'):
+                        self.logger.error(f"User {user_id} has no device token, cannot send notification")
+                        stats['errors'] += len(jobs)
+                        continue
+                    
+                    if not user.get('device_id'):
+                        self.logger.error(f"User {user_id} has no device_id, cannot send notification")
+                        stats['errors'] += len(jobs)
+                        continue
+                    
                     try:
                         success = await self.push_service.send_bulk_job_notifications(
                             device_token=user['device_token'],

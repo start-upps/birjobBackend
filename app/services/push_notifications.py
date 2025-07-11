@@ -341,6 +341,19 @@ class PushNotificationService:
     ) -> bool:
         """Send bulk job notifications to a user"""
         
+        # Validate inputs
+        if not device_token:
+            self.logger.error(f"Cannot send bulk notification: device_token is None for device {device_id}")
+            return False
+        
+        if not device_id:
+            self.logger.error("Cannot send bulk notification: device_id is None")
+            return False
+        
+        if not jobs:
+            self.logger.debug("No jobs to send in bulk notification")
+            return False
+        
         # Check throttling
         if not await self._check_notification_throttling(device_id):
             self.logger.info(f"Bulk notification throttled for device {device_id}")
@@ -351,16 +364,18 @@ class PushNotificationService:
             self.logger.info(f"Bulk notification suppressed (quiet hours) for device {device_id}")
             return False
         
-        if not jobs:
-            return False
-        
         # Create bulk notification payload
         payload = self._create_bulk_job_payload(jobs, notification_ids)
         
+        # Validate APNs configuration
+        if not self._apns_config:
+            self.logger.error("APNs configuration is not initialized")
+            return False
+        
         # Send notification (use 'job_match' type as 'bulk_job_match' is not in DB constraint)
-        self.logger.info(f"Attempting to send bulk notification to device {device_id}")
-        self.logger.info(f"Device token: {device_token}")
-        self.logger.info(f"APNs config - Team ID: {self._apns_config.get('team_id')}, Bundle ID: {self._apns_config.get('topic')}, Sandbox: {self._apns_config.get('use_sandbox')}")
+        self.logger.info(f"Sending bulk notification to device {device_id} for {len(jobs)} jobs")
+        self.logger.debug(f"Device token: {device_token[:20]}...")
+        self.logger.debug(f"APNs config - Team ID: {self._apns_config.get('team_id')}, Bundle ID: {self._apns_config.get('topic')}, Sandbox: {self._apns_config.get('use_sandbox')}")
         success = await self._send_notification(device_token, payload, "job_match", notification_ids[0] if notification_ids else "bulk")
         
         if success:
