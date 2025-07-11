@@ -21,6 +21,97 @@ logger = logging.getLogger(__name__)
 # Email-based User Management (Website Style)
 # =====================================
 
+@router.post("/check-email", response_model=SuccessResponse)
+async def check_email_registration_status(request: Dict[str, Any]):
+    """Check if user exists by email and return registration status for iOS app"""
+    try:
+        email = request.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="email is required")
+        
+        # Validate email format
+        try:
+            email = validate_email(email)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Check if user exists
+        user_query = """
+            SELECT u.id, u.email, u.keywords, u.preferred_sources, 
+                   u.notifications_enabled, u.created_at, u.updated_at
+            FROM iosapp.users u 
+            WHERE u.email = $1
+        """
+        user_result = await db_manager.execute_query(user_query, email)
+        
+        if not user_result:
+            # User doesn't exist - needs full registration
+            return SuccessResponse(
+                message="Email not found - full registration required",
+                data={
+                    "exists": False,
+                    "has_profile": False,
+                    "has_keywords": False,
+                    "requires_full_registration": True,
+                    "email": email
+                }
+            )
+        
+        user_data = user_result[0]
+        
+        # Check if user has keywords setup
+        keywords = user_data.get('keywords')
+        has_keywords = False
+        keyword_list = []
+        
+        if keywords:
+            if isinstance(keywords, str):
+                try:
+                    parsed_keywords = json.loads(keywords)
+                    if isinstance(parsed_keywords, list):
+                        keyword_list = [k for k in parsed_keywords if k and str(k).strip()]
+                        has_keywords = len(keyword_list) > 0
+                except json.JSONDecodeError:
+                    has_keywords = False
+            elif isinstance(keywords, list):
+                keyword_list = [k for k in keywords if k and str(k).strip()]
+                has_keywords = len(keyword_list) > 0
+        
+        # Check if user has device tokens (is using iOS app)
+        device_check_query = """
+            SELECT COUNT(*) as device_count
+            FROM iosapp.device_tokens dt
+            WHERE dt.user_id = $1 AND dt.is_active = true
+        """
+        device_result = await db_manager.execute_query(device_check_query, user_data['id'])
+        has_device = device_result[0]['device_count'] > 0 if device_result else False
+        
+        return SuccessResponse(
+            message="User found - profile check complete",
+            data={
+                "exists": True,
+                "user_id": str(user_data['id']),
+                "email": user_data['email'],
+                "has_profile": True,
+                "has_keywords": has_keywords,
+                "has_device": has_device,
+                "keywords": keyword_list,
+                "keywords_count": len(keyword_list),
+                "notifications_enabled": user_data.get('notifications_enabled', False),
+                "requires_full_registration": False,
+                "requires_keywords_setup": not has_keywords,
+                "can_skip_onboarding": has_keywords,
+                "registered_at": user_data['created_at'].isoformat() if user_data.get('created_at') else None,
+                "updated_at": user_data['updated_at'].isoformat() if user_data.get('updated_at') else None
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking email registration status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check email status")
+
 @router.get("/by-email", response_model=SuccessResponse)
 async def get_user_by_email(email: str = Query(...)):
     """Get or create user by email (website-style)"""
