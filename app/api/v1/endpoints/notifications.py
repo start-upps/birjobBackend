@@ -429,7 +429,7 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
         
         user_id = user_result[0]['user_id']
         
-        # Get notification history with job details
+        # Get notification history with job details (excluding soft-deleted)
         notifications_query = """
             SELECT 
                 jnh.id,
@@ -445,19 +445,19 @@ async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 
                 j.created_at as job_posted_at
             FROM iosapp.job_notification_history jnh
             LEFT JOIN scraper.jobs_jobpost j ON jnh.job_id = j.id
-            WHERE jnh.user_id = $1
+            WHERE jnh.user_id = $1 AND (jnh.is_deleted = FALSE OR jnh.is_deleted IS NULL)
             ORDER BY jnh.notification_sent_at DESC
             LIMIT $2 OFFSET $3
         """
         
         notifications_result = await db_manager.execute_query(notifications_query, user_id, limit, offset)
         
-        # Get total count
+        # Get total count (excluding soft-deleted)
         count_query = """
             SELECT COUNT(*) as total_count,
                    SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread_count
             FROM iosapp.job_notification_history
-            WHERE user_id = $1
+            WHERE user_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)
         """
         count_result = await db_manager.execute_query(count_query, user_id)
         
@@ -557,14 +557,11 @@ async def mark_notification_as_read(notification_id: str):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid notification ID format")
         
-        # Update notification as read
-        update_query = """
-            UPDATE iosapp.job_notification_history
-            SET is_read = true, updated_at = NOW()
-            WHERE id = $1
-        """
+        # Use service method to mark as read
+        success = await job_notification_service.mark_notification_as_read(str(notification_uuid))
         
-        result = await db_manager.execute_command(update_query, notification_uuid)
+        if not success:
+            raise HTTPException(status_code=404, detail="Notification not found or already deleted")
         
         return MarkReadResponse(
             message="Notification marked as read"
@@ -578,7 +575,7 @@ async def mark_notification_as_read(notification_id: str):
 
 @router.delete("/{notification_id}", response_model=DeleteNotificationResponse)
 async def delete_notification(notification_id: str):
-    """Delete notification"""
+    """Soft delete notification (preserves unique key for duplicate prevention)"""
     try:
         import uuid
         
@@ -588,20 +585,11 @@ async def delete_notification(notification_id: str):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid notification ID format")
         
-        # Check if notification exists
-        check_query = """
-            SELECT id FROM iosapp.job_notification_history WHERE id = $1
-        """
-        check_result = await db_manager.execute_query(check_query, notification_uuid)
+        # Use soft delete to preserve unique key mechanism
+        success = await job_notification_service.soft_delete_notification(str(notification_uuid))
         
-        if not check_result:
-            raise HTTPException(status_code=404, detail="Notification not found")
-        
-        # Delete notification (this will cascade to related records if foreign keys are set up)
-        delete_query = """
-            DELETE FROM iosapp.job_notification_history WHERE id = $1
-        """
-        await db_manager.execute_command(delete_query, notification_uuid)
+        if not success:
+            raise HTTPException(status_code=404, detail="Notification not found or already deleted")
         
         return DeleteNotificationResponse(
             message="Notification deleted successfully"

@@ -52,7 +52,7 @@ class JobNotificationService:
         return matched_keywords
     
     async def _has_been_notified(self, user_id: str, job_unique_key: str) -> bool:
-        """Check if user has already been notified about this job"""
+        """Check if user has already been notified about this job (including soft-deleted notifications)"""
         try:
             query = """
                 SELECT 1 FROM iosapp.job_notification_history 
@@ -487,7 +487,7 @@ class JobNotificationService:
         device_id: str, 
         limit: int = 50
     ) -> Dict[str, Any]:
-        """Get notification history for a user"""
+        """Get notification history for a user (excluding soft-deleted notifications)"""
         try:
             # Get user ID
             user_query = """
@@ -502,22 +502,22 @@ class JobNotificationService:
             
             user_id = user_result[0]['user_id']
             
-            # Get notification history
+            # Get notification history (excluding soft-deleted)
             history_query = """
                 SELECT 
                     job_id, job_title, job_company, job_source, 
                     matched_keywords, notification_sent_at
                 FROM iosapp.job_notification_history
-                WHERE user_id = $1
+                WHERE user_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)
                 ORDER BY notification_sent_at DESC
                 LIMIT $2
             """
             history_result = await db_manager.execute_query(history_query, user_id, limit)
             
-            # Get total count
+            # Get total count (excluding soft-deleted)
             count_query = """
                 SELECT COUNT(*) as total FROM iosapp.job_notification_history
-                WHERE user_id = $1
+                WHERE user_id = $1 AND (is_deleted = FALSE OR is_deleted IS NULL)
             """
             count_result = await db_manager.execute_query(count_query, user_id)
             total_count = count_result[0]['total'] if count_result else 0
@@ -544,17 +544,74 @@ class JobNotificationService:
             self.logger.error(f"Error getting notification history: {e}")
             return {"user_id": None, "total_notifications": 0, "recent_notifications": []}
     
-    async def cleanup_old_notifications(self, days_old: int = 30) -> int:
-        """Clean up old notification history records"""
+    async def soft_delete_notification(self, notification_id: str) -> bool:
+        """Soft delete a notification (preserves unique key for duplicate prevention)"""
         try:
             query = """
-                DELETE FROM iosapp.job_notification_history
+                UPDATE iosapp.job_notification_history
+                SET is_deleted = TRUE, deleted_at = NOW(), updated_at = NOW()
+                WHERE id = $1 AND is_deleted = FALSE
+                RETURNING id
+            """
+            result = await db_manager.execute_query(query, notification_id)
+            
+            if result:
+                self.logger.info(f"Soft deleted notification {notification_id}")
+                return True
+            else:
+                self.logger.warning(f"Notification {notification_id} not found or already deleted")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error soft deleting notification {notification_id}: {e}")
+            return False
+    
+    async def mark_notification_as_read(self, notification_id: str) -> bool:
+        """Mark a notification as read"""
+        try:
+            query = """
+                UPDATE iosapp.job_notification_history
+                SET is_read = TRUE, updated_at = NOW()
+                WHERE id = $1 AND is_deleted = FALSE
+                RETURNING id
+            """
+            result = await db_manager.execute_query(query, notification_id)
+            
+            if result:
+                self.logger.info(f"Marked notification {notification_id} as read")
+                return True
+            else:
+                self.logger.warning(f"Notification {notification_id} not found or already deleted")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error marking notification {notification_id} as read: {e}")
+            return False
+
+    async def cleanup_old_notifications(self, days_old: int = 30) -> int:
+        """Clean up old notification history records (only hard delete very old records)"""
+        try:
+            # First, soft delete old notifications to preserve unique keys
+            soft_delete_query = """
+                UPDATE iosapp.job_notification_history
+                SET is_deleted = TRUE, deleted_at = NOW(), updated_at = NOW()
                 WHERE notification_sent_at < NOW() - INTERVAL '%s days'
+                AND is_deleted = FALSE
             """ % days_old
             
-            result = await db_manager.execute_command(query)
-            self.logger.info(f"Cleaned up notification history older than {days_old} days")
-            return result
+            soft_deleted_count = await db_manager.execute_command(soft_delete_query)
+            
+            # Hard delete only very old records (90+ days) to free up space
+            hard_delete_query = """
+                DELETE FROM iosapp.job_notification_history
+                WHERE notification_sent_at < NOW() - INTERVAL '%s days'
+                AND is_deleted = TRUE
+            """ % (days_old * 3)  # 3x the age for hard delete
+            
+            hard_deleted_count = await db_manager.execute_command(hard_delete_query)
+            
+            self.logger.info(f"Cleaned up notification history: {soft_deleted_count} soft deleted, {hard_deleted_count} hard deleted")
+            return soft_deleted_count + hard_deleted_count
             
         except Exception as e:
             self.logger.error(f"Error cleaning up old notifications: {e}")

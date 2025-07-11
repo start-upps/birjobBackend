@@ -19,6 +19,9 @@ class JobNotificationHistory(Base):
     job_source = Column(String(100))
     matched_keywords = Column(JSONB, default=list)
     notification_sent_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
