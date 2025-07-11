@@ -284,8 +284,10 @@ async def register_push_token(request: dict):
         from app.utils.validation import validate_device_token
         device_token = validate_device_token(device_token)
         
-        # Get device_id from request or generate one
+        # Get device_id and email from request
         device_id = request.get("device_id")
+        email = request.get("email")  # Support email-first registration
+        
         if not device_id:
             # If no device_id provided, look for existing device by token
             device_id = device_token  # Temporary fallback
@@ -314,11 +316,26 @@ async def register_push_token(request: dict):
             user_id = device_result[0]['user_id']
             message = "Push token updated successfully"
         else:
-            # Create new user and device token
-            user_query = "INSERT INTO iosapp.users (notifications_enabled) VALUES (true) RETURNING id"
-            user_result = await db_manager.execute_query(user_query)
-            user_id = user_result[0]['id']
+            # Check if user exists by email (email-first registration flow)
+            user_id = None
+            if email:
+                existing_user_query = "SELECT id FROM iosapp.users WHERE email = $1"
+                existing_user_result = await db_manager.execute_query(existing_user_query, email)
+                if existing_user_result:
+                    user_id = existing_user_result[0]['id']
+                    message = "Device linked to existing user account"
             
+            # If no existing user found, create new user
+            if not user_id:
+                user_query = """
+                    INSERT INTO iosapp.users (email, notifications_enabled) 
+                    VALUES ($1, true) RETURNING id
+                """
+                user_result = await db_manager.execute_query(user_query, email)
+                user_id = user_result[0]['id']
+                message = "New user created and device registered"
+            
+            # Create device token record
             device_insert_query = """
                 INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
                 VALUES ($1, $2, $3, $4)
@@ -326,7 +343,6 @@ async def register_push_token(request: dict):
             await db_manager.execute_command(
                 device_insert_query, user_id, device_id, device_token, json.dumps(device_info)
             )
-            message = "Push token registered successfully"
         
         # Check if user has keywords to determine if setup is complete
         user_check_query = """
