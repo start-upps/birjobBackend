@@ -314,27 +314,11 @@ async def register_push_token(request: dict):
             user_id = device_result[0]['user_id']
             message = "Push token updated successfully"
         else:
-            # Look for existing user without device token (avoid duplicate users)
-            existing_user_query = """
-                SELECT id FROM iosapp.users 
-                WHERE id NOT IN (SELECT user_id FROM iosapp.device_tokens WHERE user_id IS NOT NULL)
-                ORDER BY created_at DESC 
-                LIMIT 1
-            """
-            existing_user_result = await db_manager.execute_query(existing_user_query)
+            # Create new user and device token
+            user_query = "INSERT INTO iosapp.users (notifications_enabled) VALUES (true) RETURNING id"
+            user_result = await db_manager.execute_query(user_query)
+            user_id = user_result[0]['id']
             
-            if existing_user_result:
-                # Use existing user without device token
-                user_id = existing_user_result[0]['id']
-                message = "Push token registered for existing user"
-            else:
-                # Create new user only if no orphaned users exist
-                user_query = "INSERT INTO iosapp.users (notifications_enabled) VALUES (true) RETURNING id"
-                user_result = await db_manager.execute_query(user_query)
-                user_id = user_result[0]['id']
-                message = "Push token registered for new user"
-            
-            # Create device token entry
             device_insert_query = """
                 INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
                 VALUES ($1, $2, $3, $4)
@@ -342,6 +326,7 @@ async def register_push_token(request: dict):
             await db_manager.execute_command(
                 device_insert_query, user_id, device_id, device_token, json.dumps(device_info)
             )
+            message = "Push token registered successfully"
         
         return {
             "success": True,
@@ -358,71 +343,7 @@ async def register_push_token(request: dict):
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to register push token: {str(e)}")
 
-@router.get("/quick-test/{device_id}")
-async def quick_test_for_device(device_id: str):
-    """Quick test endpoint to setup and send notifications for specific device"""
-    try:
-        # First setup the user with keywords if not set
-        user_setup_query = """
-            UPDATE iosapp.users 
-            SET keywords = $1, notifications_enabled = true, updated_at = NOW()
-            WHERE id = (
-                SELECT u.id FROM iosapp.users u
-                JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-                WHERE dt.device_id = $2 AND dt.is_active = true
-            )
-        """
-        
-        keywords = ["iOS Developer", "Swift", "Mobile App", "iPhone", "React Native", "Apple"]
-        import json
-        await db_manager.execute_command(user_setup_query, json.dumps(keywords), device_id)
-        
-        # Now run the real notification processor
-        stats = await run_notifications_now(dry_run=False)
-        
-        return {
-            "success": True,
-            "message": "Keywords setup and real notifications triggered!",
-            "data": {
-                "device_id": device_id,
-                "keywords_set": keywords,
-                "processed_jobs": stats.get('processed_jobs', 0),
-                "matched_users": stats.get('matched_users', 0),
-                "notifications_sent": stats.get('notifications_sent', 0),
-                "mode": "REAL notifications"
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in quick test: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Check server logs for details"
-        }
 
-@router.post("/test-run", response_model=JobNotificationTriggerResponse)
-async def test_run_notifications(dry_run: bool = False):
-    """Test run notifications immediately - LIVE MODE by default"""
-    try:
-        stats = await run_notifications_now(dry_run=dry_run)
-        
-        return JobNotificationTriggerResponse(
-            message=f"Test notification run completed ({'dry run' if dry_run else 'live run'})",
-            processed_jobs=stats.get('processed_jobs', 0),
-            matched_users=stats.get('matched_users', 0),
-            notifications_sent=stats.get('notifications_sent', 0),
-            data={
-                "status": "completed",
-                "errors": stats.get('errors', 0),
-                "dry_run": dry_run,
-                "test_mode": True
-            }
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in test notification run: {e}")
-        raise HTTPException(status_code=500, detail="Failed to run test notifications")
 
 @router.get("/inbox/{device_id}", response_model=NotificationInboxResponse)
 async def get_notification_inbox(device_id: str, limit: int = 50, offset: int = 0):
@@ -1235,71 +1156,6 @@ async def cleanup_invalid_tokens():
         logger.error(f"Error cleaning up invalid tokens: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to cleanup tokens: {str(e)}")
 
-@router.post("/merge-duplicate-users")
-async def merge_duplicate_users():
-    """Merge duplicate users - link device tokens to users with keywords"""
-    try:
-        # Find users with device tokens but no keywords
-        users_with_tokens_query = """
-            SELECT DISTINCT u.id as user_id, dt.device_id, dt.device_token
-            FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE (u.keywords IS NULL OR jsonb_array_length(u.keywords) = 0)
-            AND dt.is_active = true
-        """
-        users_with_tokens = await db_manager.execute_query(users_with_tokens_query)
-        
-        # Find users with keywords but no device tokens
-        users_with_keywords_query = """
-            SELECT u.id as user_id, u.keywords, u.email
-            FROM iosapp.users u
-            WHERE u.id NOT IN (SELECT user_id FROM iosapp.device_tokens WHERE user_id IS NOT NULL)
-            AND u.keywords IS NOT NULL 
-            AND jsonb_array_length(u.keywords) > 0
-        """
-        users_with_keywords = await db_manager.execute_query(users_with_keywords_query)
-        
-        merged_count = 0
-        
-        # Try to merge them
-        for token_user in users_with_tokens:
-            if users_with_keywords:
-                # Take the first user with keywords
-                keyword_user = users_with_keywords[0]
-                
-                # Update device token to point to the user with keywords
-                update_device_query = """
-                    UPDATE iosapp.device_tokens 
-                    SET user_id = $1, updated_at = NOW()
-                    WHERE user_id = $2
-                """
-                await db_manager.execute_command(
-                    update_device_query, 
-                    keyword_user['user_id'], 
-                    token_user['user_id']
-                )
-                
-                # Delete the empty user
-                delete_user_query = "DELETE FROM iosapp.users WHERE id = $1"
-                await db_manager.execute_command(delete_user_query, token_user['user_id'])
-                
-                # Remove from list to avoid reusing
-                users_with_keywords.pop(0)
-                merged_count += 1
-        
-        return {
-            "success": True,
-            "message": f"Merged {merged_count} duplicate users",
-            "data": {
-                "merged_count": merged_count,
-                "users_with_tokens_found": len(users_with_tokens),
-                "users_with_keywords_found": len(users_with_keywords)
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error merging duplicate users: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to merge users: {str(e)}")
 
 @router.post("/setup-keywords/{device_id}")
 async def setup_keywords_for_device(device_id: str, keywords: list = None):
