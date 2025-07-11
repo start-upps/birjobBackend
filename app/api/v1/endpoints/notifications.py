@@ -339,10 +339,14 @@ async def register_push_token(request: dict):
             device_insert_query = """
                 INSERT INTO iosapp.device_tokens (user_id, device_id, device_token, device_info)
                 VALUES ($1, $2, $3, $4)
+                RETURNING id
             """
-            await db_manager.execute_command(
+            device_result = await db_manager.execute_query(
                 device_insert_query, user_id, device_id, device_token, json.dumps(device_info)
             )
+            
+            if not device_result:
+                raise Exception("Failed to create device token record")
         
         # Check if user has keywords to determine if setup is complete
         user_check_query = """
@@ -361,7 +365,6 @@ async def register_push_token(request: dict):
             
             if keywords:
                 if isinstance(keywords, str):
-                    import json
                     try:
                         parsed_keywords = json.loads(keywords)
                         has_keywords = len(parsed_keywords) > 0
