@@ -328,12 +328,41 @@ async def register_push_token(request: dict):
             )
             message = "Push token registered successfully"
         
+        # Check if user has keywords to determine if setup is complete
+        user_check_query = """
+            SELECT keywords, email, notifications_enabled 
+            FROM iosapp.users 
+            WHERE id = $1
+        """
+        user_data_result = await db_manager.execute_query(user_check_query, user_id)
+        
+        has_keywords = False
+        user_email = None
+        if user_data_result:
+            user_data = user_data_result[0]
+            keywords = user_data.get('keywords')
+            user_email = user_data.get('email')
+            
+            if keywords:
+                if isinstance(keywords, str):
+                    import json
+                    try:
+                        parsed_keywords = json.loads(keywords)
+                        has_keywords = len(parsed_keywords) > 0
+                    except:
+                        has_keywords = False
+                elif isinstance(keywords, list):
+                    has_keywords = len(keywords) > 0
+
         return {
             "success": True,
             "data": {
                 "device_id": device_id,
                 "user_id": str(user_id),
-                "message": message
+                "message": message,
+                "setup_complete": has_keywords,
+                "user_email": user_email,
+                "requires_onboarding": not has_keywords
             }
         }
         
@@ -342,6 +371,66 @@ async def register_push_token(request: dict):
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to register push token: {str(e)}")
+
+@router.get("/user-status/{device_id}")
+async def get_user_registration_status(device_id: str):
+    """Check if user is fully registered and has keywords set up"""
+    try:
+        # Get user info by device_id
+        user_query = """
+            SELECT u.id, u.keywords, u.email, u.notifications_enabled, u.created_at
+            FROM iosapp.users u
+            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
+            WHERE dt.device_id = $1 AND dt.is_active = true
+        """
+        user_result = await db_manager.execute_query(user_query, device_id)
+        
+        if not user_result:
+            return {
+                "success": False,
+                "registered": False,
+                "message": "Device not found - registration required"
+            }
+        
+        user_data = user_result[0]
+        keywords = user_data.get('keywords')
+        
+        # Check if user has keywords
+        has_keywords = False
+        keyword_list = []
+        
+        if keywords:
+            if isinstance(keywords, str):
+                import json
+                try:
+                    parsed_keywords = json.loads(keywords)
+                    if isinstance(parsed_keywords, list):
+                        keyword_list = [k for k in parsed_keywords if k and str(k).strip()]
+                        has_keywords = len(keyword_list) > 0
+                except:
+                    has_keywords = False
+            elif isinstance(keywords, list):
+                keyword_list = [k for k in keywords if k and str(k).strip()]
+                has_keywords = len(keyword_list) > 0
+        
+        return {
+            "success": True,
+            "registered": True,
+            "setup_complete": has_keywords,
+            "requires_onboarding": not has_keywords,
+            "data": {
+                "user_id": str(user_data['id']),
+                "email": user_data.get('email'),
+                "keywords": keyword_list,
+                "keywords_count": len(keyword_list),
+                "notifications_enabled": user_data.get('notifications_enabled', False),
+                "registered_at": user_data['created_at'].isoformat() if user_data.get('created_at') else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking user status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check user status")
 
 
 
