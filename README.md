@@ -236,7 +236,17 @@ graph TD
 All tables already exist - just need to enable the endpoints.
 
 **Current Production Choice:**
-The system intentionally uses the **device-first approach** for simplicity and faster development. This eliminates user account complexity while maintaining full job notification functionality.
+The system uses a **clean device-first approach** after major codebase cleanup. All duplicate notification systems, dead code, and unused endpoints have been removed for maximum simplicity and maintainability.
+
+### 🧹 **Recent Major Cleanup (v3.0.0)**
+**Removed 14 files and 5,356 lines of dead code:**
+- ❌ 7 unused endpoint files (analytics, chatbot, devices, jobs, notifications, users, debug)
+- ❌ 4 unused schema files  
+- ❌ 2 unused model files
+- ❌ 1 redundant notification service
+- ✅ Single notification system (minimal-notifications + device-notifications)
+- ✅ Clean /docs without schema errors
+- ✅ Simplified router with only active endpoints
 
 ---
 
@@ -1122,10 +1132,11 @@ enum APIError: LocalizedError {
 ---
 
 **Last Updated**: July 13, 2025  
-**API Version**: v2.2.0 (Complete API Documentation)  
+**API Version**: v3.0.0 (Clean Codebase - Major Cleanup)  
 **Database Tables**: 8 tables total (4 active, 4 available)  
-**Active Endpoints**: 40 endpoints across 6 categories  
-**Interactive Docs**: ✅ Up to date at `/docs`  
+**Active Endpoints**: 30+ endpoints across 7 endpoint files  
+**Codebase Status**: ✅ All dead code removed, single notification system  
+**Interactive Docs**: ✅ Clean schemas section at `/docs`  
 **Production Status**: ✅ Fully deployed and tested  
 **Optimized for**: iOS Development & AI-Powered Job Discovery
 
