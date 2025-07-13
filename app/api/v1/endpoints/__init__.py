@@ -7,6 +7,7 @@ from . import (
     device_notifications,
     device_management,
     device_chatbot,
+    users,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "device_notifications",
     "device_management",
     "device_chatbot",
+    "users",
 ]
