@@ -6,8 +6,7 @@
 
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
-**🗄️ Database**: 12+ tables (4 active device-based, 8+ available for features)  
-**📊 Current Data**: 3 active devices, 3,763+ jobs, 32+ sources
+**🗄️ Database**: 8 tables total (iosapp schema + scraper schema)  
 
 ---
 
@@ -17,51 +16,22 @@
 - **Device-First**: No email required - just device tokens + keywords
 - **Hash Deduplication**: MD5-based job uniqueness (never spam users)
 - **Real-Time**: Live job matching and instant push notifications
-- **Comprehensive Schema**: Full-featured database supporting all app functionalities
+- **7-Table Schema**: Efficient database design supporting all app functionalities
 - **AI-Powered**: Built-in chatbot and job recommendations
 
-### Database Schema (Complete Production Schema)
 
-#### Core Tables (Device-Based System)
+#### iosapp Schema (7 Tables)
 ```sql
--- 1. Device Users (Primary Table - Replaces traditional user management)
+-- 1. Device Users (Device-based registration)
 CREATE TABLE iosapp.device_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_token VARCHAR(64) NOT NULL UNIQUE,     -- APNs token (exactly 64 hex chars)
-    keywords JSONB NOT NULL DEFAULT '[]',         -- Job search keywords
+    device_token VARCHAR(64) NOT NULL UNIQUE,
+    keywords JSONB NOT NULL DEFAULT '[]',
     notifications_enabled BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    CONSTRAINT device_token_length CHECK (length(device_token) >= 64)
-);
-
--- 2. Notification Deduplication (Hash-Based)
-CREATE TABLE iosapp.notification_hashes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID NOT NULL REFERENCES device_users(id) ON DELETE CASCADE,
-    job_hash VARCHAR(32) NOT NULL,               -- MD5 hash of job_title + company
-    job_title VARCHAR(500),
-    job_company VARCHAR(200), 
-    job_source VARCHAR(100),
-    matched_keywords JSONB,
-    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    UNIQUE(device_id, job_hash)                   -- Prevents duplicate notifications
-);
-
--- 3. Analytics Tracking
-CREATE TABLE iosapp.user_analytics (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID REFERENCES device_users(id) ON DELETE CASCADE,
-    action VARCHAR(50) NOT NULL,                 -- 'registration', 'ai_chat', etc.
-    metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-```
 
-#### Extended User Management Tables (Optional - For Future Features)
-```sql
--- Users Table (Email-based system - currently disabled)
+-- 2. Users (Email-based users - available but not used in device-first mode)
 CREATE TABLE iosapp.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE,
@@ -73,19 +43,29 @@ CREATE TABLE iosapp.users (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Device Tokens (Links devices to users - currently disabled)
-CREATE TABLE iosapp.device_tokens (
+-- 3. Notification Hashes (Deduplication)
+CREATE TABLE iosapp.notification_hashes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_id VARCHAR(255) UNIQUE NOT NULL,
-    device_token VARCHAR(500) NOT NULL,
-    device_info JSONB DEFAULT '{}',
-    is_active BOOLEAN DEFAULT true,
-    registered_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    device_id UUID NOT NULL REFERENCES device_users(id) ON DELETE CASCADE,
+    job_hash VARCHAR(32) NOT NULL,
+    job_title VARCHAR(500),
+    job_company VARCHAR(200),
+    job_source VARCHAR(100),
+    matched_keywords JSONB,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(device_id, job_hash)
 );
 
--- Saved Jobs
+-- 4. User Analytics (Activity tracking)
+CREATE TABLE iosapp.user_analytics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id UUID REFERENCES device_users(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Saved Jobs
 CREATE TABLE iosapp.saved_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -97,7 +77,7 @@ CREATE TABLE iosapp.saved_jobs (
     UNIQUE(user_id, job_id)
 );
 
--- Job Views (Analytics)
+-- 6. Job Views
 CREATE TABLE iosapp.job_views (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -109,7 +89,7 @@ CREATE TABLE iosapp.job_views (
     viewed_at TIMESTAMP DEFAULT NOW()
 );
 
--- Job Applications
+-- 7. Job Applications  
 CREATE TABLE iosapp.job_applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -123,111 +103,20 @@ CREATE TABLE iosapp.job_applications (
 );
 ```
 
-#### Advanced Notification System Tables (Available)
-```sql
--- Job Notification History
-CREATE TABLE iosapp.job_notification_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    job_unique_key VARCHAR(255) NOT NULL,
-    job_id INTEGER NOT NULL,
-    job_title VARCHAR(500) NOT NULL,
-    job_company VARCHAR(255) NOT NULL,
-    job_source VARCHAR(100),
-    matched_keywords JSONB DEFAULT '[]',
-    notification_sent_at TIMESTAMP DEFAULT NOW(),
-    is_read BOOLEAN DEFAULT false,
-    is_deleted BOOLEAN DEFAULT false,
-    deleted_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Push Notifications
-CREATE TABLE iosapp.push_notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID REFERENCES device_tokens(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    match_id UUID REFERENCES job_notification_history(id) ON DELETE SET NULL,
-    notification_type VARCHAR(50) NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',
-    apns_response JSONB,
-    created_at TIMESTAMP DEFAULT NOW(),
-    sent_at TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Notification Settings
-CREATE TABLE iosapp.notification_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_id UUID REFERENCES device_tokens(id) ON DELETE CASCADE,
-    job_matches_enabled BOOLEAN DEFAULT true,
-    daily_digest_enabled BOOLEAN DEFAULT true,
-    system_notifications_enabled BOOLEAN DEFAULT true,
-    quiet_hours_start INTEGER DEFAULT 22,
-    quiet_hours_end INTEGER DEFAULT 8,
-    timezone VARCHAR(50) DEFAULT 'UTC',
-    max_notifications_per_hour INTEGER DEFAULT 5,
-    max_notifications_per_day INTEGER DEFAULT 20,
-    keywords JSONB DEFAULT '[]',
-    keyword_match_mode VARCHAR(20) DEFAULT 'any',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Notification Delivery Log
-CREATE TABLE iosapp.notification_delivery_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    notification_id UUID REFERENCES push_notifications(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_id UUID REFERENCES device_tokens(id) ON DELETE CASCADE,
-    attempt_number INTEGER DEFAULT 1,
-    delivery_status VARCHAR(20) NOT NULL,
-    error_message TEXT,
-    apns_message_id VARCHAR(255),
-    apns_timestamp TIMESTAMP,
-    processing_time_ms INTEGER,
-    queue_time_ms INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### Job Data Source (External - Scraper Database)
-```sql
--- Job Posts (Maintained by separate scraper service)
-CREATE TABLE scraper.jobs_jobpost (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(500) NOT NULL,
-    company VARCHAR(255) NOT NULL,
-    apply_link TEXT,
-    source VARCHAR(100),
-    description TEXT,
-    location VARCHAR(255),
-    salary_range VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
--- Contains 3,763+ live jobs from 32+ sources updated regularly
-```
-
-#### Current Active Tables (Device-Based System)
-**Currently Active & Used:**
-- `iosapp.device_users` - Primary device registration table
-- `iosapp.notification_hashes` - Notification deduplication
-- `iosapp.user_analytics` - Device activity tracking
+#### Current Usage
+**Active Tables (Device-Based System):**
+- `iosapp.device_users` - Device registration & keywords
+- `iosapp.notification_hashes` - Notification deduplication  
+- `iosapp.user_analytics` - Activity tracking
 - `scraper.jobs_jobpost` - Job data source
 
-**Available but Disabled:**
+**Available Tables (Not Currently Used):**
 - `iosapp.users` - Email-based user system
-- `iosapp.device_tokens` - Device-user linking
 - `iosapp.saved_jobs` - Job bookmarking
-- `iosapp.job_views` - View analytics
+- `iosapp.job_views` - Job view analytics
 - `iosapp.job_applications` - Application tracking
-- All advanced notification tables
 
-**Architecture Note:** The system uses a **device-first approach** where `device_users` replaces traditional user management. This eliminates the need for email registration while maintaining full functionality.
+**Total: 7 Tables (4 active, 3 available)**
 
 ---
 
@@ -305,42 +194,28 @@ graph TD
     K --> L[Analytics Dashboard]
 ```
 
-### 🎯 **Active Database Tables**
+### 🎯 **7 Database Tables**
 
 | Table | Purpose | Records | Status |
 |-------|---------|---------|--------|
-| `iosapp.device_users` | Device registration & keywords | 3 active | ✅ Primary |
-| `iosapp.notification_hashes` | Notification deduplication | ~100+ | ✅ Active |
-| `iosapp.user_analytics` | Device activity tracking | ~50+ events | ✅ Active |
-| `scraper.jobs_jobpost` | Job data source | 3,763+ jobs | ✅ External |
-
-### 📊 **Available but Unused Tables**
-
-| Table | Purpose | Status | When to Enable |
-|-------|---------|--------|----------------|
-| `iosapp.users` | Email-based users | ❌ Disabled | If email login needed |
-| `iosapp.device_tokens` | Device-user linking | ❌ Disabled | If user accounts needed |
-| `iosapp.saved_jobs` | Job bookmarking | ❌ Disabled | If save feature needed |
-| `iosapp.job_views` | View analytics | ❌ Disabled | If detailed analytics needed |
-| `iosapp.job_applications` | Application tracking | ❌ Disabled | If application flow needed |
-| Advanced notification tables | Complex notifications | ❌ Disabled | If advanced features needed |
+| `iosapp.device_users` | Device registration | 3 active | ✅ Active |
+| `iosapp.notification_hashes` | Notification deduplication | Variable | ✅ Active |
+| `iosapp.user_analytics` | Activity tracking | Variable | ✅ Active |
+| `scraper.jobs_jobpost` | Job data source | 3,763+ jobs | ✅ Active |
+| `iosapp.users` | Email-based users | 0 records | ⭕ Available |
+| `iosapp.saved_jobs` | Job bookmarking | 0 records | ⭕ Available |
+| `iosapp.job_views` | Job view analytics | 0 records | ⭕ Available |
+| `iosapp.job_applications` | Application tracking | 0 records | ⭕ Available |
 
 ### 🔧 **Enabling Additional Features**
 
-**To enable email-based user management:**
-1. Uncomment user router in `/app/api/v1/router.py`
-2. Create user tables: `POST /api/v1/health/create-user-tables`
-3. Update iOS app to use `/api/v1/users/*` endpoints
+**To enable additional features:**
+1. **Email Users**: Uncomment user router in `/app/api/v1/router.py`
+2. **Saved Jobs**: Enable endpoints for `saved_jobs` table
+3. **Job Applications**: Enable endpoints for `job_applications` table
+4. **Job Views**: Enable analytics endpoints for `job_views` table
 
-**To enable saved jobs functionality:**
-1. Tables already exist in database
-2. Uncomment relevant endpoints in router
-3. Add iOS UI for bookmarking jobs
-
-**To enable advanced notifications:**
-1. All notification tables are available
-2. Uncomment notification router in main router
-3. Configure notification settings per device
+All tables already exist - just need to enable the endpoints.
 
 **Current Production Choice:**
 The system intentionally uses the **device-first approach** for simplicity and faster development. This eliminates user account complexity while maintaining full job notification functionality.
@@ -1200,7 +1075,7 @@ enum APIError: LocalizedError {
 - **Device Management**: Update, delete, analytics
 
 ### ✅ **Developer Experience:**
-- **Comprehensive Schema**: Full-featured database with optional tables
+- **7-Table Schema**: Efficient database with active device system
 - **Device-Based**: No complex user management required
 - **Hash Deduplication**: Never spam users
 - **Real-Time**: Instant job matching
@@ -1222,16 +1097,16 @@ enum APIError: LocalizedError {
 | **AI Features** | ✅ Active | `user_analytics` | `/api/v1/chatbot/*` |
 | **Device Analytics** | ✅ Active | `user_analytics` | `/api/v1/devices/analytics/*` |
 | **Health Monitoring** | ✅ Active | All tables | `/health`, `/api/v1/health` |
-| **Email Users** | ❌ Available | `users`, `device_tokens` | `/api/v1/users/*` |
-| **Saved Jobs** | ❌ Available | `saved_jobs` | Not enabled |
-| **Job Applications** | ❌ Available | `job_applications` | Not enabled |
-| **Advanced Notifications** | ❌ Available | 5+ notification tables | Not enabled |
+| **Email Users** | ⭕ Available | `users` | `/api/v1/users/*` (disabled) |
+| **Saved Jobs** | ⭕ Available | `saved_jobs` | Not enabled |
+| **Job Applications** | ⭕ Available | `job_applications` | Not enabled |
+| **Job Views** | ⭕ Available | `job_views` | Not enabled |
 
 ---
 
 **Last Updated**: July 13, 2025  
 **API Version**: v2.1.0 (Device-Based with Full Schema)  
-**Database Tables**: 12+ tables (4 active, 8+ available for future features)  
+**Database Tables**: 7 tables total (4 active, 3 available)  
 **Active Architecture**: Device-first with comprehensive optional user management  
 **Production Status**: ✅ Fully deployed and tested  
 **Optimized for**: iOS Development & AI-Powered Job Discovery
