@@ -25,7 +25,7 @@
 -- 1. Device Users (Device-based registration)
 CREATE TABLE iosapp.device_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_token VARCHAR(64) NOT NULL UNIQUE,
+    device_token VARCHAR(160) NOT NULL UNIQUE,     -- Supports 64, 128, or 160 char tokens
     keywords JSONB NOT NULL DEFAULT '[]',
     notifications_enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -244,15 +244,20 @@ All tables already exist - just need to enable the endpoints.
 **Current Production Choice:**
 The system uses a **clean device-first approach** after major codebase cleanup. All duplicate notification systems, dead code, and unused endpoints have been removed for maximum simplicity and maintainability.
 
-### 🧹 **Recent Major Cleanup (v3.0.0)**
-**Removed 14 files and 5,356 lines of dead code:**
-- ❌ 7 unused endpoint files (analytics, chatbot, devices, jobs, notifications, users, debug)
-- ❌ 4 unused schema files  
-- ❌ 2 unused model files
-- ❌ 1 redundant notification service
+### 🧹 **Recent Major Updates**
+
+**v3.0.0 - Major Cleanup:**
+- ❌ Removed 14 files and 5,356 lines of dead code
+- ❌ 7 unused endpoint files, 4 unused schema files, 2 unused model files
 - ✅ Single notification system (minimal-notifications + device-notifications)
 - ✅ Clean /docs without schema errors
 - ✅ Simplified router with only active endpoints
+
+**v3.1.0 - Backend Error Fixes:**
+- ✅ Fixed notification scheduler method errors
+- ✅ Added support for 128-character device tokens (iOS newer versions)
+- ✅ Updated database schema to VARCHAR(160) for device tokens
+- ✅ All backend errors resolved (were not iOS setup issues)
 
 ---
 
@@ -267,7 +272,7 @@ UIApplication.shared.registerForRemoteNotifications()
 // STEP 2: Single API call registration
 func registerDevice(deviceToken: String, keywords: [String]) {
     let request = [
-        "device_token": deviceToken,    // 64 hex chars from Apple
+        "device_token": deviceToken,    // 64, 128, or 160 hex chars from Apple
         "keywords": keywords           // ["iOS", "Swift", "Remote"]
     ]
     // POST /api/v1/device/register
@@ -1062,9 +1067,9 @@ enum APIError: LocalizedError {
 ## 🔐 Security & Features
 
 ### Device Token Validation
-- **Exactly 64 hexadecimal characters** (APNs production tokens)
-- **Automatic validation** against Apple's format
-- **Production APNs ready**
+- **Supports 64, 128, or 160 hexadecimal characters** (All APNs token formats)
+- **Automatic validation** against Apple's format standards
+- **Production APNs ready** for all iOS versions
 
 ### Rate Limiting
 - **Registration**: Reasonable limits per device
