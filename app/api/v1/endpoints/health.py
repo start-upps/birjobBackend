@@ -136,40 +136,40 @@ async def get_system_metrics() -> Dict[str, Any]:
         # Get active devices count
         active_devices_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.device_tokens 
-            WHERE is_active = true
+            FROM iosapp.device_users 
+            WHERE notifications_enabled = true
         """
         active_devices = await db_manager.execute_query(active_devices_query)
         
         # Get active subscriptions count (simplified - count users with keywords)
         active_subs_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.users 
-            WHERE jsonb_array_length(keywords) > 0
+            FROM iosapp.device_users 
+            WHERE jsonb_array_length(keywords) > 0 AND notifications_enabled = true
         """
         active_subs = await db_manager.execute_query(active_subs_query)
         
-        # Get job views in last 24h (simplified metrics)
-        job_views_24h_query = """
+        # Get notifications sent in last 24h (using notification_hashes table)
+        notifications_24h_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.job_views 
-            WHERE viewed_at > NOW() - INTERVAL '24 hours'
+            FROM iosapp.notification_hashes 
+            WHERE sent_at > NOW() - INTERVAL '24 hours'
         """
-        job_views_24h = await db_manager.execute_query(job_views_24h_query)
+        notifications_24h = await db_manager.execute_query(notifications_24h_query)
         
-        # Get saved jobs in last 24h (simplified notifications metric)
-        saved_jobs_24h_query = """
+        # Get user analytics events in last 24h (simplified metrics)
+        analytics_24h_query = """
             SELECT COUNT(*) as count 
-            FROM iosapp.saved_jobs 
+            FROM iosapp.user_analytics 
             WHERE created_at > NOW() - INTERVAL '24 hours'
         """
-        saved_jobs_24h = await db_manager.execute_query(saved_jobs_24h_query)
+        analytics_24h = await db_manager.execute_query(analytics_24h_query)
         
         return {
             "active_devices": active_devices[0]["count"] if active_devices else 0,
             "active_subscriptions": active_subs[0]["count"] if active_subs else 0,
-            "matches_last_24h": job_views_24h[0]["count"] if job_views_24h else 0,
-            "notifications_sent_last_24h": saved_jobs_24h[0]["count"] if saved_jobs_24h else 0
+            "matches_last_24h": analytics_24h[0]["count"] if analytics_24h else 0,
+            "notifications_sent_last_24h": notifications_24h[0]["count"] if notifications_24h else 0
         }
         
     except Exception as e:

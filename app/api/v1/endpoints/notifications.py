@@ -950,10 +950,9 @@ async def force_job_check_for_device(device_id: str):
     try:
         # Get user info for this device
         user_query = """
-            SELECT u.id as user_id, u.keywords, u.notifications_enabled, dt.device_token
-            FROM iosapp.users u
-            JOIN iosapp.device_tokens dt ON u.id = dt.user_id
-            WHERE dt.device_id = $1 AND dt.is_active = true AND u.notifications_enabled = true
+            SELECT id as user_id, keywords, notifications_enabled, device_token
+            FROM iosapp.device_users
+            WHERE device_token = $1 AND notifications_enabled = true
         """
         user_result = await db_manager.execute_query(user_query, device_id)
         
@@ -1005,22 +1004,30 @@ async def force_job_check_for_device(device_id: str):
             
             if matched_keywords:
                 # Check if already notified
-                job_unique_key = notification_service._generate_job_unique_key(job['title'], job['company'])
+                import hashlib
+                job_hash = hashlib.md5(f"{job['title']}{job['company']}".encode()).hexdigest()
                 
                 already_notified_query = """
-                    SELECT id FROM iosapp.job_notification_history
-                    WHERE user_id = $1 AND job_unique_key = $2
+                    SELECT id FROM iosapp.notification_hashes
+                    WHERE device_id = $1 AND job_hash = $2
                 """
-                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_unique_key)
+                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_hash)
                 
                 if not already_notified:
                     matches_found += 1
                     
                     # Record the notification
-                    notification_id = await notification_service._record_notification(
-                        user_id, job['id'], job['title'], job['company'], 
-                        job.get('source'), job_unique_key, matched_keywords
+                    record_query = """
+                        INSERT INTO iosapp.notification_hashes 
+                        (device_id, job_hash, job_title, job_company, job_source, matched_keywords, sent_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                        RETURNING id
+                    """
+                    record_result = await db_manager.execute_query(
+                        record_query, user_id, job_hash, job['title'], 
+                        job['company'], job.get('source'), json.dumps(matched_keywords)
                     )
+                    notification_id = str(record_result[0]['id']) if record_result else None
                     
                     if notification_id:
                         # Send actual push notification
@@ -1467,13 +1474,14 @@ async def auto_setup_and_notify(device_id: str):
             
             if matched_keywords:
                 # Check if already notified
-                job_unique_key = notification_service._generate_job_unique_key(job['title'], job['company'])
+                import hashlib
+                job_hash = hashlib.md5(f"{job['title']}{job['company']}".encode()).hexdigest()
                 
                 already_notified_query = """
-                    SELECT id FROM iosapp.job_notification_history
-                    WHERE user_id = $1 AND job_unique_key = $2
+                    SELECT id FROM iosapp.notification_hashes
+                    WHERE device_id = $1 AND job_hash = $2
                 """
-                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_unique_key)
+                already_notified = await db_manager.execute_query(already_notified_query, user_id, job_hash)
                 
                 if not already_notified:
                     matches_found += 1
@@ -1484,10 +1492,17 @@ async def auto_setup_and_notify(device_id: str):
                     })
                     
                     # Record the notification
-                    notification_id = await notification_service._record_notification(
-                        user_id, job['id'], job['title'], job['company'], 
-                        job.get('source'), job_unique_key, matched_keywords
+                    record_query = """
+                        INSERT INTO iosapp.notification_hashes 
+                        (device_id, job_hash, job_title, job_company, job_source, matched_keywords, sent_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                        RETURNING id
+                    """
+                    record_result = await db_manager.execute_query(
+                        record_query, user_id, job_hash, job['title'], 
+                        job['company'], job.get('source'), json.dumps(matched_keywords)
                     )
+                    notification_id = str(record_result[0]['id']) if record_result else None
                     
                     if notification_id:
                         # Send actual push notification
