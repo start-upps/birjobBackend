@@ -41,7 +41,28 @@ async def chat_with_ai(
             raise HTTPException(status_code=404, detail="Device not found or notifications disabled")
         
         device_id = device_result[0]['id']
-        keywords = device_result[0]['keywords'] or []
+        keywords_raw = device_result[0]['keywords']
+        
+        logger.info(f"Raw keywords from DB: type={type(keywords_raw)}, value={repr(keywords_raw)}")
+        
+        # Handle JSONB field properly - fix the JSON parsing issue
+        if keywords_raw is None:
+            keywords = []
+        elif isinstance(keywords_raw, list):
+            keywords = keywords_raw  # Already a list
+        elif isinstance(keywords_raw, str):
+            # Handle JSON string from database
+            try:
+                parsed = json.loads(keywords_raw)
+                keywords = parsed if isinstance(parsed, list) else [str(parsed)]
+            except (json.JSONDecodeError, TypeError):
+                # Fallback: treat as single keyword
+                keywords = [keywords_raw] if keywords_raw.strip() else []
+        else:
+            # Handle other types (e.g., dict, number)
+            keywords = []
+            
+        logger.info(f"Processed keywords: type={type(keywords)}, value={keywords}")
         
         # Extract message from request
         user_message = chat_request.get("message", "").strip()
@@ -64,6 +85,7 @@ async def chat_with_ai(
         recent_notifications = await db_manager.execute_query(recent_notifications_query, device_id)
         
         # Build AI context
+        logger.info(f"Debug: keywords type={type(keywords)}, value={keywords}")
         context = {
             "user_keywords": keywords,
             "recent_jobs": [
@@ -103,7 +125,11 @@ async def chat_with_ai(
             "data": {
                 "response": ai_response,
                 "context_used": {
-                    "keywords": keywords,
+                    "keywords": keywords,  # This should be a list, not a string
+                    "raw_keywords_type": str(type(keywords_raw)),
+                    "raw_keywords_value": str(keywords_raw),
+                    "processed_keywords_type": str(type(keywords)),
+                    "processed_keywords_value": str(keywords),
                     "recent_jobs_count": len(recent_notifications)
                 },
                 "conversation_id": str(device_id),
@@ -139,6 +165,15 @@ async def analyze_job_with_ai(
         
         device_id = device_result[0]['id']
         keywords = device_result[0]['keywords'] or []
+        
+        # Ensure keywords is properly formatted as list (parse JSON if needed)
+        if isinstance(keywords, str):
+            try:
+                keywords = json.loads(keywords) if keywords.startswith('[') else [keywords]
+            except json.JSONDecodeError:
+                keywords = [keywords] if keywords else []
+        elif keywords is None:
+            keywords = []
         
         # Extract job info
         job_id = job_request.get("job_id")
@@ -231,6 +266,15 @@ async def get_ai_recommendations(
         device_id = device_result[0]['id']
         keywords = device_result[0]['keywords'] or []
         
+        # Ensure keywords is properly formatted as list (parse JSON if needed)
+        if isinstance(keywords, str):
+            try:
+                keywords = json.loads(keywords) if keywords.startswith('[') else [keywords]
+            except json.JSONDecodeError:
+                keywords = [keywords] if keywords else []
+        elif keywords is None:
+            keywords = []
+        
         if not keywords:
             raise HTTPException(status_code=400, detail="No keywords set for recommendations")
         
@@ -268,6 +312,9 @@ async def get_ai_recommendations(
         """
         
         # Create LIKE patterns from keywords
+        # Ensure keywords is a list
+        if isinstance(keywords, str):
+            keywords = json.loads(keywords) if keywords.startswith('[') else [keywords]
         like_patterns = [f"%{keyword.lower()}%" for keyword in keywords]
         
         recommendations_result = await db_manager.execute_query(
@@ -344,31 +391,58 @@ async def generate_ai_response(user_message: str, context: Dict[str, Any]) -> st
     
     # Simple keyword-based responses (replace with actual AI service)
     message_lower = user_message.lower()
-    keywords = context.get("user_keywords", [])
+    keywords_raw = context.get("user_keywords", [])
     recent_jobs = context.get("recent_jobs", [])
     
+    # Force keywords to be a proper list
+    if isinstance(keywords_raw, str):
+        try:
+            # Try to parse as JSON first
+            keywords = json.loads(keywords_raw)
+            if not isinstance(keywords, list):
+                keywords = [str(keywords)]
+        except:
+            # Fallback: split by comma or space
+            keywords = [k.strip() for k in keywords_raw.replace(",", " ").split() if k.strip()]
+    elif isinstance(keywords_raw, list):
+        keywords = keywords_raw
+    else:
+        keywords = []
+    
+    logger.info(f"AI Debug: keywords_raw type={type(keywords_raw)}, value={repr(keywords_raw)}")
+    logger.info(f"AI Debug: final keywords type={type(keywords)}, value={keywords}")
+    
     if "salary" in message_lower or "pay" in message_lower:
-        return f"Based on your keywords {keywords}, typical salary ranges vary by location and experience. iOS developers typically earn $80k-$200k+ depending on skills and location. Would you like me to analyze specific jobs for salary information?"
+        keywords_str = ", ".join(keywords)
+        return f"Based on your keywords {keywords_str}, typical salary ranges vary by location and experience. iOS developers typically earn $80k-$200k+ depending on skills and location. Would you like me to analyze specific jobs for salary information?"
     
     elif "skills" in message_lower or "learn" in message_lower:
-        return f"Given your interest in {keywords}, I recommend focusing on: SwiftUI, Combine, Core Data, networking, and testing. Consider building portfolio apps showcasing these skills."
+        keywords_str = ", ".join(keywords)
+        return f"Given your interest in {keywords_str}, I recommend focusing on: SwiftUI, Combine, Core Data, networking, and testing. Consider building portfolio apps showcasing these skills."
     
     elif "interview" in message_lower:
-        return f"For iOS interviews, prepare for: algorithm questions, iOS-specific concepts (memory management, lifecycle), system design, and coding challenges. Practice with your {keywords} focus areas."
+        keywords_str = ", ".join(keywords)
+        return f"For iOS interviews, prepare for: algorithm questions, iOS-specific concepts (memory management, lifecycle), system design, and coding challenges. Practice with your {keywords_str} focus areas."
     
     elif "career" in message_lower or "advice" in message_lower:
+        keywords_str = ", ".join(keywords)
         if recent_jobs:
             companies = [job["company"] for job in recent_jobs[:3]]
-            return f"You've had matches with {', '.join(companies)}. Consider researching these companies' tech stacks and contributing to open source projects that align with your {keywords} interests."
+            return f"You've had matches with {', '.join(companies)}. Consider researching these companies' tech stacks and contributing to open source projects that align with your {keywords_str} interests."
         else:
-            return f"Focus on building a strong portfolio with {keywords}. Contribute to open source, build personal projects, and network with iOS developers on platforms like Twitter and GitHub."
+            return f"Focus on building a strong portfolio with {keywords_str}. Contribute to open source, build personal projects, and network with iOS developers on platforms like Twitter and GitHub."
     
-    elif any(keyword.lower() in message_lower for keyword in keywords):
+    elif isinstance(keywords, list) and any(keyword.lower() in message_lower for keyword in keywords):
+        # Debug what keywords looks like here
+        logger.info(f"AI Response - keywords type: {type(keywords)}, value: {repr(keywords)}")
         matched = [k for k in keywords if k.lower() in message_lower]
-        return f"Great question about {matched}! Based on your job matches, this is clearly an important skill area. Would you like specific recommendations for {matched[0]} positions or learning resources?"
+        logger.info(f"AI Response - matched: {matched}")
+        matched_str = ", ".join(matched)
+        return f"Great question about {matched_str}! Based on your job matches, this is clearly an important skill area. Would you like specific recommendations for {matched[0]} positions or learning resources?"
     
     else:
-        return f"I'm here to help with your job search in {keywords}! I can provide career advice, analyze specific jobs, discuss salaries, interview tips, or recommend learning paths. What would you like to know?"
+        keywords_str = ", ".join(keywords)
+        return f"I'm here to help with your job search in {keywords_str}! I can provide career advice, analyze specific jobs, discuss salaries, interview tips, or recommend learning paths. What would you like to know?"
 
 async def generate_job_analysis(job: Dict[str, Any], keywords: List[str]) -> Dict[str, Any]:
     """Generate AI analysis of a specific job"""
