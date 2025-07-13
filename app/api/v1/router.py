@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import devices, health, jobs, users, analytics, chatbot, notifications, jobs_minimal
+# Only import active endpoints to avoid schema import errors
+from app.api.v1.endpoints import health, jobs_minimal
 from app.api.v1.endpoints import device_registration, minimal_notifications, device_notifications, device_management, device_chatbot
 # from app.api.v1.endpoints.debug_notifications import router as debug_router
 # from app.api.v1.endpoints import keywords  # Disabled - requires KeywordSubscription model
