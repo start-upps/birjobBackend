@@ -122,14 +122,25 @@ CREATE TABLE iosapp.job_applications (
 
 ## 🏗️ Current System Architecture & Enabled Features
 
-### ✅ **Active Endpoints (Production Ready)**
+### ✅ **All 40 Active Endpoints (Production Ready)**
 ```yaml
-# Device Management (Primary System)
+# Root
+/                                          # Root endpoint
+
+# Device Registration & Management  
 /api/v1/device/register                    # Device registration
+/api/v1/device/keywords                    # Update keywords
+/api/v1/device/status/{device_token}       # Device status
+/api/v1/device/device/{device_token}       # Delete device
+/api/v1/device/analytics/track             # Track user action
+/api/v1/device/analytics/summary           # Analytics summary
+
+# Advanced Device Management
 /api/v1/devices/status/{device_token}      # Device status check
 /api/v1/devices/update/{device_token}      # Update device settings
 /api/v1/devices/delete/{device_token}      # Delete device
 /api/v1/devices/analytics/{device_token}   # Device analytics
+/api/v1/devices/refresh-token/{old_device_token} # Refresh device token
 
 # Job Search & Discovery
 /api/v1/jobs/                              # Job search with filters
@@ -143,36 +154,43 @@ CREATE TABLE iosapp.job_applications (
 /api/v1/notifications/mark-read/{device_token}  # Mark as read
 /api/v1/notifications/delete/{device_token}     # Delete notifications
 /api/v1/notifications/test/{device_token}       # Send test notification
-/api/v1/notifications/settings/{device_token}   # Notification settings
+/api/v1/notifications/settings/{device_token}   # Get/update notification settings
+/api/v1/notifications/clear/{device_token}      # Clear old notifications
+
+# Minimal Notification System
+/api/v1/minimal-notifications/devices/active    # Active devices list
+/api/v1/minimal-notifications/stats             # System statistics
+/api/v1/minimal-notifications/cleanup           # Cleanup old data
+/api/v1/minimal-notifications/hash/{job_title}/{company} # Get job hash
+/api/v1/minimal-notifications/process-jobs      # Process job matches
+/api/v1/minimal-notifications/scraper-webhook   # Scraper webhook
+/api/v1/minimal-notifications/send-single       # Send single notification
+/api/v1/minimal-notifications/test-device/{device_token} # Test device notification
 
 # AI-Powered Features
 /api/v1/chatbot/chat/{device_token}        # AI career chat
 /api/v1/chatbot/analyze-job/{device_token} # AI job analysis
 /api/v1/chatbot/recommendations/{device_token} # AI recommendations
 
-# System Monitoring
-/health                                    # System health check
+# System Health & Monitoring
+/health                                    # Basic health check
 /api/v1/health                            # Detailed health status
-/api/v1/minimal-notifications/devices/active   # Active devices list
-/api/v1/minimal-notifications/stats       # System statistics
+/api/v1/health/status                     # Detailed health status (alias)
+/api/v1/health/status/scraper             # Scraper health status
+/api/v1/health/check-user-tables          # Check user tables exist
+/api/v1/health/create-user-tables         # Create user tables
+/api/v1/health/db-debug                   # Database debug info
 ```
 
-### ❌ **Disabled Endpoints (Available but Not Active)**
-```yaml
-# User Management (Email-Based - Disabled)
-/api/v1/users/*                           # All user endpoints disabled
+### 📊 **Endpoint Categories Summary**
+- **Device Management**: 11 endpoints (registration, status, analytics, token refresh)
+- **Job Search**: 4 endpoints (search, details, sources, stats)  
+- **Notifications**: 7 endpoints (history, inbox, mark read, delete, test, settings, clear)
+- **Minimal Notifications**: 8 endpoints (system management, webhooks, testing)
+- **AI Features**: 3 endpoints (chat, job analysis, recommendations)
+- **Health & Monitoring**: 7 endpoints (health checks, debug, table management)
 
-# Advanced Notifications (Disabled - Using device-based instead)
-# /api/v1/notifications/devices            # Device listing
-# /api/v1/notifications/send               # Manual notification sending
-# /api/v1/notifications/bulk               # Bulk notifications
-
-# Advanced Analytics (Disabled - Using device analytics instead)  
-# /api/v1/analytics/*                      # Advanced analytics endpoints
-
-# Traditional Device Management (Disabled - Using device-based instead)
-# /api/v1/devices/register                 # Old device registration
-```
+**Total: 40 Active Endpoints**
 
 ### 🔄 **Data Flow Architecture**
 
@@ -1091,23 +1109,23 @@ enum APIError: LocalizedError {
 
 | Feature Category | Status | Tables Used | Endpoints |
 |------------------|--------|-------------|-----------|
-| **Device Registration** | ✅ Active | `device_users` | `/api/v1/device/*` |
-| **Job Search** | ✅ Active | `scraper.jobs_jobpost` | `/api/v1/jobs/*` |
-| **Notifications** | ✅ Active | `notification_hashes` | `/api/v1/notifications/*` |
-| **AI Features** | ✅ Active | `user_analytics` | `/api/v1/chatbot/*` |
-| **Device Analytics** | ✅ Active | `user_analytics` | `/api/v1/devices/analytics/*` |
-| **Health Monitoring** | ✅ Active | All tables | `/health`, `/api/v1/health` |
-| **Email Users** | ⭕ Available | `users` | `/api/v1/users/*` (disabled) |
-| **Saved Jobs** | ⭕ Available | `saved_jobs` | Not enabled |
-| **Job Applications** | ⭕ Available | `job_applications` | Not enabled |
-| **Job Views** | ⭕ Available | `job_views` | Not enabled |
+| **Device Registration** | ✅ Active | `device_users` | 11 endpoints `/api/v1/device/*`, `/api/v1/devices/*` |
+| **Job Search** | ✅ Active | `scraper.jobs_jobpost` | 4 endpoints `/api/v1/jobs/*` |
+| **Notifications** | ✅ Active | `notification_hashes` | 7 endpoints `/api/v1/notifications/*` |
+| **Minimal Notifications** | ✅ Active | `notification_hashes`, `device_users` | 8 endpoints `/api/v1/minimal-notifications/*` |
+| **AI Features** | ✅ Active | `user_analytics`, `device_users` | 3 endpoints `/api/v1/chatbot/*` |
+| **Health Monitoring** | ✅ Active | All tables | 7 endpoints `/health`, `/api/v1/health/*` |
+| **Email Users** | ⭕ Available | `users` | No active endpoints |
+| **Saved Jobs** | ⭕ Available | `saved_jobs` | No active endpoints |
+| **Job Applications** | ⭕ Available | `job_applications` | No active endpoints |
 
 ---
 
 **Last Updated**: July 13, 2025  
-**API Version**: v2.1.0 (Device-Based with Full Schema)  
-**Database Tables**: 7 tables total (4 active, 3 available)  
-**Active Architecture**: Device-first with comprehensive optional user management  
+**API Version**: v2.2.0 (Complete API Documentation)  
+**Database Tables**: 8 tables total (4 active, 4 available)  
+**Active Endpoints**: 40 endpoints across 6 categories  
+**Interactive Docs**: ✅ Up to date at `/docs`  
 **Production Status**: ✅ Fully deployed and tested  
 **Optimized for**: iOS Development & AI-Powered Job Discovery
 
