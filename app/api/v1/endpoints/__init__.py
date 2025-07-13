@@ -1,20 +1,20 @@
 # API endpoints
 from . import (
-    analytics,
-    chatbot,
-    devices,
     health,
-    jobs,
-    notifications,
-    users,
+    jobs_minimal,
+    device_registration,
+    minimal_notifications,
+    device_notifications,
+    device_management,
+    device_chatbot,
 )
 
 __all__ = [
-    "analytics",
-    "chatbot",
-    "devices",
     "health",
-    "jobs",
-    "notifications",
-    "users",
+    "jobs_minimal", 
+    "device_registration",
+    "minimal_notifications",
+    "device_notifications",
+    "device_management",
+    "device_chatbot",
 ]
