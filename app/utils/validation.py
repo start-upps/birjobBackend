@@ -39,7 +39,19 @@ def validate_device_token(device_token: str) -> str:
                 detail="device_token must contain only hexadecimal characters (0-9, a-f)"
             )
     
-    # Case 2: 160 characters (80 bytes - extended APNs token format)
+    # Case 2: 128 characters (64 bytes - newer APNs token format)
+    elif len(device_token) == 128:
+        try:
+            int(device_token, 16)
+            # Valid 128-character hex token (64 bytes)
+            pass
+        except ValueError:
+            raise HTTPException(
+                status_code=400, 
+                detail="device_token must contain only hexadecimal characters (0-9, a-f)"
+            )
+    
+    # Case 3: 160 characters (80 bytes - extended APNs token format)
     elif len(device_token) == 160:
         try:
             int(device_token, 16)
@@ -58,7 +70,7 @@ def validate_device_token(device_token: str) -> str:
         import re
         hex_only = re.sub(r'[^0-9a-fA-F]', '', device_token)
         
-        if len(hex_only) in [64, 160]:  # Accept both 32-byte and 80-byte tokens
+        if len(hex_only) in [64, 128, 160]:  # Accept 32-byte, 64-byte, and 80-byte tokens
             try:
                 int(hex_only, 16)
                 device_token = hex_only.lower()  # Normalize to lowercase
@@ -70,14 +82,14 @@ def validate_device_token(device_token: str) -> str:
         else:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Extracted token has invalid length: {len(hex_only)} (expected 64 or 160)"
+                detail=f"Extracted token has invalid length: {len(hex_only)} (expected 64, 128, or 160)"
             )
     
     # Case 4: Other lengths - invalid
     else:
         raise HTTPException(
             status_code=400, 
-            detail=f"device_token must be 64 or 160 hex characters, or iOS Data format (got {len(device_token)} characters)"
+            detail=f"device_token must be 64, 128, or 160 hex characters, or iOS Data format (got {len(device_token)} characters)"
         )
     
     # Prevent temporary/fake tokens that bypass real validation

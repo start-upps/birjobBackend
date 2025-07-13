@@ -50,9 +50,21 @@ class NotificationScheduler:
                     self.logger.info("Running scheduled job notifications...")
                     
                     # Process notifications using minimal service
-                    stats = await minimal_notification_service.process_job_matches(
-                        limit=getattr(settings, 'NOTIFICATION_BATCH_SIZE', 200)
-                    )
+                    # Get recent jobs first
+                    from app.core.database import db_manager
+                    jobs_query = """
+                        SELECT id, title, company, apply_link, source, created_at
+                        FROM scraper.jobs_jobpost
+                        WHERE created_at > NOW() - INTERVAL '2 hours'
+                        ORDER BY created_at DESC
+                        LIMIT $1
+                    """
+                    jobs = await db_manager.execute_query(jobs_query, getattr(settings, 'NOTIFICATION_BATCH_SIZE', 200))
+                    
+                    if jobs:
+                        stats = await minimal_notification_service.process_job_notifications(jobs)
+                    else:
+                        stats = {"processed": 0, "notifications_sent": 0}
                     
                     self.logger.info(f"Scheduled notifications completed: {stats}")
                     
@@ -103,4 +115,16 @@ notification_scheduler = NotificationScheduler()
 # For manual testing
 async def run_notifications_now() -> dict:
     """Run notifications immediately (for testing)"""
-    return await minimal_notification_service.process_job_matches(limit=100)
+    from app.core.database import db_manager
+    jobs_query = """
+        SELECT id, title, company, apply_link, source, created_at
+        FROM scraper.jobs_jobpost
+        WHERE created_at > NOW() - INTERVAL '2 hours'
+        ORDER BY created_at DESC
+        LIMIT 100
+    """
+    jobs = await db_manager.execute_query(jobs_query)
+    if jobs:
+        return await minimal_notification_service.process_job_notifications(jobs)
+    else:
+        return {"processed": 0, "notifications_sent": 0}

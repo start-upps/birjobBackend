@@ -186,6 +186,32 @@ async def get_system_metrics() -> Dict[str, Any]:
 # @router.get("/scheduler-status")
 
 
+@router.post("/fix-device-token-length")
+async def fix_device_token_length():
+    """Fix device_token column to support longer tokens (64, 128, 160 chars)"""
+    try:
+        # Alter the device_token column to support longer tokens
+        alter_query = """
+            ALTER TABLE iosapp.device_users 
+            ALTER COLUMN device_token TYPE VARCHAR(160);
+        """
+        
+        await db_manager.execute_command(alter_query)
+        
+        return {
+            "success": True,
+            "message": "device_token column updated to support 160 characters",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating device_token column: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to update column: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @router.get("/db-debug")
 async def debug_database_connection():
     """Debug database connection issues with detailed information"""
