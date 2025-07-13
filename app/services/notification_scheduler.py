@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from app.services.job_notification_service import job_notification_service
+from app.services.minimal_notification_service import minimal_notification_service
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -49,10 +49,9 @@ class NotificationScheduler:
                 if self._should_run_notifications():
                     self.logger.info("Running scheduled job notifications...")
                     
-                    # Process notifications in LIVE mode (no dry run)
-                    stats = await job_notification_service.process_job_notifications(
-                        limit=getattr(settings, 'NOTIFICATION_BATCH_SIZE', 200),
-                        dry_run=False
+                    # Process notifications using minimal service
+                    stats = await minimal_notification_service.process_job_matches(
+                        limit=getattr(settings, 'NOTIFICATION_BATCH_SIZE', 200)
                     )
                     
                     self.logger.info(f"Scheduled notifications completed: {stats}")
@@ -60,7 +59,7 @@ class NotificationScheduler:
                     # Cleanup old notifications weekly
                     if self._should_cleanup_notifications():
                         self.logger.info("Running notification cleanup...")
-                        deleted_count = await job_notification_service.cleanup_old_notifications(
+                        deleted_count = await minimal_notification_service.cleanup_old_notifications(
                             days_old=getattr(settings, 'NOTIFICATION_CLEANUP_DAYS', 30)
                         )
                         self.logger.info(f"Cleaned up {deleted_count} old notification records")
@@ -102,9 +101,6 @@ class NotificationScheduler:
 notification_scheduler = NotificationScheduler()
 
 # For manual testing
-async def run_notifications_now(dry_run: bool = False) -> dict:
-    """Run notifications immediately (for testing) - LIVE MODE by default"""
-    return await job_notification_service.process_job_notifications(
-        limit=100,
-        dry_run=dry_run
-    )
+async def run_notifications_now() -> dict:
+    """Run notifications immediately (for testing)"""
+    return await minimal_notification_service.process_job_matches(limit=100)
