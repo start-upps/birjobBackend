@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from app.core.database import db_manager
 from app.services.push_notifications import PushNotificationService
+from app.services.privacy_analytics_service import privacy_analytics_service
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +78,16 @@ class MinimalNotificationService:
             return False
     
     async def track_notification_sent(self, device_id: str, matched_keywords: List[str]):
-        """Track notification in analytics"""
+        """Track notification in analytics (with consent check)"""
         try:
-            await db_manager.execute_query("""
-                INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-                VALUES ($1, 'notification_received', $2)
-            """, device_id, json.dumps({
-                "matched_keywords": matched_keywords,
-                "timestamp": datetime.now().isoformat()
-            }))
+            await privacy_analytics_service.track_action_with_consent(
+                device_id,
+                'notification_received',
+                {
+                    "matched_keywords": matched_keywords,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
         except Exception as e:
             logger.error(f"Error tracking notification analytics: {e}")
     

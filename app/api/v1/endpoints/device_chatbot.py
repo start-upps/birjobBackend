@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 
 from app.core.database import db_manager
+from app.services.privacy_analytics_service import privacy_analytics_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -102,11 +103,7 @@ async def chat_with_ai(
         # Simple AI response logic (you can replace with actual AI service)
         ai_response = await generate_ai_response(user_message, context)
         
-        # Log chat interaction
-        chat_log_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'ai_chat', $2)
-        """
+        # Log chat interaction (with consent check)
         metadata = {
             "user_message": user_message[:200],  # Truncate for storage
             "response_length": len(ai_response),
@@ -114,10 +111,10 @@ async def chat_with_ai(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            chat_log_query,
-            device_id,
-            json.dumps(metadata)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            'ai_chat', 
+            metadata
         )
         
         return {
@@ -202,11 +199,7 @@ async def analyze_job_with_ai(
         # Generate AI analysis
         analysis = await generate_job_analysis(job, keywords)
         
-        # Log job analysis
-        analysis_log_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'job_analysis', $2)
-        """
+        # Log job analysis (with consent check)
         metadata = {
             "job_id": job_id,
             "job_title": job['title'][:100],
@@ -216,10 +209,10 @@ async def analyze_job_with_ai(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            analysis_log_query,
-            device_id,
-            json.dumps(metadata)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            'job_analysis', 
+            metadata
         )
         
         return {
@@ -346,11 +339,7 @@ async def get_ai_recommendations(
         # Sort by match score
         recommendations.sort(key=lambda x: x['match_score'], reverse=True)
         
-        # Log recommendation request
-        rec_log_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'ai_recommendations', $2)
-        """
+        # Log recommendation request (with consent check)
         metadata = {
             "recommendations_count": len(recommendations),
             "user_keywords": keywords,
@@ -358,10 +347,10 @@ async def get_ai_recommendations(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            rec_log_query,
-            device_id,
-            json.dumps(metadata)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            'ai_recommendations', 
+            metadata
         )
         
         return {

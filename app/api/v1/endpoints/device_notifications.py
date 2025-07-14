@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 
 from app.core.database import db_manager
+from app.services.privacy_analytics_service import privacy_analytics_service
 # from app.utils.validation import validate_device_token
 
 def validate_device_token(device_token: str) -> str:
@@ -418,22 +419,17 @@ async def update_device_notification_settings(
             device_id
         )
         
-        # Log settings change
-        analytics_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'settings_updated', $2)
-        """
-        
+        # Log settings change (with consent check)
         metadata = {
             "notifications_enabled": notifications_enabled,
             "keywords_count": len(keywords),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            analytics_query,
+        await privacy_analytics_service.track_action_with_consent(
             device_id,
-            json.dumps(metadata)
+            'settings_updated',
+            metadata
         )
         
         return {
@@ -552,20 +548,16 @@ async def mark_notifications_as_read(
             """
             all_notifications = await db_manager.execute_query(all_notifications_query, device_id)
             
-            # Record bulk read event
-            bulk_read_query = """
-                INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-                VALUES ($1, 'notifications_all_read', $2)
-            """
+            # Record bulk read event (with consent check)
             metadata = {
                 "notification_count": len(all_notifications),
                 "read_at": datetime.now(timezone.utc).isoformat()
             }
             
-            await db_manager.execute_command(
-                bulk_read_query,
+            await privacy_analytics_service.track_action_with_consent(
                 device_id,
-                json.dumps(metadata)
+                'notifications_all_read',
+                metadata
             )
             
             marked_count = len(all_notifications)
@@ -574,21 +566,17 @@ async def mark_notifications_as_read(
             # Mark specific notifications as read
             marked_count = 0
             for notification_id in notification_ids:
-                # Record read event in analytics
-                read_query = """
-                    INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-                    VALUES ($1, 'notification_read', $2)
-                """
+                # Record read event in analytics (with consent check)
                 metadata = {
                     "notification_id": str(notification_id),
                     "read_at": datetime.now(timezone.utc).isoformat()
                 }
                 
                 try:
-                    await db_manager.execute_command(
-                        read_query, 
-                        device_id, 
-                        json.dumps(metadata)
+                    await privacy_analytics_service.track_action_with_consent(
+                        device_id,
+                        'notification_read',
+                        metadata
                     )
                     marked_count += 1
                 except:
@@ -650,20 +638,16 @@ async def delete_notifications(
             deleted_result = await db_manager.execute_query(delete_all_query, device_id)
             deleted_count = len(deleted_result) if deleted_result else 0
             
-            # Log deletion
-            delete_log_query = """
-                INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-                VALUES ($1, 'notifications_all_deleted', $2)
-            """
+            # Log deletion (with consent check)
             metadata = {
                 "deleted_count": deleted_count,
                 "deleted_at": datetime.now(timezone.utc).isoformat()
             }
             
-            await db_manager.execute_command(
-                delete_log_query,
+            await privacy_analytics_service.track_action_with_consent(
                 device_id,
-                json.dumps(metadata)
+                'notifications_all_deleted',
+                metadata
             )
             
             message = f"Deleted all {deleted_count} notifications"
@@ -689,21 +673,17 @@ async def delete_notifications(
                     # Invalid UUID format, skip
                     continue
             
-            # Log deletion
-            delete_log_query = """
-                INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-                VALUES ($1, 'notifications_deleted', $2)
-            """
+            # Log deletion (with consent check)
             metadata = {
                 "notification_ids": [str(nid) for nid in notification_ids],
                 "deleted_count": deleted_count,
                 "deleted_at": datetime.now(timezone.utc).isoformat()
             }
             
-            await db_manager.execute_command(
-                delete_log_query,
+            await privacy_analytics_service.track_action_with_consent(
                 device_id,
-                json.dumps(metadata)
+                'notifications_deleted',
+                metadata
             )
             
             message = f"Deleted {deleted_count} notifications"

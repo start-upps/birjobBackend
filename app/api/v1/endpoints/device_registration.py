@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.core.database import db_manager
 from app.utils.validation import validate_device_token, validate_keywords
+from app.services.privacy_analytics_service import privacy_analytics_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -56,15 +57,16 @@ async def register_device_minimal(request: Dict[str, Any]):
         device_id = result[0]['id']
         created_at = result[0]['created_at']
         
-        # Record analytics
-        await db_manager.execute_query("""
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'registration', $2)
-        """, device_id, json.dumps({
-            "keywords_count": len(keywords),
-            "keywords": keywords[:5],  # First 5 keywords for analytics
-            "registration_method": "minimal"
-        }))
+        # Record analytics (with consent check)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            'registration', 
+            {
+                "keywords_count": len(keywords),
+                "keywords": keywords[:5],  # First 5 keywords for analytics
+                "registration_method": "minimal"
+            }
+        )
         
         return {
             "success": True,
@@ -112,14 +114,15 @@ async def update_keywords(request: Dict[str, Any]):
         
         device_id = result[0]['id']
         
-        # Record analytics
-        await db_manager.execute_query("""
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'keywords_update', $2)
-        """, device_id, json.dumps({
-            "keywords_count": len(keywords),
-            "new_keywords": keywords[:5]
-        }))
+        # Record analytics (with consent check)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            'keywords_update', 
+            {
+                "keywords_count": len(keywords),
+                "new_keywords": keywords[:5]
+            }
+        )
         
         return {
             "success": True,
@@ -196,11 +199,12 @@ async def track_user_action(request: Dict[str, Any]):
         
         device_id = device_result[0]['id']
         
-        # Track action
-        await db_manager.execute_query("""
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, $2, $3)
-        """, device_id, action, json.dumps(metadata))
+        # Track action (with consent check)
+        await privacy_analytics_service.track_action_with_consent(
+            device_id, 
+            action, 
+            metadata
+        )
         
         return {
             "success": True,

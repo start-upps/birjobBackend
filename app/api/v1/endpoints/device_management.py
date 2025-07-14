@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 
 from app.core.database import db_manager
+from app.services.privacy_analytics_service import privacy_analytics_service
 # from app.utils.validation import validate_device_token
 
 def validate_device_token(device_token: str) -> str:
@@ -138,12 +139,7 @@ async def update_device(device_token: str, update_data: Dict[str, Any]):
         updated_device = result[0]
         updated_keywords = updated_device['keywords'] or []
         
-        # Log the update
-        analytics_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'device_updated', $2)
-        """
-        
+        # Log the update (with consent check)
         metadata = {
             "updated_fields": list(update_data.keys()),
             "keywords_count": len(updated_keywords),
@@ -151,10 +147,10 @@ async def update_device(device_token: str, update_data: Dict[str, Any]):
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            analytics_query,
+        await privacy_analytics_service.track_action_with_consent(
             device_id,
-            json.dumps(metadata)
+            'device_updated',
+            metadata
         )
         
         return {
@@ -394,22 +390,17 @@ async def refresh_device_token(old_device_token: str, new_token_data: Dict[str, 
         if not update_result:
             raise HTTPException(status_code=500, detail="Failed to update device token")
         
-        # Log token refresh
-        analytics_query = """
-            INSERT INTO iosapp.user_analytics (device_id, action, metadata)
-            VALUES ($1, 'token_refreshed', $2)
-        """
-        
+        # Log token refresh (with consent check)
         metadata = {
             "old_token_preview": old_device_token[:16] + "...",
             "new_token_preview": new_device_token[:16] + "...",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        await db_manager.execute_command(
-            analytics_query,
+        await privacy_analytics_service.track_action_with_consent(
             old_device['id'],
-            json.dumps(metadata)
+            'token_refreshed',
+            metadata
         )
         
         return {
