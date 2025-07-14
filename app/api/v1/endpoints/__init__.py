@@ -9,6 +9,7 @@ from . import (
     device_chatbot,
     users,
     privacy,
+    job_analytics,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "device_chatbot",
     "users",
     "privacy",
+    "job_analytics",
 ]
