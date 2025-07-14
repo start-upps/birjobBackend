@@ -412,34 +412,49 @@ async def generate_ai_response(user_message: str, context: Dict[str, Any]) -> st
         # Get real-time market data for intelligent responses
         market_data = await get_market_intelligence_for_ai(keywords)
         
-        # Intelligent routing based on intent and real data
-        if any(word in message_lower for word in ["salary", "pay", "money", "compensation", "earn"]):
+        # Enhanced intelligent routing with broader pattern recognition
+        
+        # Salary and compensation queries
+        if any(word in message_lower for word in ["salary", "pay", "money", "compensation", "earn", "wage", "income", "cost", "much", "$", "dollar"]):
             return await generate_salary_insights(keywords, market_data, user_message)
         
-        elif any(word in message_lower for word in ["skills", "learn", "study", "improve", "course"]):
+        # Skill development and learning queries
+        elif any(word in message_lower for word in ["skills", "learn", "study", "improve", "course", "training", "education", "practice", "master", "tutorial", "guide", "how to", "what should", "develop"]):
             return await generate_skill_recommendations(keywords, market_data, user_message)
         
-        elif any(word in message_lower for word in ["interview", "prepare", "questions", "tips"]):
+        # Interview preparation queries
+        elif any(word in message_lower for word in ["interview", "prepare", "questions", "tips", "practice", "coding challenge", "technical", "behavioral", "assessment"]):
             return await generate_interview_guidance(keywords, market_data, user_message)
         
-        elif any(word in message_lower for word in ["career", "advice", "path", "grow", "future"]):
+        # Career strategy and advice queries (most common)
+        elif any(word in message_lower for word in ["career", "advice", "path", "grow", "future", "next step", "should i", "what do", "help me", "guidance", "strategy", "plan", "direction", "goal", "progress", "development", "roadmap"]):
             return await generate_career_strategy(keywords, market_data, recent_jobs, user_message)
         
-        elif any(word in message_lower for word in ["companies", "company", "employers", "where"]):
+        # Company and employer queries
+        elif any(word in message_lower for word in ["companies", "company", "employers", "where", "who", "hiring", "jobs at", "work at", "employer", "organization", "firm"]):
             return await generate_company_insights(keywords, market_data, user_message)
         
-        elif any(word in message_lower for word in ["remote", "work from home", "location", "hybrid"]):
+        # Remote work queries
+        elif any(word in message_lower for word in ["remote", "work from home", "location", "hybrid", "wfh", "telecommute", "distributed", "virtual", "home office"]):
             return await generate_remote_work_insights(keywords, market_data, user_message)
         
-        elif any(word in message_lower for word in ["trends", "market", "demand", "popular", "hot"]):
+        # Market trends and technology queries
+        elif any(word in message_lower for word in ["trends", "market", "demand", "popular", "hot", "trending", "growth", "future", "technology", "tech", "industry", "outlook"]):
             return await generate_market_trends(keywords, market_data, user_message)
         
+        # Keyword-specific queries (user mentions their skills)
         elif keywords and any(keyword.lower() in message_lower for keyword in keywords):
             matched = [k for k in keywords if k.lower() in message_lower]
             return await generate_keyword_specific_advice(matched, market_data, user_message)
         
-        else:
+        # General/greeting queries - provide helpful guidance
+        elif any(word in message_lower for word in ["hello", "hi", "hey", "help", "what can", "what do you", "how can", "assist", "support"]):
             return await generate_general_assistance(keywords, market_data, user_message)
+        
+        # Default: If no specific intent detected, ask for clarification or provide varied help
+        else:
+            logger.info(f"No specific intent detected for message: '{user_message}' - providing clarification")
+            return await generate_clarification_response(keywords, market_data, user_message)
             
     except Exception as e:
         logger.error(f"AI generation error: {e}")
@@ -737,7 +752,19 @@ async def generate_career_strategy(keywords: List[str], market_data: Dict, recen
     """Generate intelligent career strategy based on real market data and user activity"""
     keyword_str = ", ".join(keywords) if keywords else "your skills"
     
-    response = f"🎯 **Career Strategy for {keyword_str}**\n\n"
+    # Add variation to prevent identical responses
+    import hashlib
+    message_hash = hashlib.md5(user_message.encode()).hexdigest()[:8]
+    
+    # Vary response format based on message content
+    if "what" in user_message.lower() and ("do" in user_message.lower() or "should" in user_message.lower()):
+        response = f"💡 **Personalized Action Plan for {keyword_str}**\n\n"
+    elif "help" in user_message.lower() or "advice" in user_message.lower():
+        response = f"🚀 **Strategic Career Guidance for {keyword_str}**\n\n"
+    elif "next" in user_message.lower() or "step" in user_message.lower():
+        response = f"📋 **Next Steps in Your {keyword_str} Journey**\n\n"
+    else:
+        response = f"🎯 **Career Strategy for {keyword_str}** (#{message_hash})\n\n"
     
     # Market context
     total_jobs = market_data.get("market_overview", {}).get("total_jobs", 0)
@@ -1052,10 +1079,19 @@ async def generate_keyword_specific_advice(matched_keywords: List[str], market_d
     return response
 
 async def generate_general_assistance(keywords: List[str], market_data: Dict, user_message: str) -> str:
-    """Generate general helpful assistance"""
+    """Generate general helpful assistance with variations"""
     keyword_str = ", ".join(keywords) if keywords else "technology"
     
-    response = f"🤖 **AI Career Assistant - {keyword_str} Specialist**\n\n"
+    # Vary greeting based on user message
+    if "hello" in user_message.lower() or "hi" in user_message.lower():
+        response = f"👋 **Hello! I'm your AI Career Assistant**\n\n"
+        response += f"I specialize in **{keyword_str}** and I'm here to help with your career journey!\n\n"
+    elif "help" in user_message.lower():
+        response = f"🆘 **How I Can Help You with {keyword_str}**\n\n"
+    elif "what can" in user_message.lower() or "what do you" in user_message.lower():
+        response = f"🔧 **My Capabilities for {keyword_str} Professionals**\n\n"
+    else:
+        response = f"🤖 **AI Career Assistant - {keyword_str} Specialist**\n\n"
     
     # Market context
     total_jobs = market_data.get("market_overview", {}).get("total_jobs", 0)
@@ -1120,6 +1156,42 @@ async def generate_fallback_response(keywords: List[str], recent_jobs: List, use
     response += "• Career path planning\n\n"
     
     response += f"Ask me something specific about {keyword_str} and I'll provide detailed, data-driven insights!"
+    
+    return response
+
+async def generate_clarification_response(keywords: List[str], market_data: Dict, user_message: str) -> str:
+    """Generate clarifying questions when intent is unclear"""
+    keyword_str = ", ".join(keywords) if keywords else "your field"
+    
+    # Get market context for relevance
+    total_jobs = market_data.get("market_overview", {}).get("total_jobs", 0)
+    keyword_jobs = market_data.get("keyword_data", {}).get("matching_jobs", 0)
+    
+    response = f"🤔 **Let me help you better with {keyword_str}!**\n\n"
+    
+    if keyword_jobs > 0:
+        response += f"I found {keyword_jobs} current job opportunities matching your skills from {total_jobs:,} total positions.\n\n"
+    
+    response += "I can provide specific insights about:\n\n"
+    response += "💰 **Salary & Compensation**: \"What's the salary for my skills?\"\n"
+    response += "🚀 **Skill Development**: \"What skills should I learn next?\"\n"
+    response += "🎯 **Career Strategy**: \"What career advice do you have?\"\n"
+    response += "🎤 **Interview Prep**: \"How should I prepare for interviews?\"\n"
+    response += "🏢 **Company Research**: \"Which companies are hiring?\"\n"
+    response += "🏠 **Remote Work**: \"Are there remote opportunities?\"\n"
+    response += "📈 **Market Trends**: \"What are the current tech trends?\"\n\n"
+    
+    # Add personalized suggestion based on keywords
+    if any(tech in keyword_str.lower() for tech in ["engineer", "developer", "programming"]):
+        response += "💡 **Quick suggestion**: Try asking \"What's the career path for engineers?\" or \"What skills are in demand?\"\n\n"
+    elif any(tech in keyword_str.lower() for tech in ["manager", "management", "lead"]):
+        response += "💡 **Quick suggestion**: Try asking \"How do I transition to management?\" or \"What companies hire managers?\"\n\n"
+    elif any(tech in keyword_str.lower() for tech in ["ai", "ml", "data"]):
+        response += "💡 **Quick suggestion**: Try asking \"What's the AI job market like?\" or \"What AI skills should I learn?\"\n\n"
+    else:
+        response += "💡 **Quick suggestion**: Try asking \"What career advice do you have?\" or \"What skills should I focus on?\"\n\n"
+    
+    response += "What specific area would you like to explore? 🚀"
     
     return response
 
