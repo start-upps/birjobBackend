@@ -254,6 +254,34 @@ async def add_privacy_consent_fields():
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
+@router.post("/fix-privacy-policy-version-length")
+async def fix_privacy_policy_version_length():
+    """Fix privacy_policy_version column to support longer values like 'data_deleted'"""
+    try:
+        # Alter the privacy_policy_version column to support longer values
+        alter_query = """
+            ALTER TABLE iosapp.device_users 
+            ALTER COLUMN privacy_policy_version TYPE VARCHAR(50);
+        """
+        
+        await db_manager.execute_command(alter_query)
+        
+        return {
+            "success": True,
+            "message": "privacy_policy_version column updated to support 50 characters",
+            "previous_limit": "10 characters",
+            "new_limit": "50 characters",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating privacy_policy_version column: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to update column: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @router.get("/db-debug")
 async def debug_database_connection():
     """Debug database connection issues with detailed information"""
