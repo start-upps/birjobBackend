@@ -693,10 +693,14 @@ struct UserProfileView: View {
 
 ### 4. Job Market Analytics 📊
 
-#### **GET** `/api/v1/analytics/market-overview`
-**Get high-level job market overview and key metrics**
+> **Perfect for iOS Development**: Real-time job market insights from 50+ sources with hourly updates. All endpoints return consistent JSON structures ideal for SwiftUI charts and analytics dashboards.
 
-**Response:**
+#### **GET** `/api/v1/analytics/market-overview`
+**📊 Market Overview Dashboard - Essential for home screen KPIs**
+
+**Perfect for:** Dashboard cards, market summary widgets, real-time stats
+
+**Response Structure:**
 ```json
 {
   "success": true,
@@ -714,13 +718,73 @@ struct UserProfileView: View {
 }
 ```
 
-#### **GET** `/api/v1/analytics/source-analytics`
-**Analyze job volume and distribution by source**
+**iOS Implementation Example:**
+```swift
+struct MarketOverviewCard: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Total Jobs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\\(viewModel.marketOverview?.total_jobs ?? 0)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+                Spacer()
+                VStack(alignment: .trailing) {
+                    Text("Companies")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\\(viewModel.marketOverview?.unique_companies ?? 0)")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                }
+            }
+            
+            HStack {
+                Text("Sources: \\(viewModel.marketOverview?.unique_sources ?? 0)")
+                Spacer()
+                Text("Updated: \\(viewModel.lastUpdate)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .onAppear {
+            Task { await viewModel.loadMarketOverview() }
+        }
+    }
+}
 
-**Response:**
+struct MarketOverview: Codable {
+    let total_jobs: Int
+    let unique_companies: Int
+    let unique_sources: Int
+    let data_freshness: DataFreshness
+}
+
+struct DataFreshness: Codable {
+    let oldest: String
+    let newest: String
+}
+```
+
+#### **GET** `/api/v1/analytics/source-analytics`
+**📈 Source Performance Analytics - Perfect for charts and comparisons**
+
+**Perfect for:** Pie charts, source comparison views, diversity metrics
+
+**Response Structure:**
 ```json
 {
   "success": true,
+  "snapshot_time": "2025-07-14T16:12:18.495233",
   "source_volume": [
     {
       "source": "Glorri",
@@ -729,7 +793,7 @@ struct UserProfileView: View {
       "percentage": 21.14
     },
     {
-      "source": "Vakansiya.biz",
+      "source": "Vakansiya.biz", 
       "job_count": 474,
       "unique_companies": 349,
       "percentage": 12.19
@@ -751,22 +815,99 @@ struct UserProfileView: View {
 }
 ```
 
+**iOS Implementation Example:**
+```swift
+import Charts
+
+struct SourceAnalyticsView: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Pie Chart for Source Volume
+                Chart(viewModel.sourceVolume.prefix(8)) { source in
+                    SectorMark(
+                        angle: .value("Jobs", source.job_count),
+                        innerRadius: .ratio(0.4),
+                        angularInset: 2
+                    )
+                    .foregroundStyle(Color.blue.opacity(0.8))
+                    .cornerRadius(4)
+                }
+                .frame(height: 200)
+                .chartLegend(position: .bottom)
+                
+                // Source List with Diversity Scores
+                LazyVStack(spacing: 8) {
+                    ForEach(viewModel.sourceVolume.prefix(10), id: \\.source) { source in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(source.source)
+                                    .font(.headline)
+                                Text("\\(source.job_count) jobs • \\(source.unique_companies) companies")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing) {
+                                Text("\\(source.percentage, specifier: "%.1f")%")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                Text("Market Share")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Source Analytics")
+        .task {
+            await viewModel.loadSourceAnalytics()
+        }
+    }
+}
+
+struct SourceVolume: Codable {
+    let source: String
+    let job_count: Int
+    let unique_companies: Int
+    let percentage: Double
+}
+```
+
 #### **GET** `/api/v1/analytics/company-analytics`
-**Analyze company hiring activity and market presence**
+**🏢 Company Hiring Analysis - Track top employers and market concentration**
 
 **Query Parameters:**
 - `limit` (optional): Number of companies to return (default: 20, max: 100)
 
-**Response:**
+**Perfect for:** Company rankings, hiring trend analysis, market concentration charts
+
+**Response Structure:**
 ```json
 {
   "success": true,
+  "snapshot_time": "2025-07-14T16:12:25.123456",
   "top_companies": [
     {
       "company": "ABB",
       "job_count": 119,
       "sources_used": 1,
       "market_share": 3.06
+    },
+    {
+      "company": "Andersen",
+      "job_count": 10,
+      "sources_used": 1,
+      "market_share": 0.26
     }
   ],
   "hiring_distribution": [
@@ -775,6 +916,12 @@ struct UserProfileView: View {
       "company_count": 12,
       "total_jobs": 1234,
       "avg_jobs_per_company": 102.83
+    },
+    {
+      "hiring_category": "Medium Hirers (20-49)",
+      "company_count": 25,
+      "total_jobs": 567,
+      "avg_jobs_per_company": 22.68
     }
   ],
   "insights": {
@@ -785,13 +932,100 @@ struct UserProfileView: View {
 }
 ```
 
-#### **GET** `/api/v1/analytics/keyword-trends`
-**Analyze trending keywords and skills in job titles**
+**iOS Implementation Example:**
+```swift
+struct CompanyAnalyticsView: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    @State private var selectedCompany: TopCompany?
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Hiring Distribution Chart
+                    Chart(viewModel.hiringDistribution) { category in
+                        BarMark(
+                            x: .value("Companies", category.company_count),
+                            y: .value("Category", category.hiring_category)
+                        )
+                        .foregroundStyle(Color.blue.gradient)
+                        .cornerRadius(4)
+                    }
+                    .frame(height: 200)
+                    .chartTitle("Hiring Distribution")
+                    
+                    // Top Companies List
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.topCompanies.prefix(15), id: \\.company) { company in
+                            CompanyRow(company: company)
+                                .onTapGesture {
+                                    selectedCompany = company
+                                }
+                        }
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Company Analytics")
+            .sheet(item: $selectedCompany) { company in
+                CompanyDetailView(company: company)
+            }
+        }
+        .task {
+            await viewModel.loadCompanyAnalytics(limit: 20)
+        }
+    }
+}
 
-**Response:**
+struct CompanyRow: View {
+    let company: TopCompany
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(company.company)
+                    .font(.headline)
+                Text("\\(company.job_count) jobs • \\(company.sources_used) sources")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing) {
+                Text("\\(company.market_share, specifier: "%.2f")%")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.blue)
+                Text("Market Share")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct TopCompany: Codable, Identifiable {
+    let company: String
+    let job_count: Int
+    let sources_used: Int
+    let market_share: Double
+    
+    var id: String { company }
+}
+```
+
+#### **GET** `/api/v1/analytics/keyword-trends`
+**🔍 Technology & Skill Trends - Track demand for specific technologies**
+
+**Perfect for:** Tag clouds, skill demand charts, technology trend analysis
+
+**Response Structure:**
 ```json
 {
   "success": true,
+  "snapshot_time": "2025-07-14T16:12:30.789012",
   "technology_keywords": [
     {
       "keyword": "JavaScript",
@@ -802,6 +1036,11 @@ struct UserProfileView: View {
       "keyword": "Python",
       "mention_count": 38,
       "percentage": 0.98
+    },
+    {
+      "keyword": "Java",
+      "mention_count": 32,
+      "percentage": 0.82
     }
   ],
   "role_keywords": [
@@ -814,6 +1053,11 @@ struct UserProfileView: View {
       "keyword": "Developer",
       "mention_count": 198,
       "percentage": 5.09
+    },
+    {
+      "keyword": "Manager",
+      "mention_count": 156,
+      "percentage": 4.01
     }
   ],
   "insights": {
@@ -824,13 +1068,79 @@ struct UserProfileView: View {
 }
 ```
 
-#### **GET** `/api/v1/analytics/remote-work-analysis`
-**Analyze remote work opportunities based on title keywords**
+**iOS Implementation Example:**
+```swift
+struct KeywordTrendsView: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    @State private var selectedTab = 0
+    
+    var body: some View {
+        VStack {
+            Picker("Keyword Type", selection: $selectedTab) {
+                Text("Technology").tag(0)
+                Text("Roles").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding()
+            
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                    ForEach(selectedTab == 0 ? viewModel.technologyKeywords : viewModel.roleKeywords, id: \\.keyword) { keyword in
+                        KeywordCard(keyword: keyword)
+                    }
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Keyword Trends")
+        .task {
+            await viewModel.loadKeywordTrends()
+        }
+    }
+}
 
-**Response:**
+struct KeywordCard: View {
+    let keyword: TechnologyKeyword
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(keyword.keyword)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            
+            Text("\\(keyword.mention_count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.blue)
+            
+            Text("\\(keyword.percentage, specifier: "%.1f")% of jobs")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct TechnologyKeyword: Codable {
+    let keyword: String
+    let mention_count: Int
+    let percentage: Double
+}
+```
+
+#### **GET** `/api/v1/analytics/remote-work-analysis`
+**🏠 Remote Work Opportunities - Track remote job availability**
+
+**Perfect for:** Remote work filters, work-type charts, location preferences
+
+**Response Structure:**
 ```json
 {
   "success": true,
+  "snapshot_time": "2025-07-14T16:12:35.345678",
   "work_type_distribution": [
     {
       "work_type": "Unspecified",
@@ -843,6 +1153,12 @@ struct UserProfileView: View {
       "job_count": 18,
       "percentage": 0.46,
       "companies_offering": 16
+    },
+    {
+      "work_type": "Onsite",
+      "job_count": 12,
+      "percentage": 0.31,
+      "companies_offering": 11
     }
   ],
   "top_remote_companies": [
@@ -861,10 +1177,101 @@ struct UserProfileView: View {
 }
 ```
 
-#### **GET** `/api/v1/analytics/snapshot-summary`
-**Get comprehensive market snapshot summary**
+**iOS Implementation Example:**
+```swift
+struct RemoteWorkAnalysisView: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Work Type Distribution Chart
+                Chart(viewModel.workTypeDistribution) { workType in
+                    BarMark(
+                        x: .value("Jobs", workType.job_count),
+                        y: .value("Type", workType.work_type)
+                    )
+                    .foregroundStyle(workType.work_type == "Remote" ? Color.green : Color.blue)
+                    .cornerRadius(4)
+                }
+                .frame(height: 200)
+                .chartTitle("Work Type Distribution")
+                
+                // Remote Work Stats
+                HStack(spacing: 20) {
+                    StatCard(
+                        title: "Remote Jobs",
+                        value: "\\(viewModel.remoteInsights?.remote_job_percentage ?? 0, specifier: "%.1f")%",
+                        color: .green
+                    )
+                    
+                    StatCard(
+                        title: "Companies Offering Remote",
+                        value: "\\(viewModel.remoteInsights?.companies_offering_remote ?? 0)",
+                        color: .blue
+                    )
+                }
+                
+                // Top Remote Companies
+                if !viewModel.topRemoteCompanies.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Top Remote-Friendly Companies")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(viewModel.topRemoteCompanies, id: \\.company) { company in
+                            RemoteCompanyRow(company: company)
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Remote Work Analysis")
+        .task {
+            await viewModel.loadRemoteWorkAnalysis()
+        }
+    }
+}
 
-**Response:**
+struct RemoteCompanyRow: View {
+    let company: RemoteCompany
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(company.company)
+                    .font(.headline)
+                Text("\\(company.remote_jobs) of \\(company.total_jobs) jobs remote")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text("\\(company.remote_percentage, specifier: "%.0f")%")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.green)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct RemoteCompany: Codable {
+    let company: String
+    let total_jobs: Int
+    let remote_jobs: Int
+    let remote_percentage: Double
+}
+```
+
+#### **GET** `/api/v1/analytics/snapshot-summary`
+**📊 Complete Market Snapshot - All key metrics in one call**
+
+**Perfect for:** Dashboard overview, daily summaries, market health indicators
+
+**Response Structure:**
 ```json
 {
   "success": true,
@@ -895,24 +1302,319 @@ struct UserProfileView: View {
 }
 ```
 
-**🚀 Additional Analytics Endpoints Available:**
-- `/api/v1/analytics/title-analytics` - Job title patterns & role demand
-- `/api/v1/analytics/market-competition` - Market competition & job scarcity
+**iOS Implementation Example:**
+```swift
+struct SnapshotSummaryView: View {
+    @StateObject private var viewModel = AnalyticsViewModel()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Market Summary Cards
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                    SummaryCard(title: "Total Jobs", value: "\\(viewModel.marketSummary?.total_jobs ?? 0)", color: .blue)
+                    SummaryCard(title: "Companies", value: "\\(viewModel.marketSummary?.total_companies ?? 0)", color: .green)
+                    SummaryCard(title: "Sources", value: "\\(viewModel.marketSummary?.total_sources ?? 0)", color: .orange)
+                    SummaryCard(title: "Unique Titles", value: "\\(viewModel.marketSummary?.unique_titles ?? 0)", color: .purple)
+                }
+                
+                // Experience Level Distribution
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Experience Level Distribution")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: 16) {
+                        ExperienceBar(
+                            title: "Senior",
+                            count: viewModel.marketSummary?.senior_jobs ?? 0,
+                            percentage: viewModel.marketSummary?.senior_percentage ?? 0,
+                            color: .blue
+                        )
+                        
+                        ExperienceBar(
+                            title: "Junior",
+                            count: viewModel.marketSummary?.junior_jobs ?? 0,
+                            percentage: viewModel.marketSummary?.junior_percentage ?? 0,
+                            color: .green
+                        )
+                        
+                        ExperienceBar(
+                            title: "Remote",
+                            count: viewModel.marketSummary?.remote_jobs ?? 0,
+                            percentage: viewModel.marketSummary?.remote_percentage ?? 0,
+                            color: .orange
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Top Performers
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Market Leaders")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 8) {
+                        TopPerformerRow(title: "Top Company", value: viewModel.topPerformers?.top_company ?? "N/A")
+                        TopPerformerRow(title: "Top Source", value: viewModel.topPerformers?.top_source ?? "N/A")
+                        TopPerformerRow(title: "Most Common Title", value: viewModel.topPerformers?.most_common_title ?? "N/A")
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Data Freshness Info
+                if let freshness = viewModel.dataFreshness {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Data Freshness")
+                            .font(.headline)
+                        Text("Refresh Cycle: \\(freshness.refresh_cycle)")
+                            .font(.caption)
+                        Text("Last Updated: \\(freshness.from)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Market Snapshot")
+        .task {
+            await viewModel.loadSnapshotSummary()
+        }
+    }
+}
 
-**💡 Key Insights from Limited Data:**
-- **Volume by Source**: Glorri (21.14%), Vakansiya.biz (12.19%), Djinni (11.96%)
-- **Company Concentration**: ABB leads with 119 jobs (3.06% market share)
-- **Technology Trends**: JavaScript, Python, Java are most mentioned
-- **Experience Levels**: 3.4% senior, 1.49% junior, 95.1% unspecified
-- **Remote Work**: Only 0.46% explicitly mention remote work
-- **Market Diversity**: 2,946 unique job titles from 1,561 companies
+struct SummaryCard: View {
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
 
-**📊 Data Limitations & Insights:**
-- **No Job Descriptions**: Cannot analyze detailed requirements or skills
-- **No Location Data**: Cannot provide geographic insights
-- **Limited Remote Detection**: Based only on title keywords
-- **Hourly Refresh**: Current state snapshot only, no historical trends
-- **High Title Diversity**: 2,946 unique titles suggest diverse market
+struct ExperienceBar: View {
+    let title: String
+    let count: Int
+    let percentage: Double
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("\\(count)")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+            Text("\\(percentage, specifier: "%.1f")%")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
+    }
+}
+```
+
+#### **Complete Analytics Model for iOS**
+
+```swift
+@MainActor
+class AnalyticsViewModel: ObservableObject {
+    @Published var marketOverview: MarketOverview?
+    @Published var sourceVolume: [SourceVolume] = []
+    @Published var sourceDiversity: [SourceDiversity] = []
+    @Published var topCompanies: [TopCompany] = []
+    @Published var hiringDistribution: [HiringDistribution] = []
+    @Published var technologyKeywords: [TechnologyKeyword] = []
+    @Published var roleKeywords: [RoleKeyword] = []
+    @Published var workTypeDistribution: [WorkTypeDistribution] = []
+    @Published var topRemoteCompanies: [RemoteCompany] = []
+    @Published var marketSummary: MarketSummary?
+    @Published var topPerformers: TopPerformers?
+    @Published var dataFreshness: DataFreshness?
+    @Published var remoteInsights: RemoteInsights?
+    
+    private let baseURL = "https://birjobbackend-ir3e.onrender.com"
+    
+    func loadMarketOverview() async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/market-overview") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(MarketOverviewResponse.self, from: data)
+            self.marketOverview = response.market_overview
+        } catch {
+            print("Error loading market overview: \\(error)")
+        }
+    }
+    
+    func loadSourceAnalytics() async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/source-analytics") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(SourceAnalyticsResponse.self, from: data)
+            self.sourceVolume = response.source_volume
+            self.sourceDiversity = response.source_diversity
+        } catch {
+            print("Error loading source analytics: \\(error)")
+        }
+    }
+    
+    func loadCompanyAnalytics(limit: Int = 20) async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/company-analytics?limit=\\(limit)") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(CompanyAnalyticsResponse.self, from: data)
+            self.topCompanies = response.top_companies
+            self.hiringDistribution = response.hiring_distribution
+        } catch {
+            print("Error loading company analytics: \\(error)")
+        }
+    }
+    
+    func loadKeywordTrends() async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/keyword-trends") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(KeywordTrendsResponse.self, from: data)
+            self.technologyKeywords = response.technology_keywords
+            self.roleKeywords = response.role_keywords
+        } catch {
+            print("Error loading keyword trends: \\(error)")
+        }
+    }
+    
+    func loadRemoteWorkAnalysis() async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/remote-work-analysis") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(RemoteWorkAnalysisResponse.self, from: data)
+            self.workTypeDistribution = response.work_type_distribution
+            self.topRemoteCompanies = response.top_remote_companies
+            self.remoteInsights = response.insights
+        } catch {
+            print("Error loading remote work analysis: \\(error)")
+        }
+    }
+    
+    func loadSnapshotSummary() async {
+        guard let url = URL(string: "\\(baseURL)/api/v1/analytics/snapshot-summary") else { return }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(SnapshotSummaryResponse.self, from: data)
+            self.marketSummary = response.market_summary
+            self.topPerformers = response.top_performers
+            self.dataFreshness = response.data_freshness
+        } catch {
+            print("Error loading snapshot summary: \\(error)")
+        }
+    }
+}
+
+// Response Models
+struct MarketOverviewResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let market_overview: MarketOverview
+    let data_note: String
+}
+
+struct SourceAnalyticsResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let source_volume: [SourceVolume]
+    let source_diversity: [SourceDiversity]
+    let insights: SourceInsights
+}
+
+struct CompanyAnalyticsResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let top_companies: [TopCompany]
+    let hiring_distribution: [HiringDistribution]
+    let insights: CompanyInsights
+}
+
+struct KeywordTrendsResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let technology_keywords: [TechnologyKeyword]
+    let role_keywords: [RoleKeyword]
+    let insights: KeywordInsights
+}
+
+struct RemoteWorkAnalysisResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let work_type_distribution: [WorkTypeDistribution]
+    let top_remote_companies: [RemoteCompany]
+    let insights: RemoteInsights
+}
+
+struct SnapshotSummaryResponse: Codable {
+    let success: Bool
+    let snapshot_time: String
+    let market_summary: MarketSummary
+    let top_performers: TopPerformers
+    let data_freshness: DataFreshness
+}
+```
+
+#### **🚀 Additional Analytics Endpoints Available:**
+
+1. **`/api/v1/analytics/title-analytics`** - Job title patterns & role demand analysis
+2. **`/api/v1/analytics/market-competition`** - Market competition & job scarcity metrics
+
+#### **💡 Key Analytics Insights for iOS Development:**
+
+- **Market Size**: 3,888+ jobs from 1,561+ companies across 35+ sources
+- **Source Distribution**: Glorri (21.14%), Vakansiya.biz (12.19%), Djinni (11.96%)
+- **Company Leaders**: ABB dominates with 119 jobs (3.06% market share)
+- **Technology Trends**: JavaScript, Python, Java are most mentioned technologies
+- **Experience Levels**: 3.4% senior, 1.49% junior, 95.1% unspecified levels
+- **Remote Work**: Only 0.46% explicitly mention remote work opportunities
+- **Market Diversity**: 2,946 unique job titles indicate highly diverse job market
+
+#### **📊 Perfect for iOS Analytics Features:**
+
+- **Dashboard Cards**: Use market-overview for KPI displays
+- **Charts & Graphs**: Source and company analytics perfect for SwiftUI Charts
+- **Search Filters**: Keyword trends help build smart search suggestions
+- **User Preferences**: Remote work analysis for location-based filtering
+- **Market Intelligence**: Snapshot summary for daily market updates
+- **Trend Analysis**: Technology keywords for skill-based job matching
+
+#### **🔄 Data Refresh & Caching Strategy:**
+
+- **Hourly Updates**: Data refreshes every hour with truncate/reload
+- **Cache Strategy**: Cache analytics data for 30 minutes to reduce API calls
+- **Background Refresh**: Perfect for iOS background app refresh
+- **Real-time Feel**: Snapshot nature provides instant, current market state
 
 ---
 
