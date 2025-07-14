@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import health, jobs_minimal
-from app.api.v1.endpoints import device_registration, minimal_notifications, device_notifications, device_management, device_chatbot, users
+from app.api.v1.endpoints import device_registration, minimal_notifications, device_notifications, device_management, device_chatbot, users, privacy
 
 api_router = APIRouter()
 
@@ -14,3 +14,4 @@ api_router.include_router(device_notifications.router, prefix="/notifications", 
 api_router.include_router(device_management.router, prefix="/devices", tags=["device-management"])
 api_router.include_router(device_chatbot.router, prefix="/chatbot", tags=["device-chatbot"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from app.core.database import db_manager
+from app.services.privacy_analytics_service import privacy_analytics_service
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,8 @@ class AnalyticsService:
     
     async def track_action(self, device_id: str, action: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """
-        Track a user action in the analytics table
+        Track a user action in the analytics table (PRIVACY-COMPLIANT)
+        Only tracks if user has consented to analytics
         
         Args:
             device_id: UUID of the device user
@@ -24,68 +26,26 @@ class AnalyticsService:
             metadata: Optional metadata dict
             
         Returns:
-            bool: True if successfully tracked, False otherwise
+            bool: True if successfully tracked (or skipped due to no consent), False if error
         """
-        try:
-            metadata_json = json.dumps(metadata or {})
-            
-            query = """
-                INSERT INTO iosapp.user_analytics (device_id, action, metadata, created_at)
-                VALUES ($1, $2, $3, NOW())
-            """
-            
-            await db_manager.execute_command(query, device_id, action, metadata_json)
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to track action {action} for device {device_id}: {e}")
-            return False
+        # Use privacy-compliant service that checks consent first
+        return await privacy_analytics_service.track_action_with_consent(device_id, action, metadata)
     
     async def get_device_analytics(self, device_id: str, days: int = 30) -> Dict[str, Any]:
         """
-        Get analytics summary for a device
+        Get analytics summary for a device (PRIVACY-COMPLIANT)
+        Only returns data if user has consented to analytics
         
         Args:
             device_id: UUID of the device user
             days: Number of days to look back
             
         Returns:
-            Dict with analytics summary
+            Dict with analytics summary or consent message
         """
-        try:
-            query = """
-                SELECT 
-                    action,
-                    COUNT(*) as count,
-                    MAX(created_at) as last_event
-                FROM iosapp.user_analytics
-                WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '%s days'
-                GROUP BY action
-                ORDER BY count DESC
-            """ % days
-            
-            result = await db_manager.execute_query(query, device_id)
-            
-            # Process results
-            actions = {}
-            total_events = 0
-            
-            for row in result:
-                actions[row['action']] = {
-                    'count': row['count'],
-                    'last_event': row['last_event'].isoformat() if row['last_event'] else None
-                }
-                total_events += row['count']
-            
-            return {
-                'total_events': total_events,
-                'actions': actions,
-                'period_days': days
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get analytics for device {device_id}: {e}")
-            return {'total_events': 0, 'actions': {}, 'period_days': days}
+        # Use privacy-compliant service that checks consent first
+        has_consent, analytics_data = await privacy_analytics_service.get_user_analytics_with_consent(device_id)
+        return analytics_data
     
     async def get_action_count(self, device_id: str, action: str, days: int = 30) -> int:
         """

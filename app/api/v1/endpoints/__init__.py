@@ -8,6 +8,7 @@ from . import (
     device_management,
     device_chatbot,
     users,
+    privacy,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "device_management",
     "device_chatbot",
     "users",
+    "privacy",
 ]

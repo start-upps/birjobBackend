@@ -212,6 +212,48 @@ async def fix_device_token_length():
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
+@router.post("/add-privacy-consent")
+async def add_privacy_consent_fields():
+    """Add privacy consent fields to device_users table for GDPR compliance"""
+    try:
+        # Add analytics consent fields
+        alter_queries = [
+            """
+            ALTER TABLE iosapp.device_users 
+            ADD COLUMN IF NOT EXISTS analytics_consent BOOLEAN DEFAULT false;
+            """,
+            """
+            ALTER TABLE iosapp.device_users 
+            ADD COLUMN IF NOT EXISTS consent_date TIMESTAMP WITH TIME ZONE;
+            """,
+            """
+            ALTER TABLE iosapp.device_users 
+            ADD COLUMN IF NOT EXISTS privacy_policy_version VARCHAR(10) DEFAULT '1.0';
+            """
+        ]
+        
+        for query in alter_queries:
+            await db_manager.execute_command(query)
+        
+        return {
+            "success": True,
+            "message": "Privacy consent fields added successfully",
+            "fields_added": [
+                "analytics_consent (BOOLEAN DEFAULT false)",
+                "consent_date (TIMESTAMP WITH TIME ZONE)",
+                "privacy_policy_version (VARCHAR(10) DEFAULT '1.0')"
+            ],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error adding privacy consent fields: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to add privacy fields: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @router.get("/db-debug")
 async def debug_database_connection():
     """Debug database connection issues with detailed information"""
