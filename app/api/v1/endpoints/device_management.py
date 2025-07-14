@@ -283,19 +283,23 @@ async def get_device_analytics(device_token: str, days: int = 30):
         
         daily_stats = await db_manager.execute_query(daily_stats_query, device_id)
         
-        # Get user analytics events
-        events_query = """
-            SELECT 
-                action,
-                COUNT(*) as count,
-                MAX(created_at) as last_event
-            FROM iosapp.user_analytics
-            WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '%s days'
-            GROUP BY action
-            ORDER BY count DESC
-        """ % days
+        # Get user analytics events (only if user has consented)
+        events_stats = []
+        analytics_consent = await privacy_analytics_service.check_analytics_consent(device_id)
         
-        events_stats = await db_manager.execute_query(events_query, device_id)
+        if analytics_consent:
+            events_query = """
+                SELECT 
+                    action,
+                    COUNT(*) as count,
+                    MAX(created_at) as last_event
+                FROM iosapp.user_analytics
+                WHERE device_id = $1 AND created_at >= NOW() - INTERVAL '%s days'
+                GROUP BY action
+                ORDER BY count DESC
+            """ % days
+            
+            events_stats = await db_manager.execute_query(events_query, device_id)
         
         # Calculate days since registration
         days_since_registration = 0
@@ -337,6 +341,7 @@ async def get_device_analytics(device_token: str, days: int = 30):
                     }
                     for event in events_stats
                 ],
+                "privacy_note": "Activity events only shown if analytics consent is granted" if not analytics_consent else "Activity tracking active with user consent",
                 "period_days": days
             }
         }
