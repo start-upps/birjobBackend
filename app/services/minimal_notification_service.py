@@ -21,7 +21,7 @@ class MinimalNotificationService:
     
     @staticmethod
     def generate_job_hash(job_title: str, company: str) -> str:
-        """Generate SHA-256 hash for job deduplication"""
+        """Generate SHA-256 hash for job deduplication (truncated to 32 chars)"""
         try:
             # Normalize inputs
             title = (job_title or "").strip().lower()
@@ -30,11 +30,11 @@ class MinimalNotificationService:
             # Create hash input
             hash_input = f"{title}|{comp}".encode('utf-8')
             
-            # Generate SHA-256 hash
-            return hashlib.sha256(hash_input).hexdigest()
+            # Generate SHA-256 hash and truncate to 32 chars to fit DB column
+            return hashlib.sha256(hash_input).hexdigest()[:32]
         except Exception as e:
             logger.error(f"Error generating job hash: {e}")
-            return hashlib.sha256(f"error|{str(e)}".encode()).hexdigest()
+            return hashlib.sha256(f"error|{str(e)}".encode()).hexdigest()[:32]
     
     async def is_notification_already_sent(self, device_id: str, job_hash: str) -> bool:
         """Check if notification was already sent to device"""
