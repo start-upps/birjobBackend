@@ -119,8 +119,8 @@ jobs:
           exit 0
         fi
         
-        # Process job matches locally (much faster than API calls)
-        echo "🔔 Processing job matches locally with keyword matching..."
+        # Process job matches efficiently using grep
+        echo "🔔 Processing job matches efficiently with grep-based matching..."
         
         # Get active devices with keywords
         DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
@@ -133,73 +133,55 @@ jobs:
         TOTAL_MATCHED=0
         TOTAL_SENT=0
         
+        # Create searchable job text file
+        echo "📋 Creating searchable job database..."
+        echo "$ALL_JOBS" | jq -r '.[] | "\(.id)|\(.title // "")|\(.company // "")"' | tr '[:upper:]' '[:lower:]' > /tmp/jobs.txt
+        
         # Process each device
-        echo "$DEVICES" | jq -c '.[]' | while read device; do
-          DEVICE_ID=$(echo "$device" | jq -r '.device_id')
-          DEVICE_TOKEN=$(echo "$device" | jq -r '.device_token // ""')
-          KEYWORDS=$(echo "$device" | jq -r '.keywords[]' | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        for device_index in $(seq 0 $((DEVICE_COUNT - 1))); do
+          DEVICE=$(echo "$DEVICES" | jq -c ".[$device_index]")
+          DEVICE_ID=$(echo "$DEVICE" | jq -r '.device_id')
+          DEVICE_TOKEN=$(echo "$DEVICE" | jq -r '.device_token // ""')
+          KEYWORDS=$(echo "$DEVICE" | jq -r '.keywords[]' | tr '[:upper:]' '[:lower:]' | tr '\n' '|')
           
-          echo "🔍 Checking device ${DEVICE_ID:0:8}... with keywords: $(echo "$KEYWORDS" | tr '\n' ',' | sed 's/,$//')"
+          echo "🔍 Checking device ${DEVICE_ID:0:8}... with keywords: $KEYWORDS"
           
-          DEVICE_MATCHES=0
-          
-          # Check each job for keyword matches
-          echo "$ALL_JOBS" | jq -c '.[]' | while read job; do
-            JOB_ID=$(echo "$job" | jq -r '.id')
-            JOB_TITLE=$(echo "$job" | jq -r '.title // ""' | tr '[:upper:]' '[:lower:]')
-            JOB_COMPANY=$(echo "$job" | jq -r '.company // ""' | tr '[:upper:]' '[:lower:]')
+          if [[ -n "$KEYWORDS" ]]; then
+            # Use grep to find matching jobs efficiently
+            MATCHES=$(grep -E "$KEYWORDS" /tmp/jobs.txt || true)
+            MATCH_COUNT=$(echo "$MATCHES" | wc -l)
             
-            # Combine job text for searching
-            JOB_TEXT="$JOB_TITLE $JOB_COMPANY"
-            
-            # Check if any keyword matches
-            MATCHED_KEYWORDS=""
-            while IFS= read -r keyword; do
-              if [[ -n "$keyword" && "$JOB_TEXT" == *"$keyword"* ]]; then
-                if [[ -z "$MATCHED_KEYWORDS" ]]; then
-                  MATCHED_KEYWORDS="$keyword"
-                else
-                  MATCHED_KEYWORDS="$MATCHED_KEYWORDS,$keyword"
-                fi
-              fi
-            done <<< "$KEYWORDS"
-            
-            # If we have matches, send notification
-            if [[ -n "$MATCHED_KEYWORDS" ]]; then
-              echo "✅ Match found! Job: $JOB_TITLE | Company: $JOB_COMPANY | Keywords: $MATCHED_KEYWORDS"
+            if [[ -n "$MATCHES" && "$MATCHES" != "" ]]; then
+              echo "✅ Found $MATCH_COUNT job matches for device ${DEVICE_ID:0:8}..."
               
-              # Send individual notification (simple API call)
-              NOTIFICATION_DATA=$(cat <<EOF
-        {
-          "device_token": "$DEVICE_TOKEN",
-          "job": $job,
-          "matched_keywords": ["$(echo "$MATCHED_KEYWORDS" | sed 's/,/", "/g')"]
-        }
-        EOF
-              )
-              
-              NOTIF_RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/test/$DEVICE_TOKEN" \
-                -H "Content-Type: application/json" \
-                -d "$NOTIFICATION_DATA")
+              # Send test notification for this device
+              echo "📱 Sending test notification to device..."
+              NOTIF_RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/test/$DEVICE_TOKEN")
               
               NOTIF_SUCCESS=$(echo "$NOTIF_RESPONSE" | jq -r '.success // false')
               
               if [[ "$NOTIF_SUCCESS" == "true" ]]; then
                 TOTAL_SENT=$((TOTAL_SENT + 1))
-                echo "📱 Notification sent successfully"
+                echo "📱 ✅ Notification sent successfully to device ${DEVICE_ID:0:8}..."
               else
-                echo "❌ Notification failed"
+                echo "❌ Notification failed: $(echo "$NOTIF_RESPONSE" | jq -r '.message // "Unknown error"')"
               fi
               
-              DEVICE_MATCHES=$((DEVICE_MATCHES + 1))
+              TOTAL_MATCHED=$((TOTAL_MATCHED + 1))
+              
+              # Show first few matches as samples
+              echo "📊 Sample matches:"
+              echo "$MATCHES" | head -5 | while IFS='|' read job_id job_title job_company; do
+                echo "  - Job: $job_title | Company: $job_company"
+              done
+            else
+              echo "ℹ️ No matches found for device ${DEVICE_ID:0:8}..."
             fi
-          done
-          
-          if [[ $DEVICE_MATCHES -gt 0 ]]; then
-            echo "📊 Device ${DEVICE_ID:0:8}... had $DEVICE_MATCHES matches"
-            TOTAL_MATCHED=$((TOTAL_MATCHED + 1))
           fi
         done
+        
+        # Cleanup
+        rm -f /tmp/jobs.txt
         
         # Set final results
         JOBS_PROCESSED=$TOTAL_PROCESSED
