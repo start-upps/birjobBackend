@@ -17,44 +17,77 @@ jobs:
       run: |
         echo "👤 Checking active users with keywords..."
         
-        # Get list of devices for verification
-        DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
-        DEVICE_COUNT=$(echo "$DEVICES_RESPONSE" | jq '.devices | length')
-        
-        echo "Active devices found: $DEVICE_COUNT"
-        
-        if [ "$DEVICE_COUNT" -eq 0 ]; then
-          echo "❌ No active devices found!"
-          exit 1
-        fi
-        
-        # Show device info
-        echo "$DEVICES_RESPONSE" | jq '.devices[] | {device_id: .device_id, keywords: .keywords | length, notifications_enabled: .notifications_enabled}'
+        # Retry logic for deployment timing
+        for i in {1..3}; do
+          echo "⏳ Attempt $i: Checking active devices..."
+          
+          # Get list of devices for verification
+          DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
+          DEVICE_COUNT=$(echo "$DEVICES_RESPONSE" | jq -r '.data.active_devices_count // 0')
+          
+          echo "Active devices found: $DEVICE_COUNT"
+          
+          if [ "$DEVICE_COUNT" -gt 0 ]; then
+            echo "✅ SUCCESS: Found $DEVICE_COUNT active devices"
+            
+            # Show device info
+            echo "$DEVICES_RESPONSE" | jq -r '.data.devices[] | "Device: \(.device_id) | Keywords: \(.keywords_count) | Preview: \(.keywords | join(", "))"'
+            break
+          else
+            echo "⚠️ No devices found on attempt $i"
+            if [ "$i" -eq 3 ]; then
+              echo "❌ Failed after 3 attempts!"
+              exit 1
+            fi
+            echo "⏳ Waiting 30s before retry..."
+            sleep 30
+          fi
+        done
     
     - name: Process Job Notifications
       run: |
-        echo "🔍 Scanning database for job matches every 40 minutes..."
+        echo "🔍 Scanning database for job matches every 45 minutes..."
         
-        # Call the notification processing endpoint - scans ALL jobs from last 24 hours
-        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/run-real-notifications")
+        # First, get recent jobs from the database to process
+        echo "📊 Fetching recent jobs from database..."
+        JOBS_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=100&offset=0")
         
-        # Parse results
-        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.data.processed_jobs // 0')
-        USERS_MATCHED=$(echo "$RESPONSE" | jq -r '.data.matched_users // 0') 
-        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.data.notifications_sent // 0')
-        ERRORS=$(echo "$RESPONSE" | jq -r '.data.errors // 0')
+        # Extract jobs for processing
+        JOBS_ARRAY=$(echo "$JOBS_RESPONSE" | jq -c '.data.jobs // []')
+        JOBS_COUNT=$(echo "$JOBS_ARRAY" | jq 'length')
         
-        echo "📊 Results:"
+        echo "📈 Found $JOBS_COUNT recent jobs to process"
+        
+        if [ "$JOBS_COUNT" -eq 0 ]; then
+          echo "ℹ️ No recent jobs found in database"
+          exit 0
+        fi
+        
+        # Process jobs through notification system
+        echo "🔔 Processing jobs for notifications..."
+        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-jobs" \
+          -H "Content-Type: application/json" \
+          -d "{\"jobs\": $JOBS_ARRAY, \"background\": false}")
+        
+        # Parse results (correct response structure)
+        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
+        DEVICES_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0') 
+        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
+        ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
+        SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+        
+        echo "📊 Notification Results:"
         echo "- Jobs processed: $JOBS_PROCESSED"
-        echo "- Users matched: $USERS_MATCHED" 
+        echo "- Devices matched: $DEVICES_MATCHED" 
         echo "- Notifications sent: $NOTIFICATIONS_SENT"
         echo "- Errors: $ERRORS"
+        echo "- Success: $SUCCESS"
         
         # Show success/failure
         if [ "$NOTIFICATIONS_SENT" -gt 0 ]; then
           echo "✅ SUCCESS: $NOTIFICATIONS_SENT notifications sent!"
-        elif [ "$USERS_MATCHED" -gt 0 ]; then
-          echo "⚠️ Users matched but no notifications sent (check APNs configuration)"
+        elif [ "$DEVICES_MATCHED" -gt 0 ]; then
+          echo "⚠️ Devices matched but no notifications sent (check APNs configuration)"
         else
           echo "ℹ️ No matching jobs found for current user keywords"
         fi

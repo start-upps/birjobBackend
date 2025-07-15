@@ -357,7 +357,8 @@ The system uses a **clean device-first approach** after major codebase cleanup. 
 - ✅ **CRITICAL FIX**: Fixed notification system keyword parsing for JSONB fields
 - ✅ **RESTORED FUNCTIONALITY**: Notification system now correctly finds active devices
 - ✅ **IMPROVED PARSING**: Enhanced keyword handling to support all database formats
-- ✅ **GITHUB ACTIONS**: Notification workflows now working correctly
+- ✅ **BACKWARD COMPATIBILITY**: Added `/api/v1/notifications/devices` and `/process` endpoints
+- ✅ **GITHUB ACTIONS**: Notification workflows now working correctly with legacy URLs
 - ✅ **TESTED**: Verified with multiple device types and keyword formats
 
 ---
