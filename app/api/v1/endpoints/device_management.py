@@ -501,3 +501,55 @@ async def reset_notification_throttling(device_token: str):
     except Exception as e:
         logger.error(f"Error resetting throttling: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset throttling")
+
+@router.get("/debug/list-all")
+async def debug_list_all_devices():
+    """Debug endpoint: List all devices with full tokens (development only)"""
+    try:
+        query = """
+            SELECT 
+                id,
+                device_token,
+                keywords,
+                notifications_enabled,
+                created_at
+            FROM iosapp.device_users
+            ORDER BY created_at DESC
+            LIMIT 10
+        """
+        
+        devices = await db_manager.execute_query(query)
+        
+        result = []
+        for device in devices:
+            # Get notification count for this device
+            notification_query = """
+                SELECT COUNT(*) as count
+                FROM iosapp.notification_hashes
+                WHERE device_id = $1
+            """
+            notification_result = await db_manager.execute_query(notification_query, device['id'])
+            notification_count = notification_result[0]['count'] if notification_result else 0
+            
+            result.append({
+                "device_id": str(device['id']),
+                "device_token": device['device_token'],  # Full token for debugging
+                "device_token_length": len(device['device_token']),
+                "keywords": device['keywords'],
+                "notifications_enabled": device['notifications_enabled'],
+                "notification_count": notification_count,
+                "created_at": device['created_at'].isoformat() if device['created_at'] else None
+            })
+        
+        return {
+            "success": True,
+            "message": "Debug device list (development only)",
+            "data": {
+                "devices": result,
+                "total_devices": len(result)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug list: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list devices")
