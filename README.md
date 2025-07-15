@@ -177,24 +177,16 @@ CREATE TABLE iosapp.job_applications (
 /api/v1/jobs/sources/list                  # Available job sources
 /api/v1/jobs/stats/summary                 # Job market statistics
 
-# Device Notifications (7 endpoints)
-/api/v1/notifications/history/{device_token}    # Notification history
-/api/v1/notifications/inbox/{device_token}      # Grouped notifications
-/api/v1/notifications/mark-read/{device_token}  # Mark as read
-/api/v1/notifications/delete/{device_token}     # Delete notifications
-/api/v1/notifications/test/{device_token}       # Send test notification
-/api/v1/notifications/settings/{device_token}   # Get/update notification settings
-/api/v1/notifications/clear/{device_token}      # Clear old notifications
-
-# Minimal Notifications (8 endpoints)
+# 📡 Push Notification System (15 endpoints)
+/api/v1/minimal-notifications/process-all       # 🚀 MAIN: Process ALL jobs (3911+) 
 /api/v1/minimal-notifications/devices/active    # Active devices list
 /api/v1/minimal-notifications/stats             # System statistics
-/api/v1/minimal-notifications/cleanup           # Cleanup old data
-/api/v1/minimal-notifications/hash/{job_title}/{company} # Get job hash
-/api/v1/minimal-notifications/process-jobs      # Process job matches
-/api/v1/minimal-notifications/scraper-webhook   # Scraper webhook
-/api/v1/minimal-notifications/send-single       # Send single notification
-/api/v1/minimal-notifications/test-device/{device_token} # Test device notification
+/api/v1/notifications/history/{device_token}    # Notification history  
+/api/v1/notifications/inbox/{device_token}      # Grouped notifications (iOS-style)
+/api/v1/notifications/mark-read/{device_token}  # Mark as read
+/api/v1/notifications/test/{device_token}       # Send test notification
+/api/v1/devices/cleanup/test-data               # 🧹 Clean dummy tokens
+/api/v1/devices/reset-throttling/{device_token} # 🔄 Reset rate limits
 
 # Intelligent AI Features (3 endpoints) 🤖
 /api/v1/chatbot/chat/{device_token}        # Intelligent AI career assistant with real market data
@@ -2243,10 +2235,131 @@ GET /api/v1/jobs/?search=iOS&limit=3&sort_by=created_at&sort_order=desc
 
 ---
 
-### 5. Notification Management
+### 5. 📱 Complete Push Notification System
+
+> **🎯 PRODUCTION-READY**: Handles 3911+ jobs, deduplication, throttling, and APNs integration with comprehensive iOS development support
+
+#### **🏗️ Notification Architecture Overview**
+
+The notification system consists of two main components:
+
+1. **📡 Real-time Job Processing** (`/minimal-notifications/*`) - Processes ALL jobs and sends notifications
+2. **📱 Device Management** (`/notifications/*`) - Manages notification history, settings, and iOS integration
+
+#### **📊 System Capabilities**
+- ✅ **Processes ALL jobs** (3911+ currently) not just 1000
+- ✅ **Hash-based deduplication** (32-char SHA-256 truncated)
+- ✅ **APNs Production integration** with proper error handling
+- ✅ **Rate limiting** (5/hour, 20/day per device) 
+- ✅ **Real device token validation** (64-160 hex chars)
+- ✅ **Background processing** for large datasets
+- ✅ **Automatic cleanup** of test/dummy tokens
+
+---
+
+### **📡 Core Notification Processing**
+
+#### **POST** `/api/v1/minimal-notifications/process-all`
+**🚀 MAIN ENDPOINT: Process ALL jobs for notifications (Used by GitHub Actions)**
+
+**Request:**
+```json
+{
+  "trigger_source": "github_actions",  // or "manual", "cron", etc.
+  "background": true                   // true = async, false = sync
+}
+```
+
+**Response (Background):**
+```json
+{
+  "success": true,
+  "message": "Processing 3911 jobs in background",
+  "stats": {
+    "processed_jobs": 3911,
+    "matched_devices": "processing",
+    "notifications_sent": "processing", 
+    "errors": 0
+  }
+}
+```
+
+**Response (Synchronous):**
+```json
+{
+  "success": true,
+  "message": "Processed 3911 jobs successfully",
+  "stats": {
+    "processed_jobs": 3911,
+    "matched_devices": 2,
+    "notifications_sent": 1,
+    "errors": 0
+  }
+}
+```
+
+**🔧 How it works:**
+1. Fetches ALL jobs from `scraper.jobs_jobpost` (no 1000 limit)
+2. Matches jobs against device keywords (`['sql', 'data', 'anal']`)
+3. Generates 32-char job hashes for deduplication 
+4. Sends ONE summary notification per device (not per job)
+5. Records notification history in `notification_hashes` table
+
+---
+
+#### **GET** `/api/v1/minimal-notifications/devices/active`
+**📱 Get all active devices ready for notifications**
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "active_devices_count": 1,
+    "devices": [
+      {
+        "device_id": "51fa69e8-bc1b-47cc-9a77-09932a2002b7",
+        "device_token_preview": "016c1ed59516d627...",
+        "keywords_count": 3,
+        "keywords": ["sql", "data", "anal"]
+      }
+    ]
+  }
+}
+```
+
+#### **GET** `/api/v1/minimal-notifications/stats`
+**📊 System-wide notification statistics**
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "total_devices": 1,
+      "active_devices": 1,
+      "total_notifications_sent": 128,
+      "notifications_last_24h": 3,
+      "avg_keywords_per_device": 3.0
+    },
+    "recent_activity": [
+      {
+        "date": "2025-07-15",
+        "notifications_sent": 3,
+        "devices_notified": 1
+      }
+    ]
+  }
+}
+```
+
+---
+
+### **📱 iOS Device Notification Management**
 
 #### **GET** `/api/v1/notifications/history/{device_token}`
-**Get complete notification history for device**
+**📋 Get complete notification history for device**
 
 **Query Parameters:**
 - `limit` (int): Number of notifications (default: 50, max: 100)
@@ -2257,13 +2370,24 @@ GET /api/v1/jobs/?search=iOS&limit=3&sort_by=created_at&sort_order=desc
 {
   "success": true,
   "data": {
-    "device_token_preview": "aaaaaaaaaaaaaaaa...",
-    "total_notifications": 0,
-    "notifications": [],
+    "device_token_preview": "016c1ed59516d627...",
+    "total_notifications": 45,
+    "notifications": [
+      {
+        "id": "uuid-notification-id",
+        "job_hash": "a1b2c3d4e5f6...",
+        "job_title": "Senior iOS Developer",
+        "job_company": "Apple Inc",
+        "job_source": "LinkedIn",
+        "matched_keywords": ["ios", "swift", "senior"],
+        "sent_at": "2025-07-15T14:30:00Z",
+        "read": false
+      }
+    ],
     "pagination": {
       "limit": 50,
       "offset": 0,
-      "total": 0,
+      "total": 45,
       "has_more": false
     }
   }
@@ -2271,7 +2395,7 @@ GET /api/v1/jobs/?search=iOS&limit=3&sort_by=created_at&sort_order=desc
 ```
 
 #### **GET** `/api/v1/notifications/inbox/{device_token}`
-**Get grouped notification inbox (like iOS notifications)**
+**📥 Get grouped notification inbox (iOS-style)**
 
 **Query Parameters:**
 - `limit` (int): Number of notification groups (default: 20)
@@ -2284,31 +2408,37 @@ GET /api/v1/jobs/?search=iOS&limit=3&sort_by=created_at&sort_order=desc
   "data": {
     "notifications": [
       {
-        "id": "group_2025-07-13_ios_swift",
+        "id": "group_2025-07-15_sql_data",
         "type": "job_match_group",
-        "title": "3 New Jobs Found!",
-        "message": "💼 iOS, Swift, Remote",
-        "job_count": 3,
-        "matched_keywords": ["iOS", "Swift"],
-        "latest_sent_at": "2025-07-13T09:15:00Z",
+        "title": "74 New Jobs Found!",
+        "message": "💼 SQL, Data, Analytics positions",
+        "job_count": 74,
+        "matched_keywords": ["sql", "data", "anal"],
+        "latest_sent_at": "2025-07-15T15:28:08Z",
         "jobs": [
           {
-            "title": "iOS Developer",
-            "company": "Apple Inc",
-            "source": "Djinni"
+            "title": "Data Analyst",
+            "company": "Microsoft",
+            "source": "Indeed"
+          },
+          {
+            "title": "SQL Developer", 
+            "company": "Google",
+            "source": "LinkedIn"
           }
-        ]
+        ],
+        "read": false
       }
     ],
-    "unread_count": 0,
-    "total_shown": 0,
+    "unread_count": 1,
+    "total_shown": 1,
     "grouped": true
   }
 }
 ```
 
 #### **POST** `/api/v1/notifications/mark-read/{device_token}`
-**Mark notifications as read**
+**✅ Mark notifications as read**
 
 **Request:**
 ```json
@@ -2327,39 +2457,370 @@ GET /api/v1/jobs/?search=iOS&limit=3&sort_by=created_at&sort_order=desc
 ```json
 {
   "success": true,
-  "message": "Marked all 0 notifications as read",
+  "message": "Marked 2 notifications as read",
   "data": {
-    "device_token_preview": "aaaaaaaaaaaaaaaa...",
-    "marked_count": 0,
-    "notification_ids": "all"
+    "device_token_preview": "016c1ed59516d627...",
+    "marked_count": 2,
+    "notification_ids": ["uuid1", "uuid2"]
   }
 }
 ```
 
-#### **DELETE** `/api/v1/notifications/delete/{device_token}`
-**Delete notifications**
+#### **POST** `/api/v1/notifications/test/{device_token}`
+**🧪 Send test notification to device (for development)**
 
 **Request:**
 ```json
 {
-  "notification_ids": ["uuid1", "uuid2"],
-  "delete_all": false
-}
-
-// OR delete all:
-{
-  "delete_all": true
+  "message": "Test notification",
+  "title": "iOS App Test"
 }
 ```
 
-#### **POST** `/api/v1/notifications/test/{device_token}`
-**Send test notification to device**
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Test notification sent successfully",
+  "data": {
+    "device_id": "51fa69e8...",
+    "notification_id": "test-notification-uuid",
+    "apns_status": "200",
+    "sent_at": "2025-07-15T15:30:00Z"
+  }
+}
+```
 
-#### **PUT** `/api/v1/notifications/settings/{device_token}`
-**Update notification settings**
+---
 
-#### **GET** `/api/v1/notifications/settings/{device_token}`
-**Get current notification settings**
+### **🔧 Development & Cleanup Tools**
+
+#### **POST** `/api/v1/devices/cleanup/test-data`
+**🧹 Clean up test/dummy device tokens**
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Cleaned up 1 test device tokens",
+  "data": {
+    "deleted_count": 1,
+    "deleted_tokens": ["aaaaaaaaaaaaaaaa..."]
+  }
+}
+```
+
+#### **POST** `/api/v1/devices/reset-throttling/{device_token}`
+**🔄 Reset notification rate limits (development only)**
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Notification throttling reset successfully", 
+  "data": {
+    "device_id": "51fa69e8...",
+    "device_token_preview": "016c1ed59516d627...",
+    "reset_at": "2025-07-15T15:35:00Z"
+  }
+}
+```
+
+---
+
+### **📱 APNs Integration & Error Handling**
+
+#### **APNs Configuration**
+- **Environment**: Production APNs
+- **Team ID**: `KK5HUUQ3HR`
+- **Bundle ID**: `com.ismats.birjob`
+- **Key ID**: `ZV2X5Y7D76`
+
+#### **Common APNs Errors & Solutions**
+
+**❌ BadDeviceToken (400)**
+```json
+{
+  "error": "BadDeviceToken",
+  "apns_status": "400",
+  "recommendations": [
+    "Verify device token is from production app, not TestFlight",
+    "Ensure token matches bundle ID com.ismats.birjob", 
+    "Check token is 64-160 hex characters, not dummy data"
+  ]
+}
+```
+
+**⚠️ Notification Throttled**
+- **Limits**: 5 notifications/hour, 20/day per device
+- **Solution**: Use `/reset-throttling` endpoint for testing
+
+#### **Device Token Validation**
+✅ **Valid formats:**
+- 64 hex chars: `a1b2c3d4e5f6...` (32 bytes)
+- 128 hex chars: `a1b2c3d4e5f6...` (64 bytes) 
+- 160 hex chars: `a1b2c3d4e5f6...` (80 bytes)
+
+❌ **Invalid formats:**
+- Dummy tokens: `aaaaaaaa...`, `00000000...`
+- Short tokens: `< 32 characters`
+- Non-hex characters: spaces, dashes, etc.
+
+### **📱 iOS Implementation Guide**
+
+#### **🔧 Step 1: Setup Push Notifications in iOS**
+
+```swift
+import UserNotifications
+import UIKit
+
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        
+        // Request notification permissions
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                DispatchQueue.main.async {
+                    application.registerForRemoteNotifications()
+                }
+            }
+        }
+        
+        // Set notification delegate
+        UNUserNotificationCenter.current().delegate = self
+        
+        return true
+    }
+    
+    // Get device token
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        print("📱 Device Token: \(tokenString)")
+        
+        // Send to your backend
+        Task {
+            await registerDevice(deviceToken: tokenString)
+        }
+    }
+    
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("❌ Failed to register: \(error)")
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    
+    // Handle notification tap
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        
+        let userInfo = response.notification.request.content.userInfo
+        
+        if let jobId = userInfo["job_id"] as? String {
+            // Navigate to job details
+            navigateToJobDetails(jobId: jobId)
+        }
+        
+        completionHandler()
+    }
+    
+    // Show notifications in foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.alert, .sound, .badge])
+    }
+}
+```
+
+#### **🔧 Step 2: Device Registration**
+
+```swift
+import Foundation
+
+class JobNotificationService {
+    private let baseURL = "https://birjobbackend-ir3e.onrender.com/api/v1"
+    
+    func registerDevice(deviceToken: String, keywords: [String] = ["ios", "swift", "mobile"]) async throws {
+        let url = URL(string: "\(baseURL)/device/register")!
+        
+        let payload = [
+            "device_token": deviceToken,
+            "keywords": keywords
+        ] as [String: Any]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            print("📱 Registration Status: \(httpResponse.statusCode)")
+            
+            if let responseData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("✅ Response: \(responseData)")
+            }
+        }
+    }
+}
+```
+
+#### **🔧 Step 3: Notification Management**
+
+```swift
+class NotificationManager {
+    private let baseURL = "https://birjobbackend-ir3e.onrender.com/api/v1"
+    private var deviceToken: String
+    
+    init(deviceToken: String) {
+        self.deviceToken = deviceToken
+    }
+    
+    // Get notification history
+    func getNotificationHistory(limit: Int = 50, offset: Int = 0) async throws -> [JobNotification] {
+        let url = URL(string: "\(baseURL)/notifications/history/\(deviceToken)?limit=\(limit)&offset=\(offset)")!
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(NotificationHistoryResponse.self, from: data)
+        
+        return response.data.notifications
+    }
+    
+    // Get notification inbox (grouped)
+    func getNotificationInbox(limit: Int = 20) async throws -> [NotificationGroup] {
+        let url = URL(string: "\(baseURL)/notifications/inbox/\(deviceToken)?limit=\(limit)")!
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(NotificationInboxResponse.self, from: data)
+        
+        return response.data.notifications
+    }
+    
+    // Mark notifications as read
+    func markNotificationsAsRead(notificationIds: [String]? = nil, markAll: Bool = false) async throws {
+        let url = URL(string: "\(baseURL)/notifications/mark-read/\(deviceToken)")!
+        
+        let payload: [String: Any] = [
+            "notification_ids": notificationIds ?? [],
+            "mark_all": markAll
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (_, _) = try await URLSession.shared.data(for: request)
+    }
+}
+
+// MARK: - Data Models
+struct JobNotification: Codable {
+    let id: String
+    let jobHash: String
+    let jobTitle: String
+    let jobCompany: String
+    let jobSource: String
+    let matchedKeywords: [String]
+    let sentAt: String
+    let read: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case id, read
+        case jobHash = "job_hash"
+        case jobTitle = "job_title" 
+        case jobCompany = "job_company"
+        case jobSource = "job_source"
+        case matchedKeywords = "matched_keywords"
+        case sentAt = "sent_at"
+    }
+}
+
+struct NotificationGroup: Codable {
+    let id: String
+    let type: String
+    let title: String
+    let message: String
+    let jobCount: Int
+    let matchedKeywords: [String]
+    let latestSentAt: String
+    let jobs: [JobSummary]
+    let read: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case id, type, title, message, jobs, read
+        case jobCount = "job_count"
+        case matchedKeywords = "matched_keywords"
+        case latestSentAt = "latest_sent_at"
+    }
+}
+
+struct JobSummary: Codable {
+    let title: String
+    let company: String
+    let source: String
+}
+```
+
+#### **🔧 Step 4: Testing & Debugging**
+
+```swift
+// Test notification
+func sendTestNotification() async throws {
+    let url = URL(string: "\(baseURL)/notifications/test/\(deviceToken)")!
+    
+    let payload = [
+        "message": "Test notification from iOS app",
+        "title": "🧪 Test Notification"
+    ]
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+    
+    let (data, response) = try await URLSession.shared.data(for: request)
+    
+    if let httpResponse = response as? HTTPURLResponse {
+        print("🧪 Test Status: \(httpResponse.statusCode)")
+    }
+}
+
+// Reset throttling for testing
+func resetThrottling() async throws {
+    let url = URL(string: "\(baseURL)/devices/reset-throttling/\(deviceToken)")!
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    
+    let (_, response) = try await URLSession.shared.data(for: request)
+    
+    if let httpResponse = response as? HTTPURLResponse {
+        print("🔄 Throttle Reset: \(httpResponse.statusCode)")
+    }
+}
+```
+
+#### **🚨 Troubleshooting Common Issues**
+
+**❌ BadDeviceToken Error:**
+1. Ensure you're using **production** APNs, not sandbox
+2. Verify bundle ID matches: `com.ismats.birjob`
+3. Use real device, not simulator
+4. Token should be 64-160 hex characters
+
+**⚠️ No Notifications Received:**
+1. Check notification permissions: `UNUserNotificationCenter.current().getNotificationSettings()`
+2. Verify device registration: `/api/v1/notifications/devices/active`
+3. Test with: `/api/v1/notifications/test/{device_token}`
+4. Check rate limits: 5/hour, 20/day
+
+**🔧 Development Tips:**
+- Use `/cleanup/test-data` to remove dummy tokens
+- Use `/reset-throttling` for testing
+- Monitor system stats at `/minimal-notifications/stats`
+- Check logs for APNs status codes
 
 ---
 
