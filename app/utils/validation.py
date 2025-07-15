@@ -85,11 +85,30 @@ def validate_device_token(device_token: str) -> str:
                 detail=f"Extracted token has invalid length: {len(hex_only)} (expected 64, 128, or 160)"
             )
     
-    # Case 4: Other lengths - invalid
+    # Case 4: UUID format with dashes (temporary support for testing)
+    elif '-' in device_token and len(device_token) == 36:
+        # Accept UUID format like "367345C0-ACD8-4349-B21A-EDE0835E309B"
+        uuid_clean = device_token.replace('-', '').lower()
+        if len(uuid_clean) == 32:
+            try:
+                int(uuid_clean, 16)
+                device_token = uuid_clean  # Use cleaned version
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Invalid characters in device token (UUID format must be valid hex)"
+                )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="UUID format device token must be exactly 36 characters with dashes"
+            )
+    
+    # Case 5: Other lengths - invalid
     else:
         raise HTTPException(
             status_code=400, 
-            detail=f"device_token must be 64, 128, or 160 hex characters, or iOS Data format (got {len(device_token)} characters)"
+            detail=f"device_token must be 64, 128, or 160 hex characters, or iOS Data format (got {len(device_token)} characters). For development: 32-char UUID format also accepted."
         )
     
     # Prevent temporary/fake tokens that bypass real validation
