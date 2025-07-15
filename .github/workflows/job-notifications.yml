@@ -119,61 +119,93 @@ jobs:
           exit 0
         fi
         
-        # Process jobs through notification system in chunks (avoid curl argument limit)
-        echo "🔔 Processing jobs for notifications in chunks..."
+        # Process job matches locally (much faster than API calls)
+        echo "🔔 Processing job matches locally with keyword matching..."
         
-        CHUNK_SIZE=500
-        TOTAL_PROCESSED=0
+        # Get active devices with keywords
+        DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
+        DEVICES=$(echo "$DEVICES_RESPONSE" | jq -c '.data.devices // []')
+        DEVICE_COUNT=$(echo "$DEVICES" | jq 'length')
+        
+        echo "👥 Found $DEVICE_COUNT active devices to check"
+        
+        TOTAL_PROCESSED=$JOBS_COUNT
         TOTAL_MATCHED=0
         TOTAL_SENT=0
-        TOTAL_ERRORS=0
         
-        # Calculate number of chunks needed
-        CHUNK_COUNT=$(((JOBS_COUNT + CHUNK_SIZE - 1) / CHUNK_SIZE))
-        
-        echo "📦 Processing $JOBS_COUNT jobs in $CHUNK_COUNT chunks of $CHUNK_SIZE"
-        
-        for ((chunk=0; chunk<CHUNK_COUNT; chunk++)); do
-          echo "📥 Processing chunk $((chunk+1))/$CHUNK_COUNT..."
+        # Process each device
+        echo "$DEVICES" | jq -c '.[]' | while read device; do
+          DEVICE_ID=$(echo "$device" | jq -r '.device_id')
+          DEVICE_TOKEN=$(echo "$device" | jq -r '.device_token // ""')
+          KEYWORDS=$(echo "$device" | jq -r '.keywords[]' | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           
-          # Calculate slice indices
-          START_INDEX=$((chunk * CHUNK_SIZE))
-          END_INDEX=$(((chunk + 1) * CHUNK_SIZE))
+          echo "🔍 Checking device ${DEVICE_ID:0:8}... with keywords: $(echo "$KEYWORDS" | tr '\n' ',' | sed 's/,$//')"
           
-          # Extract chunk using slice
-          CHUNK_JOBS=$(echo "$ALL_JOBS" | jq -c ".[$START_INDEX:$END_INDEX]")
-          CHUNK_JOB_COUNT=$(echo "$CHUNK_JOBS" | jq 'length')
+          DEVICE_MATCHES=0
           
-          echo "📊 Chunk has $CHUNK_JOB_COUNT jobs"
+          # Check each job for keyword matches
+          echo "$ALL_JOBS" | jq -c '.[]' | while read job; do
+            JOB_ID=$(echo "$job" | jq -r '.id')
+            JOB_TITLE=$(echo "$job" | jq -r '.title // ""' | tr '[:upper:]' '[:lower:]')
+            JOB_COMPANY=$(echo "$job" | jq -r '.company // ""' | tr '[:upper:]' '[:lower:]')
+            
+            # Combine job text for searching
+            JOB_TEXT="$JOB_TITLE $JOB_COMPANY"
+            
+            # Check if any keyword matches
+            MATCHED_KEYWORDS=""
+            while IFS= read -r keyword; do
+              if [[ -n "$keyword" && "$JOB_TEXT" == *"$keyword"* ]]; then
+                if [[ -z "$MATCHED_KEYWORDS" ]]; then
+                  MATCHED_KEYWORDS="$keyword"
+                else
+                  MATCHED_KEYWORDS="$MATCHED_KEYWORDS,$keyword"
+                fi
+              fi
+            done <<< "$KEYWORDS"
+            
+            # If we have matches, send notification
+            if [[ -n "$MATCHED_KEYWORDS" ]]; then
+              echo "✅ Match found! Job: $JOB_TITLE | Company: $JOB_COMPANY | Keywords: $MATCHED_KEYWORDS"
+              
+              # Send individual notification (simple API call)
+              NOTIFICATION_DATA=$(cat <<EOF
+        {
+          "device_token": "$DEVICE_TOKEN",
+          "job": $job,
+          "matched_keywords": ["$(echo "$MATCHED_KEYWORDS" | sed 's/,/", "/g')"]
+        }
+        EOF
+              )
+              
+              NOTIF_RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/test/$DEVICE_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$NOTIFICATION_DATA")
+              
+              NOTIF_SUCCESS=$(echo "$NOTIF_RESPONSE" | jq -r '.success // false')
+              
+              if [[ "$NOTIF_SUCCESS" == "true" ]]; then
+                TOTAL_SENT=$((TOTAL_SENT + 1))
+                echo "📱 Notification sent successfully"
+              else
+                echo "❌ Notification failed"
+              fi
+              
+              DEVICE_MATCHES=$((DEVICE_MATCHES + 1))
+            fi
+          done
           
-          # Process chunk
-          RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-jobs" \
-            -H "Content-Type: application/json" \
-            -d "{\"jobs\": $CHUNK_JOBS, \"background\": false}")
-          
-          # Parse chunk results
-          CHUNK_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
-          CHUNK_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0')
-          CHUNK_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
-          CHUNK_ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
-          
-          echo "📈 Chunk results: processed=$CHUNK_PROCESSED, matched=$CHUNK_MATCHED, sent=$CHUNK_SENT, errors=$CHUNK_ERRORS"
-          
-          # Accumulate totals
-          TOTAL_PROCESSED=$((TOTAL_PROCESSED + CHUNK_PROCESSED))
-          TOTAL_MATCHED=$((TOTAL_MATCHED + CHUNK_MATCHED))
-          TOTAL_SENT=$((TOTAL_SENT + CHUNK_SENT))
-          TOTAL_ERRORS=$((TOTAL_ERRORS + CHUNK_ERRORS))
-          
-          # Small delay between chunks
-          sleep 2
+          if [[ $DEVICE_MATCHES -gt 0 ]]; then
+            echo "📊 Device ${DEVICE_ID:0:8}... had $DEVICE_MATCHES matches"
+            TOTAL_MATCHED=$((TOTAL_MATCHED + 1))
+          fi
         done
         
         # Set final results
         JOBS_PROCESSED=$TOTAL_PROCESSED
         DEVICES_MATCHED=$TOTAL_MATCHED
         NOTIFICATIONS_SENT=$TOTAL_SENT
-        ERRORS=$TOTAL_ERRORS
+        ERRORS=0
         SUCCESS=true
         
         echo "📊 Notification Results:"
