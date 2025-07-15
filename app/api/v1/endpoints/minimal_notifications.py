@@ -14,6 +14,96 @@ from app.services.minimal_notification_service import minimal_notification_servi
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.post("/process-all")
+async def process_all_job_notifications(
+    request: Dict[str, Any],
+    background_tasks: BackgroundTasks
+):
+    """
+    Process ALL current jobs in database for notifications
+    Efficient backend-based processing for GitHub Actions
+    """
+    try:
+        trigger_source = request.get("trigger_source", "manual")
+        run_in_background = request.get("background", True)
+        
+        logger.info(f"Processing all jobs for notifications (triggered by: {trigger_source})")
+        
+        # Get all jobs from database efficiently
+        jobs_query = """
+            SELECT 
+                id,
+                title,
+                company,
+                apply_link,
+                source,
+                created_at as posted_at
+            FROM scraper.jobs_jobpost
+            ORDER BY created_at DESC
+        """
+        
+        jobs_result = await db_manager.execute_query(jobs_query)
+        jobs_count = len(jobs_result)
+        
+        if jobs_count == 0:
+            return {
+                "success": True,
+                "message": "No jobs found in database",
+                "stats": {
+                    "processed_jobs": 0,
+                    "matched_devices": 0,
+                    "notifications_sent": 0,
+                    "errors": 0
+                }
+            }
+        
+        # Convert to format expected by notification service
+        jobs_data = []
+        for job in jobs_result:
+            jobs_data.append({
+                "id": job['id'],
+                "title": job['title'] or "No Title",
+                "company": job['company'] or "Unknown Company",
+                "apply_link": job['apply_link'] or "",
+                "source": job['source'] or "Unknown",
+                "posted_at": job['posted_at'].isoformat() if job['posted_at'] else None
+            })
+        
+        logger.info(f"Found {jobs_count} jobs to process")
+        
+        if run_in_background:
+            # Run in background
+            background_tasks.add_task(
+                minimal_notification_service.process_job_notifications,
+                jobs_data, None, False
+            )
+            
+            return {
+                "success": True,
+                "message": f"Processing {jobs_count} jobs in background",
+                "stats": {
+                    "processed_jobs": jobs_count,
+                    "matched_devices": "processing",
+                    "notifications_sent": "processing",
+                    "errors": 0
+                }
+            }
+        else:
+            # Run synchronously for GitHub Actions
+            stats = await minimal_notification_service.process_job_notifications(
+                jobs_data, None, False
+            )
+            
+            return {
+                "success": True,
+                "message": f"Processed {jobs_count} jobs successfully",
+                "stats": stats
+            }
+            
+    except Exception as e:
+        logger.error(f"Error processing all job notifications: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process notifications: {str(e)}")
+
 @router.post("/process-jobs")
 async def process_job_notifications(
     request: Dict[str, Any],

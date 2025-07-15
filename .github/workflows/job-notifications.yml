@@ -62,133 +62,21 @@ jobs:
     
     - name: Process Job Notifications
       run: |
-        echo "🔍 Scanning database for job matches every 45 minutes..."
-        echo "💡 Database uses truncate/load logic - refreshes hourly with latest job market snapshot"
+        echo "🔍 Triggering job notification processing..."
+        echo "💡 Backend will process all current jobs and send notifications to matched devices"
         
-        # First, get total count of jobs
-        echo "📊 Fetching job count from database..."
+        # Simple API call to trigger backend processing
+        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-all" \
+          -H "Content-Type: application/json" \
+          -d '{"trigger_source": "github_actions", "background": false}')
         
-        # Get total count first (all jobs - database uses truncate/load logic)
-        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0")
-        TOTAL_JOBS=$(echo "$TOTAL_RESPONSE" | jq -r '.data.pagination.total // 0')
-        
-        echo "📈 Total jobs in database (current snapshot): $TOTAL_JOBS"
-        
-        if [ "$TOTAL_JOBS" -eq 0 ]; then
-          echo "ℹ️ No jobs found in database"
-          exit 0
-        fi
-        
-        # Fetch jobs in batches (API limit is 100 per request)
-        echo "📦 Fetching jobs in batches (API limit: 100 per request)..."
-        
-        BATCH_SIZE=100
-        ALL_JOBS="[]"
-        OFFSET=0
-        
-        while [ "$OFFSET" -lt "$TOTAL_JOBS" ]; do
-          echo "📥 Fetching batch: offset=$OFFSET, limit=$BATCH_SIZE"
-          
-          BATCH_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$BATCH_SIZE&offset=$OFFSET")
-          BATCH_JOBS=$(echo "$BATCH_RESPONSE" | jq -c '.data.jobs // []')
-          BATCH_COUNT=$(echo "$BATCH_JOBS" | jq 'length')
-          
-          echo "📊 Batch size: $BATCH_COUNT jobs"
-          
-          if [ "$BATCH_COUNT" -eq 0 ]; then
-            echo "⚠️ Empty batch received, stopping"
-            break
-          fi
-          
-          # Merge batch with all jobs
-          ALL_JOBS=$(echo "$ALL_JOBS $BATCH_JOBS" | jq -s 'add')
-          
-          # Update offset
-          OFFSET=$((OFFSET + BATCH_SIZE))
-          
-          # Small delay to avoid rate limiting
-          sleep 1
-        done
-        
-        # Get final count
-        JOBS_COUNT=$(echo "$ALL_JOBS" | jq 'length')
-        echo "📈 Successfully fetched $JOBS_COUNT total jobs to process"
-        
-        if [ "$JOBS_COUNT" -eq 0 ]; then
-          echo "ℹ️ No jobs retrieved from batches"
-          exit 0
-        fi
-        
-        # Process job matches efficiently using grep
-        echo "🔔 Processing job matches efficiently with grep-based matching..."
-        
-        # Get active devices with keywords
-        DEVICES_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/devices")
-        DEVICES=$(echo "$DEVICES_RESPONSE" | jq -c '.data.devices // []')
-        DEVICE_COUNT=$(echo "$DEVICES" | jq 'length')
-        
-        echo "👥 Found $DEVICE_COUNT active devices to check"
-        
-        TOTAL_PROCESSED=$JOBS_COUNT
-        TOTAL_MATCHED=0
-        TOTAL_SENT=0
-        
-        # Create searchable job text file
-        echo "📋 Creating searchable job database..."
-        echo "$ALL_JOBS" | jq -r '.[] | "\(.id)|\(.title // "")|\(.company // "")"' | tr '[:upper:]' '[:lower:]' > /tmp/jobs.txt
-        
-        # Process each device
-        for device_index in $(seq 0 $((DEVICE_COUNT - 1))); do
-          DEVICE=$(echo "$DEVICES" | jq -c ".[$device_index]")
-          DEVICE_ID=$(echo "$DEVICE" | jq -r '.device_id')
-          DEVICE_TOKEN=$(echo "$DEVICE" | jq -r '.device_token // ""')
-          KEYWORDS=$(echo "$DEVICE" | jq -r '.keywords[]' | tr '[:upper:]' '[:lower:]' | tr '\n' '|')
-          
-          echo "🔍 Checking device ${DEVICE_ID:0:8}... with keywords: $KEYWORDS"
-          
-          if [[ -n "$KEYWORDS" ]]; then
-            # Use grep to find matching jobs efficiently
-            MATCHES=$(grep -E "$KEYWORDS" /tmp/jobs.txt || true)
-            MATCH_COUNT=$(echo "$MATCHES" | wc -l)
-            
-            if [[ -n "$MATCHES" && "$MATCHES" != "" ]]; then
-              echo "✅ Found $MATCH_COUNT job matches for device ${DEVICE_ID:0:8}..."
-              
-              # Send test notification for this device
-              echo "📱 Sending test notification to device..."
-              NOTIF_RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/notifications/test/$DEVICE_TOKEN")
-              
-              NOTIF_SUCCESS=$(echo "$NOTIF_RESPONSE" | jq -r '.success // false')
-              
-              if [[ "$NOTIF_SUCCESS" == "true" ]]; then
-                TOTAL_SENT=$((TOTAL_SENT + 1))
-                echo "📱 ✅ Notification sent successfully to device ${DEVICE_ID:0:8}..."
-              else
-                echo "❌ Notification failed: $(echo "$NOTIF_RESPONSE" | jq -r '.message // "Unknown error"')"
-              fi
-              
-              TOTAL_MATCHED=$((TOTAL_MATCHED + 1))
-              
-              # Show first few matches as samples
-              echo "📊 Sample matches:"
-              echo "$MATCHES" | head -5 | while IFS='|' read job_id job_title job_company; do
-                echo "  - Job: $job_title | Company: $job_company"
-              done
-            else
-              echo "ℹ️ No matches found for device ${DEVICE_ID:0:8}..."
-            fi
-          fi
-        done
-        
-        # Cleanup
-        rm -f /tmp/jobs.txt
-        
-        # Set final results
-        JOBS_PROCESSED=$TOTAL_PROCESSED
-        DEVICES_MATCHED=$TOTAL_MATCHED
-        NOTIFICATIONS_SENT=$TOTAL_SENT
-        ERRORS=0
-        SUCCESS=true
+        # Parse results
+        SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
+        DEVICES_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0')
+        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
+        ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
+        MESSAGE=$(echo "$RESPONSE" | jq -r '.message // "No message"')
         
         echo "📊 Notification Results:"
         echo "- Jobs processed: $JOBS_PROCESSED"
