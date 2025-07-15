@@ -29,7 +29,7 @@ async def process_all_job_notifications(
         
         logger.info(f"Processing all jobs for notifications (triggered by: {trigger_source})")
         
-        # Get recent jobs from database efficiently (limit for performance)
+        # Get ALL jobs from database (no limit to process everything)
         jobs_query = """
             SELECT 
                 id,
@@ -40,7 +40,6 @@ async def process_all_job_notifications(
                 created_at as posted_at
             FROM scraper.jobs_jobpost
             ORDER BY created_at DESC
-            LIMIT 1000
         """
         
         jobs_result = await db_manager.execute_query(jobs_query)
@@ -71,6 +70,10 @@ async def process_all_job_notifications(
             })
         
         logger.info(f"Found {jobs_count} jobs to process")
+        
+        # For very large datasets (>10k jobs), warn about memory usage
+        if jobs_count > 10000:
+            logger.warning(f"Processing {jobs_count} jobs - this may take several minutes and use significant memory")
         
         if run_in_background:
             # Run in background
