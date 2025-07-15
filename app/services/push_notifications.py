@@ -668,11 +668,11 @@ class PushNotificationService:
     ):
         """Store notification in database"""
         try:
-            # Get device info from token
+            # Get device info from token (updated to use device_users table)
             device_query = """
-                SELECT dt.id as device_id, dt.user_id 
-                FROM iosapp.device_tokens dt 
-                WHERE dt.device_token = $1
+                SELECT id as device_id, id as user_id 
+                FROM iosapp.device_users 
+                WHERE device_token = $1
             """
             device_result = await db_manager.execute_query(device_query, device_token)
             
@@ -681,49 +681,36 @@ class PushNotificationService:
             
             device_data = device_result[0]
             
-            # Handle both old and new schema - check if job_notification_id exists, otherwise use match_id
-            try:
-                # Try with new schema (job_notification_id)
-                query = """
-                    INSERT INTO iosapp.push_notifications 
-                    (id, device_id, user_id, job_notification_id, notification_type, payload, status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """
-                
-                await db_manager.execute_command(
-                    query,
-                    uuid.UUID(notification_id),
-                    device_data['device_id'],
-                    device_data['user_id'],
-                    uuid.UUID(match_id) if match_id and len(match_id) == 36 else None,
-                    notification_type,
-                    json.dumps(payload),
-                    "pending"
-                )
-                
-            except Exception as schema_error:
-                # If that fails, try with old schema (match_id)
-                if "job_notification_id" in str(schema_error):
-                    self.logger.info("Falling back to old schema with match_id column")
-                    query = """
-                        INSERT INTO iosapp.push_notifications 
-                        (id, device_id, user_id, match_id, notification_type, payload, status)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    """
-                    
-                    await db_manager.execute_command(
-                        query,
-                        uuid.UUID(notification_id),
-                        device_data['device_id'],
-                        device_data['user_id'],
-                        uuid.UUID(match_id) if match_id and len(match_id) == 36 else None,
-                        notification_type,
-                        json.dumps(payload),
-                        "pending"
-                    )
-                else:
-                    # If it's a different error, re-raise it
-                    raise schema_error
+            # Use the existing notification_hashes table for tracking
+            # Extract job info from payload for storage
+            job_title = payload.get('aps', {}).get('alert', {}).get('title', 'Job Match')
+            job_company = payload.get('job_company', 'Unknown Company')
+            
+            # Store in notification_hashes table (which exists in current schema)
+            query = """
+                INSERT INTO iosapp.notification_hashes 
+                (device_id, job_hash, job_title, job_company, job_source, matched_keywords, sent_at)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ON CONFLICT (device_id, job_hash) DO NOTHING
+            """
+            
+            # Create a hash for this notification
+            import hashlib
+            hash_input = f"{job_title}_{job_company}_{match_id or ''}"
+            job_hash = hashlib.md5(hash_input.encode()).hexdigest()
+            
+            # Extract matched keywords from payload
+            matched_keywords = payload.get('matched_keywords', [])
+            
+            await db_manager.execute_command(
+                query,
+                device_data['device_id'],
+                job_hash,
+                job_title,
+                job_company,
+                'push_notification',
+                json.dumps(matched_keywords)
+            )
             
         except Exception as e:
             self.logger.error(f"Error storing notification: {e}")
@@ -735,27 +722,21 @@ class PushNotificationService:
         status: str,
         response: Any = None
     ):
-        """Update notification status in database"""
+        """Update notification status in database (using notification_hashes table)"""
         try:
-            query = """
-                UPDATE iosapp.push_notifications 
-                SET status = $1, apns_response = $2, sent_at = NOW()
-                WHERE id = $3
-            """
+            # Since we're using notification_hashes table, we don't need to update status
+            # The notification is already tracked by its existence in the table
+            # Just log the status for debugging
+            self.logger.info(f"Notification {notification_id} status: {status}")
             
-            response_data = None
             if response:
                 if hasattr(response, '__dict__'):
                     response_data = json.dumps(response.__dict__)
                 else:
                     response_data = json.dumps(response)
+                self.logger.info(f"APNs response: {response_data}")
             
-            await db_manager.execute_command(
-                query,
-                status,
-                response_data,
-                uuid.UUID(notification_id)
-            )
+            # No database update needed since we're using notification_hashes for tracking
             
         except Exception as e:
             self.logger.error(f"Error updating notification status: {e}")

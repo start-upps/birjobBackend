@@ -13,6 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Health Check
+      run: |
+        echo "🏥 Checking backend health..."
+        HEALTH_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/health")
+        STATUS=$(echo "$HEALTH_RESPONSE" | jq -r '.status // "unknown"')
+        
+        if [ "$STATUS" = "healthy" ]; then
+          echo "✅ Backend is healthy"
+        else
+          echo "❌ Backend health check failed: $STATUS"
+          exit 1
+        fi
+        
+        # Show metrics
+        echo "$HEALTH_RESPONSE" | jq -r '.metrics // {} | to_entries[] | "- \(.key): \(.value)"'
+    
     - name: Check Active Users
       run: |
         echo "👤 Checking active users with keywords..."
@@ -48,18 +64,26 @@ jobs:
       run: |
         echo "🔍 Scanning database for job matches every 45 minutes..."
         
-        # First, get recent jobs from the database to process
-        echo "📊 Fetching recent jobs from database..."
-        JOBS_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=100&offset=0")
+        # First, get ALL jobs from the database to process
+        echo "📊 Fetching ALL jobs from database..."
+        
+        # Get total count first
+        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0")
+        TOTAL_JOBS=$(echo "$TOTAL_RESPONSE" | jq -r '.data.total_count // 0')
+        
+        echo "📈 Total jobs in database: $TOTAL_JOBS"
+        
+        # Fetch all jobs (use a high limit to get everything)
+        JOBS_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$TOTAL_JOBS&offset=0")
         
         # Extract jobs for processing
         JOBS_ARRAY=$(echo "$JOBS_RESPONSE" | jq -c '.data.jobs // []')
         JOBS_COUNT=$(echo "$JOBS_ARRAY" | jq 'length')
         
-        echo "📈 Found $JOBS_COUNT recent jobs to process"
+        echo "📈 Found $JOBS_COUNT total jobs to process"
         
         if [ "$JOBS_COUNT" -eq 0 ]; then
-          echo "ℹ️ No recent jobs found in database"
+          echo "ℹ️ No jobs found in database"
           exit 0
         fi
         
