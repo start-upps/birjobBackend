@@ -63,15 +63,16 @@ jobs:
     - name: Process Job Notifications
       run: |
         echo "🔍 Scanning database for job matches every 45 minutes..."
+        echo "💡 Database uses truncate/load logic - refreshes hourly with latest job market snapshot"
         
         # First, get total count of jobs
         echo "📊 Fetching job count from database..."
         
-        # Get total count first (only jobs from last 30 days for efficiency)
-        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0&days=30")
+        # Get total count first (all jobs - database uses truncate/load logic)
+        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0")
         TOTAL_JOBS=$(echo "$TOTAL_RESPONSE" | jq -r '.data.pagination.total // 0')
         
-        echo "📈 Total jobs in database (last 24 hours): $TOTAL_JOBS"
+        echo "📈 Total jobs in database (current snapshot): $TOTAL_JOBS"
         
         if [ "$TOTAL_JOBS" -eq 0 ]; then
           echo "ℹ️ No jobs found in database"
@@ -88,7 +89,7 @@ jobs:
         while [ "$OFFSET" -lt "$TOTAL_JOBS" ]; do
           echo "📥 Fetching batch: offset=$OFFSET, limit=$BATCH_SIZE"
           
-          BATCH_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$BATCH_SIZE&offset=$OFFSET&days=1")
+          BATCH_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$BATCH_SIZE&offset=$OFFSET")
           BATCH_JOBS=$(echo "$BATCH_RESPONSE" | jq -c '.data.jobs // []')
           BATCH_COUNT=$(echo "$BATCH_JOBS" | jq 'length')
           
