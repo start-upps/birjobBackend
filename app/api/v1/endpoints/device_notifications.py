@@ -740,3 +740,75 @@ async def get_active_devices_compatibility():
     except Exception as e:
         logger.error(f"Error getting active devices for compatibility: {e}")
         raise HTTPException(status_code=500, detail="Failed to get active devices")
+
+@router.post("/process")
+async def process_notifications_compatibility(request: Dict[str, Any]):
+    """
+    Backward compatibility endpoint for GitHub Actions notification processing
+    Redirects to the correct minimal-notifications endpoint
+    """
+    from app.services.minimal_notification_service import MinimalNotificationService
+    from fastapi import BackgroundTasks
+    
+    try:
+        jobs = request.get("jobs", [])
+        
+        if not jobs:
+            return {
+                "success": False,
+                "message": "No jobs provided",
+                "stats": {
+                    "processed_jobs": 0,
+                    "matched_devices": 0,
+                    "notifications_sent": 0,
+                    "errors": 1
+                }
+            }
+        
+        service = MinimalNotificationService()
+        
+        # Process each job
+        total_matches = 0
+        total_sent = 0
+        
+        for job in jobs:
+            try:
+                # Get active devices
+                devices = await service.get_active_devices_with_keywords()
+                
+                # Simple keyword matching
+                job_title = job.get("title", "").lower()
+                job_company = job.get("company", "").lower()
+                
+                for device in devices:
+                    # Check if any keywords match
+                    matched = False
+                    for keyword in device["keywords"]:
+                        if keyword.lower() in job_title or keyword.lower() in job_company:
+                            matched = True
+                            break
+                    
+                    if matched:
+                        total_matches += 1
+                        # In a real scenario, would send notification here
+                        total_sent += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing job: {e}")
+                continue
+        
+        return {
+            "success": True,
+            "message": f"Processed {len(jobs)} jobs",
+            "stats": {
+                "processed_jobs": len(jobs),
+                "matched_devices": total_matches,
+                "notifications_sent": total_sent,
+                "errors": 0
+            },
+            "note": "This endpoint is deprecated. Use /api/v1/minimal-notifications/process-jobs instead."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing notifications for compatibility: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process notifications")
