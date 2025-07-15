@@ -44,24 +44,41 @@ CREATE TABLE iosapp.device_users (
 -- 2. Users (Extended user profiles for device-based users)
 CREATE TABLE iosapp.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_token VARCHAR(160),              -- Links to device_users table
+    device_id UUID REFERENCES device_users(id) ON DELETE CASCADE,  -- Links to device_users table
     email VARCHAR(255) UNIQUE,
-    name VARCHAR(100),
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone VARCHAR(20),
     location VARCHAR(100),
-    job_title VARCHAR(100),
-    experience_level VARCHAR(50),
-    salary_min INTEGER,
-    salary_max INTEGER,
-    remote_preference VARCHAR(20),
-    keywords JSONB DEFAULT '[]',
-    preferred_sources JSONB DEFAULT '[]',
-    notifications_enabled BOOLEAN DEFAULT true,
-    notification_frequency VARCHAR(20) DEFAULT 'real_time',
+    current_job_title VARCHAR(100),
+    years_of_experience INTEGER,
+    linkedin_profile VARCHAR(255),
+    portfolio_url VARCHAR(255),
+    bio TEXT,
+    desired_job_types JSONB DEFAULT '[]',
+    remote_work_preference VARCHAR(20),
+    skills JSONB DEFAULT '[]',
+    preferred_locations JSONB DEFAULT '[]',
+    min_salary INTEGER,
+    max_salary INTEGER,
+    salary_currency VARCHAR(10) DEFAULT 'USD',
+    salary_negotiable BOOLEAN DEFAULT true,
+    job_matches_enabled BOOLEAN DEFAULT true,
+    application_reminders_enabled BOOLEAN DEFAULT true,
+    weekly_digest_enabled BOOLEAN DEFAULT true,
+    market_insights_enabled BOOLEAN DEFAULT true,
+    quiet_hours_enabled BOOLEAN DEFAULT false,
     quiet_hours_start INTEGER,
     quiet_hours_end INTEGER,
-    last_notified_at TIMESTAMP,
+    preferred_notification_time VARCHAR(20),
+    profile_visibility VARCHAR(20) DEFAULT 'private',
+    share_analytics BOOLEAN DEFAULT false,
+    share_job_view_history BOOLEAN DEFAULT false,
+    allow_personalized_recommendations BOOLEAN DEFAULT true,
+    profile_completeness INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(device_id)  -- One user profile per device
 );
 
 -- 3. Notification Hashes (Deduplication)
@@ -2942,8 +2959,15 @@ func application(_ application: UIApplication, didRegisterForRemoteNotifications
 
 **🔧 Backend Fix Applied:**
 - ✅ Auto-create user profiles during device registration
-- ✅ Link device_token to users table
+- ✅ Use `device_id` foreign key (proper relational design)
+- ✅ No duplicate token storage (cleaner schema)
 - ✅ Enable proper consent tracking
+
+**📊 Database Relationship:**
+```sql
+-- Correct schema relationship
+device_users (id, device_token) -> users (device_id references device_users.id)
+```
 
 **📱 iOS Integration:**
 ```swift
@@ -2953,7 +2977,7 @@ func updatePrivacyConsent(analyticsConsent: Bool) async {
     
     let url = URL(string: "\(baseURL)/privacy/consent")!
     let payload = [
-        "device_token": deviceToken,
+        "device_token": deviceToken,  // Backend finds device_id from device_token
         "consent": analyticsConsent,
         "privacy_policy_version": "1.0"
     ]
@@ -3025,6 +3049,50 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/test/Y
 - **BadDeviceToken**: Use production app, not TestFlight
 - **Invalid Bundle ID**: Must match `com.ismats.birjob`
 - **Token format**: Must be 64+ hex chars, not UUID
+
+---
+
+### **🎉 Current Implementation Status**
+
+#### **✅ Backend Fixes Completed:**
+1. **User Profile Auto-Creation** - Device registration now creates user profiles using `device_id` foreign key
+2. **Database Schema Alignment** - Uses proper relational design with `device_users.id -> users.device_id`
+3. **Privacy Consent Tracking** - Enables analytics consent functionality
+4. **Token Validation** - Supports both real APNs tokens and UUID format for development
+5. **Notification Deduplication** - 32-character hash-based system prevents spam
+6. **Rate Limiting** - 5 notifications/hour, 20/day per device
+7. **All Jobs Processing** - Handles 3900+ jobs, not just 1000
+
+#### **✅ iOS Fixes Completed:**
+1. **APNs Token Usage** - `NotificationInboxService.swift` now uses `notificationService.pushToken` instead of UUID
+2. **Navigation Fixed** - Push notification taps go to notifications tab, not jobs page
+3. **Token Management** - Proper APNs token storage and verification in `AppDelegate.swift`
+4. **API Integration** - All notification endpoints use correct APNs token
+
+#### **🎯 Expected Results After Deployment:**
+- ✅ **Device Registration**: Creates both device and user profiles
+- ✅ **Push Notifications**: Continue working (already functional)
+- ✅ **Notification Inbox**: Shows 192+ stored notifications with correct APNs token
+- ✅ **Privacy Consent**: Settings updates work properly
+- ✅ **Analytics Tracking**: Enabled with proper consent
+- ✅ **Users Table**: No longer empty, populated during registration
+
+#### **🧪 Test Checklist:**
+```bash
+# 1. Verify user profile creation
+curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/devices/debug/list-all" | jq '.data.devices[0]'
+
+# 2. Test notification inbox with correct token
+curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/inbox/63e61e82600a5010b20965561a0ce8530046a7bd3f45b7a1e53d748bcc64a992" | jq '.data.notifications | length'
+
+# 3. Check privacy status
+curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/privacy/status/63e61e82600a5010b20965561a0ce8530046a7bd3f45b7a1e53d748bcc64a992" | jq '.data'
+
+# 4. Test device registration
+curl -X POST "https://birjobbackend-ir3e.onrender.com/api/v1/device/register" \
+  -H "Content-Type: application/json" \
+  -d '{"device_token": "YOUR_APNS_TOKEN", "keywords": ["test"]}'
+```
 
 ---
 
