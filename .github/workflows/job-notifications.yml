@@ -119,18 +119,62 @@ jobs:
           exit 0
         fi
         
-        # Process jobs through notification system
-        echo "🔔 Processing jobs for notifications..."
-        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-jobs" \
-          -H "Content-Type: application/json" \
-          -d "{\"jobs\": $ALL_JOBS, \"background\": false}")
+        # Process jobs through notification system in chunks (avoid curl argument limit)
+        echo "🔔 Processing jobs for notifications in chunks..."
         
-        # Parse results (correct response structure)
-        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
-        DEVICES_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0') 
-        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
-        ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
-        SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+        CHUNK_SIZE=500
+        TOTAL_PROCESSED=0
+        TOTAL_MATCHED=0
+        TOTAL_SENT=0
+        TOTAL_ERRORS=0
+        
+        # Calculate number of chunks needed
+        CHUNK_COUNT=$(((JOBS_COUNT + CHUNK_SIZE - 1) / CHUNK_SIZE))
+        
+        echo "📦 Processing $JOBS_COUNT jobs in $CHUNK_COUNT chunks of $CHUNK_SIZE"
+        
+        for ((chunk=0; chunk<CHUNK_COUNT; chunk++)); do
+          echo "📥 Processing chunk $((chunk+1))/$CHUNK_COUNT..."
+          
+          # Calculate slice indices
+          START_INDEX=$((chunk * CHUNK_SIZE))
+          END_INDEX=$(((chunk + 1) * CHUNK_SIZE))
+          
+          # Extract chunk using slice
+          CHUNK_JOBS=$(echo "$ALL_JOBS" | jq -c ".[$START_INDEX:$END_INDEX]")
+          CHUNK_JOB_COUNT=$(echo "$CHUNK_JOBS" | jq 'length')
+          
+          echo "📊 Chunk has $CHUNK_JOB_COUNT jobs"
+          
+          # Process chunk
+          RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-jobs" \
+            -H "Content-Type: application/json" \
+            -d "{\"jobs\": $CHUNK_JOBS, \"background\": false}")
+          
+          # Parse chunk results
+          CHUNK_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
+          CHUNK_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0')
+          CHUNK_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
+          CHUNK_ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
+          
+          echo "📈 Chunk results: processed=$CHUNK_PROCESSED, matched=$CHUNK_MATCHED, sent=$CHUNK_SENT, errors=$CHUNK_ERRORS"
+          
+          # Accumulate totals
+          TOTAL_PROCESSED=$((TOTAL_PROCESSED + CHUNK_PROCESSED))
+          TOTAL_MATCHED=$((TOTAL_MATCHED + CHUNK_MATCHED))
+          TOTAL_SENT=$((TOTAL_SENT + CHUNK_SENT))
+          TOTAL_ERRORS=$((TOTAL_ERRORS + CHUNK_ERRORS))
+          
+          # Small delay between chunks
+          sleep 2
+        done
+        
+        # Set final results
+        JOBS_PROCESSED=$TOTAL_PROCESSED
+        DEVICES_MATCHED=$TOTAL_MATCHED
+        NOTIFICATIONS_SENT=$TOTAL_SENT
+        ERRORS=$TOTAL_ERRORS
+        SUCCESS=true
         
         echo "📊 Notification Results:"
         echo "- Jobs processed: $JOBS_PROCESSED"
