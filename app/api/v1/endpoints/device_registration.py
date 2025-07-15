@@ -57,6 +57,34 @@ async def register_device_minimal(request: Dict[str, Any]):
         device_id = result[0]['id']
         created_at = result[0]['created_at']
         
+        # Create user profile if it doesn't exist
+        user_profile_query = """
+            INSERT INTO iosapp.users (
+                device_token, 
+                keywords, 
+                notifications_enabled,
+                notification_frequency,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, true, 'real_time', NOW(), NOW())
+            ON CONFLICT (device_token) 
+            DO UPDATE SET 
+                keywords = EXCLUDED.keywords,
+                notifications_enabled = EXCLUDED.notifications_enabled,
+                updated_at = NOW()
+            RETURNING id
+        """
+        
+        user_result = await db_manager.execute_query(
+            user_profile_query,
+            device_token,
+            json.dumps(keywords)
+        )
+        
+        if user_result:
+            logger.info(f"User profile created/updated for device {device_id}")
+        
         # Record analytics (with consent check)
         await privacy_analytics_service.track_action_with_consent(
             device_id, 
