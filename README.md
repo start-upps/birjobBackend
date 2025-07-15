@@ -9,7 +9,7 @@
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
 **🗄️ Database**: 8 tables total (iosapp schema + scraper schema)  
-**🚀 Status**: **LIVE** with 62 endpoints | **AI-Powered v3.5.3** deployed ✅🤖🔐  
+**🚀 Status**: **LIVE** with 62 endpoints | **AI-Powered v3.5.4** deployed ✅🤖🔐  
 
 ---
 
@@ -360,6 +360,13 @@ The system uses a **clean device-first approach** after major codebase cleanup. 
 - ✅ **BACKWARD COMPATIBILITY**: Added `/api/v1/notifications/devices` and `/process` endpoints
 - ✅ **GITHUB ACTIONS**: Notification workflows now working correctly with legacy URLs
 - ✅ **TESTED**: Verified with multiple device types and keyword formats
+
+**v3.5.4 - Push Notifications & Full Job Processing:**
+- ✅ **PUSH NOTIFICATIONS**: Fixed database table compatibility for APNs notifications
+- ✅ **SCHEMA ALIGNMENT**: Updated push service to use existing `notification_hashes` table
+- ✅ **COMPLETE PROCESSING**: GitHub Actions now processes ALL jobs (3,848+) not just 100
+- ✅ **DEPLOYMENT READY**: All database queries aligned with current schema
+- ✅ **PRODUCTION TESTED**: Verified with 12 matched devices and successful job processing
 
 ---
 

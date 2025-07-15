@@ -64,26 +64,57 @@ jobs:
       run: |
         echo "🔍 Scanning database for job matches every 45 minutes..."
         
-        # First, get ALL jobs from the database to process
-        echo "📊 Fetching ALL jobs from database..."
+        # First, get total count of jobs
+        echo "📊 Fetching job count from database..."
         
-        # Get total count first
-        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0")
-        TOTAL_JOBS=$(echo "$TOTAL_RESPONSE" | jq -r '.data.total_count // 0')
+        # Get total count first (only jobs from last 30 days for efficiency)
+        TOTAL_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=1&offset=0&days=30")
+        TOTAL_JOBS=$(echo "$TOTAL_RESPONSE" | jq -r '.data.pagination.total // 0')
         
-        echo "📈 Total jobs in database: $TOTAL_JOBS"
+        echo "📈 Total jobs in database (last 24 hours): $TOTAL_JOBS"
         
-        # Fetch all jobs (use a high limit to get everything)
-        JOBS_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$TOTAL_JOBS&offset=0")
+        if [ "$TOTAL_JOBS" -eq 0 ]; then
+          echo "ℹ️ No jobs found in database"
+          exit 0
+        fi
         
-        # Extract jobs for processing
-        JOBS_ARRAY=$(echo "$JOBS_RESPONSE" | jq -c '.data.jobs // []')
-        JOBS_COUNT=$(echo "$JOBS_ARRAY" | jq 'length')
+        # Fetch jobs in batches (API limit is 100 per request)
+        echo "📦 Fetching jobs in batches (API limit: 100 per request)..."
         
-        echo "📈 Found $JOBS_COUNT total jobs to process"
+        BATCH_SIZE=100
+        ALL_JOBS="[]"
+        OFFSET=0
+        
+        while [ "$OFFSET" -lt "$TOTAL_JOBS" ]; do
+          echo "📥 Fetching batch: offset=$OFFSET, limit=$BATCH_SIZE"
+          
+          BATCH_RESPONSE=$(curl -s "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/jobs/?limit=$BATCH_SIZE&offset=$OFFSET&days=1")
+          BATCH_JOBS=$(echo "$BATCH_RESPONSE" | jq -c '.data.jobs // []')
+          BATCH_COUNT=$(echo "$BATCH_JOBS" | jq 'length')
+          
+          echo "📊 Batch size: $BATCH_COUNT jobs"
+          
+          if [ "$BATCH_COUNT" -eq 0 ]; then
+            echo "⚠️ Empty batch received, stopping"
+            break
+          fi
+          
+          # Merge batch with all jobs
+          ALL_JOBS=$(echo "$ALL_JOBS $BATCH_JOBS" | jq -s 'add')
+          
+          # Update offset
+          OFFSET=$((OFFSET + BATCH_SIZE))
+          
+          # Small delay to avoid rate limiting
+          sleep 1
+        done
+        
+        # Get final count
+        JOBS_COUNT=$(echo "$ALL_JOBS" | jq 'length')
+        echo "📈 Successfully fetched $JOBS_COUNT total jobs to process"
         
         if [ "$JOBS_COUNT" -eq 0 ]; then
-          echo "ℹ️ No jobs found in database"
+          echo "ℹ️ No jobs retrieved from batches"
           exit 0
         fi
         
@@ -91,7 +122,7 @@ jobs:
         echo "🔔 Processing jobs for notifications..."
         RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-jobs" \
           -H "Content-Type: application/json" \
-          -d "{\"jobs\": $JOBS_ARRAY, \"background\": false}")
+          -d "{\"jobs\": $ALL_JOBS, \"background\": false}")
         
         # Parse results (correct response structure)
         JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
