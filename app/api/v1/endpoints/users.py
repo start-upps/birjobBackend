@@ -69,14 +69,21 @@ async def get_user_profile(device_token: str):
         
         device_user = device_result[0]
         
-        # Check if user has extended profile in users table
+        # Check if user has extended profile in users table (using JOIN)
         user_query = """
-            SELECT id, email, keywords, preferred_sources, notifications_enabled,
-                   name, location, job_title, experience_level, salary_min, salary_max,
-                   remote_preference, notification_frequency, quiet_hours_start, quiet_hours_end,
-                   last_notified_at, created_at, updated_at
-            FROM iosapp.users
-            WHERE device_token = $1
+            SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.location, 
+                   u.current_job_title, u.years_of_experience, u.linkedin_profile, 
+                   u.portfolio_url, u.bio, u.desired_job_types, u.remote_work_preference,
+                   u.skills, u.preferred_locations, u.min_salary, u.max_salary,
+                   u.salary_currency, u.salary_negotiable, u.job_matches_enabled,
+                   u.application_reminders_enabled, u.weekly_digest_enabled,
+                   u.market_insights_enabled, u.quiet_hours_enabled, u.quiet_hours_start,
+                   u.quiet_hours_end, u.preferred_notification_time, u.profile_visibility,
+                   u.share_analytics, u.share_job_view_history, u.allow_personalized_recommendations,
+                   u.profile_completeness, u.created_at, u.updated_at
+            FROM iosapp.users u
+            JOIN iosapp.device_users du ON u.device_id = du.id
+            WHERE du.device_token = $1
         """
         user_result = await db_manager.execute_query(user_query, device_token)
         
@@ -191,25 +198,27 @@ async def update_user_profile(request: UpdateProfileRequest):
         
         device_id = device_result[0]['id']
         
-        # Check if user profile exists
+        # Check if user profile exists (using JOIN)
         user_check_query = """
-            SELECT id FROM iosapp.users WHERE device_token = $1
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_users du ON u.device_id = du.id
+            WHERE du.device_token = $1
         """
         existing_user = await db_manager.execute_query(user_check_query, device_token)
         
         if existing_user:
-            # Update existing profile
+            # Update existing profile (using device_id)
             update_query = """
                 UPDATE iosapp.users 
-                SET name = $2, email = $3, location = $4, job_title = $5,
-                    experience_level = $6, salary_min = $7, salary_max = $8,
-                    remote_preference = $9, updated_at = NOW()
-                WHERE device_token = $1
+                SET first_name = $2, email = $3, location = $4, current_job_title = $5,
+                    years_of_experience = $6, min_salary = $7, max_salary = $8,
+                    remote_work_preference = $9, updated_at = NOW()
+                WHERE device_id = $1
                 RETURNING id
             """
             await db_manager.execute_command(
                 update_query,
-                device_token,
+                device_id,
                 request.profile.name,
                 request.profile.email,
                 request.profile.location,
@@ -299,9 +308,11 @@ async def update_user_preferences(request: UpdatePreferencesRequest):
             request.preferences.notifications_enabled
         )
         
-        # Update or create extended preferences in users table
+        # Update or create extended preferences in users table (using JOIN)
         user_check_query = """
-            SELECT id FROM iosapp.users WHERE device_token = $1
+            SELECT u.id FROM iosapp.users u
+            JOIN iosapp.device_users du ON u.device_id = du.id
+            WHERE du.device_token = $1
         """
         existing_user = await db_manager.execute_query(user_check_query, device_token)
         
@@ -467,10 +478,10 @@ async def delete_user_account(request: DeleteAccountRequest):
         device_id = device_result[0]['id']
         
         # Delete all user data (cascading deletes will handle related records)
-        # 1. Delete from users table (if exists)
+        # 1. Delete from users table (if exists) - using device_id
         await db_manager.execute_command(
-            "DELETE FROM iosapp.users WHERE device_token = $1",
-            device_token
+            "DELETE FROM iosapp.users WHERE device_id = $1",
+            device_id
         )
         
         # 2. Delete analytics (manual since no FK constraint)
