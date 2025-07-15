@@ -57,29 +57,28 @@ async def register_device_minimal(request: Dict[str, Any]):
         device_id = result[0]['id']
         created_at = result[0]['created_at']
         
-        # Create user profile if it doesn't exist
+        # Create user profile if it doesn't exist (using device_id as foreign key)
         user_profile_query = """
             INSERT INTO iosapp.users (
-                device_token, 
-                keywords, 
-                notifications_enabled,
-                notification_frequency,
+                device_id, 
+                job_matches_enabled,
+                application_reminders_enabled,
+                weekly_digest_enabled,
+                market_insights_enabled,
                 created_at,
                 updated_at
             )
-            VALUES ($1, $2, true, 'real_time', NOW(), NOW())
-            ON CONFLICT (device_token) 
+            VALUES ($1, true, true, true, true, NOW(), NOW())
+            ON CONFLICT (device_id) 
             DO UPDATE SET 
-                keywords = EXCLUDED.keywords,
-                notifications_enabled = EXCLUDED.notifications_enabled,
+                job_matches_enabled = EXCLUDED.job_matches_enabled,
                 updated_at = NOW()
             RETURNING id
         """
         
         user_result = await db_manager.execute_query(
             user_profile_query,
-            device_token,
-            json.dumps(keywords)
+            device_id
         )
         
         if user_result:
