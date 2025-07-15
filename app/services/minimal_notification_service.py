@@ -106,15 +106,33 @@ class MinimalNotificationService:
             devices = []
             for row in result:
                 try:
-                    keywords = json.loads(row['keywords']) if row['keywords'] else []
+                    keywords_raw = row['keywords']
+                    
+                    # Handle JSONB field properly - same logic as chatbot
+                    if keywords_raw is None:
+                        keywords = []
+                    elif isinstance(keywords_raw, list):
+                        keywords = keywords_raw  # Already a list
+                    elif isinstance(keywords_raw, str):
+                        # Handle JSON string from database
+                        try:
+                            parsed = json.loads(keywords_raw)
+                            keywords = parsed if isinstance(parsed, list) else [str(parsed)]
+                        except (json.JSONDecodeError, TypeError):
+                            # Fallback: treat as single keyword
+                            keywords = [keywords_raw] if keywords_raw.strip() else []
+                    else:
+                        # Handle other types (e.g., dict, number)
+                        keywords = []
+                    
                     if keywords:  # Only include devices with keywords
                         devices.append({
                             'device_id': str(row['id']),
                             'device_token': row['device_token'],
                             'keywords': keywords
                         })
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid JSON in keywords for device {row['id']}")
+                except Exception as e:
+                    logger.error(f"Error processing keywords for device {row['id']}: {e}")
                     continue
             
             logger.info(f"Found {len(devices)} active devices with keywords")

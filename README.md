@@ -9,7 +9,7 @@
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
 **🗄️ Database**: 8 tables total (iosapp schema + scraper schema)  
-**🚀 Status**: **LIVE** with 62 endpoints | **AI-Powered v3.5.2** deployed ✅🤖🔐  
+**🚀 Status**: **LIVE** with 62 endpoints | **AI-Powered v3.5.3** deployed ✅🤖🔐  
 
 ---
 
@@ -352,6 +352,13 @@ The system uses a **clean device-first approach** after major codebase cleanup. 
 - ✅ **PRIVACY PROTECTION**: Analytics endpoint now respects consent settings
 - ✅ **DATA DELETION**: Automatic data removal when consent is revoked
 - ✅ **PRODUCTION TESTED**: Verified consent checking works correctly in live environment
+
+**v3.5.3 - Notification System Fix:**
+- ✅ **CRITICAL FIX**: Fixed notification system keyword parsing for JSONB fields
+- ✅ **RESTORED FUNCTIONALITY**: Notification system now correctly finds active devices
+- ✅ **IMPROVED PARSING**: Enhanced keyword handling to support all database formats
+- ✅ **GITHUB ACTIONS**: Notification workflows now working correctly
+- ✅ **TESTED**: Verified with multiple device types and keyword formats
 
 ---
 
