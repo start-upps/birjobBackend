@@ -705,3 +705,38 @@ async def delete_notifications(
     except Exception as e:
         logger.error(f"Error deleting notifications: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete notifications")
+
+@router.get("/devices")
+async def get_active_devices_compatibility():
+    """
+    Backward compatibility endpoint for GitHub Actions
+    Redirects to the correct minimal-notifications endpoint
+    """
+    from app.services.minimal_notification_service import MinimalNotificationService
+    
+    try:
+        service = MinimalNotificationService()
+        devices = await service.get_active_devices_with_keywords()
+        
+        # Format for backward compatibility
+        formatted_devices = []
+        for device in devices:
+            formatted_devices.append({
+                "device_id": device["device_id"],
+                "device_token_preview": device["device_token"][:16] + "...",
+                "keywords_count": len(device["keywords"]),
+                "keywords": device["keywords"][:5]  # First 5 keywords only
+            })
+        
+        return {
+            "success": True,
+            "data": {
+                "active_devices_count": len(devices),
+                "devices": formatted_devices
+            },
+            "note": "This endpoint is deprecated. Use /api/v1/minimal-notifications/devices/active instead."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting active devices for compatibility: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get active devices")
