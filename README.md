@@ -2822,6 +2822,323 @@ func resetThrottling() async throws {
 - Monitor system stats at `/minimal-notifications/stats`
 - Check logs for APNs status codes
 
+### **🚨 Common Issues & Advanced Troubleshooting**
+
+#### **Issue 1: Push Notifications Work But Inbox Is Empty**
+
+**🔍 Symptoms:**
+- ✅ Push notifications arrive on device
+- ❌ Notification inbox shows empty
+- ❌ API calls return 404 errors
+- ❌ Users table is empty
+
+**🎯 Root Cause:**
+Your iOS app is using **two different tokens**:
+1. **Registration**: Uses real APNs token (correct) ✅
+2. **Inbox API**: Uses UUID token (wrong) ❌
+
+**📋 Example from logs:**
+```
+✅ Push notification sent to: 63e61e82600a5010b20965561a0ce8530046a7bd3f45b7a1e53d748bcc64a992
+❌ Inbox API called with: 367345C0-ACD8-4349-B21A-EDE0835E309B
+```
+
+**🔧 iOS Fix:**
+
+```swift
+// 1. Debug your tokens first
+class TokenDebugger {
+    static func checkAllTokens() {
+        print("🔍 TOKEN AUDIT:")
+        
+        // Check APNs token
+        if let apnsToken = NotificationService.shared.pushToken {
+            print("📱 APNs Token: \(apnsToken)")
+            print("📏 Length: \(apnsToken.count) (should be 64+)")
+        }
+        
+        // Check UUID
+        if let uuid = UIDevice.current.identifierForVendor?.uuidString {
+            print("🆔 Device UUID: \(uuid)")
+            print("📏 Length: \(uuid.count) (should be 36)")
+        }
+        
+        // Test which works
+        Task { await testTokens() }
+    }
+    
+    static func testTokens() async {
+        let tokens = [
+            ("APNs", NotificationService.shared.pushToken ?? "none"),
+            ("UUID", UIDevice.current.identifierForVendor?.uuidString ?? "none")
+        ]
+        
+        for (name, token) in tokens {
+            let url = URL(string: "https://birjobbackend-ir3e.onrender.com/api/v1/notifications/history/\(token)?limit=1")!
+            
+            do {
+                let (_, response) = try await URLSession.shared.data(from: url)
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("\(httpResponse.statusCode == 200 ? "✅" : "❌") \(name): \(httpResponse.statusCode)")
+                }
+            } catch {
+                print("❌ \(name): Failed")
+            }
+        }
+    }
+}
+
+// 2. Fix your NotificationInboxService
+class NotificationInboxService {
+    func fetchNotifications() async {
+        // CRITICAL: Use APNs token, not UUID!
+        guard let deviceToken = NotificationService.shared.pushToken else {
+            print("❌ No APNs token - register device first")
+            return
+        }
+        
+        // Validate token format
+        guard deviceToken.count >= 64 && !deviceToken.contains("-") else {
+            print("❌ Invalid token format: \(deviceToken)")
+            print("💡 Should be 64+ hex chars, not UUID")
+            return
+        }
+        
+        print("📱 Using correct APNs token: \(deviceToken)")
+        
+        let url = URL(string: "\(baseURL)/notifications/inbox/\(deviceToken)")!
+        // ... rest of your fetch code
+    }
+}
+
+// 3. Ensure proper token storage in AppDelegate
+func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    let apnsToken = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+    
+    print("📱 Real APNs Token: \(apnsToken)")
+    
+    // Store in NotificationService
+    NotificationService.shared.pushToken = apnsToken
+    
+    // Also store in UserDefaults as backup
+    UserDefaults.standard.set(apnsToken, forKey: "apns_device_token")
+    
+    // Verify storage
+    if NotificationService.shared.pushToken == apnsToken {
+        print("✅ Token stored correctly")
+    } else {
+        print("❌ Token storage failed!")
+    }
+}
+```
+
+#### **Issue 2: Privacy Consent Not Working**
+
+**🔍 Symptoms:**
+- Settings updated in iOS app
+- Backend returns 422 errors
+- Analytics consent not recorded
+- Users table empty
+
+**🔧 Backend Fix Applied:**
+- ✅ Auto-create user profiles during device registration
+- ✅ Link device_token to users table
+- ✅ Enable proper consent tracking
+
+**📱 iOS Integration:**
+```swift
+// Update privacy consent
+func updatePrivacyConsent(analyticsConsent: Bool) async {
+    guard let deviceToken = NotificationService.shared.pushToken else { return }
+    
+    let url = URL(string: "\(baseURL)/privacy/consent")!
+    let payload = [
+        "device_token": deviceToken,
+        "consent": analyticsConsent,
+        "privacy_policy_version": "1.0"
+    ]
+    
+    // ... send request
+}
+```
+
+#### **Issue 3: Device Token Validation Errors**
+
+**🔍 Backend supports these token formats:**
+- ✅ **64-160 hex chars**: Real APNs tokens
+- ✅ **36 char UUID**: For development (temporary)
+- ❌ **Dummy tokens**: `aaaaa...`, `00000...`
+
+**🧹 Cleanup Commands:**
+```bash
+# Remove test tokens
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/devices/cleanup/test-data
+
+# Reset rate limits
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/devices/reset-throttling/YOUR_TOKEN
+```
+
+#### **Issue 4: No New Notifications**
+
+**🔍 Common causes:**
+```
+INFO: No new matches for device b4c8e3f5...
+```
+
+**🔧 Solutions:**
+1. **Check keywords**: Ensure they match actual job content
+2. **Verify deduplication**: System prevents duplicate notifications
+3. **Check rate limits**: 5/hour, 20/day per device
+4. **Force processing**: Trigger manual job processing
+
+**📊 Debug endpoints:**
+```bash
+# Check device status
+curl https://birjobbackend-ir3e.onrender.com/api/v1/devices/debug/list-all
+
+# Check notification stats  
+curl https://birjobbackend-ir3e.onrender.com/api/v1/minimal-notifications/stats
+
+# Force job processing
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/minimal-notifications/process-all \
+  -H "Content-Type: application/json" \
+  -d '{"trigger_source": "manual"}'
+```
+
+#### **Issue 5: APNs Configuration Problems**
+
+**🔍 Production APNs Setup:**
+- **Environment**: Production (not sandbox)
+- **Team ID**: `KK5HUUQ3HR`
+- **Bundle ID**: `com.ismats.birjob`
+- **Key ID**: `ZV2X5Y7D76`
+
+**🧪 Test APNs integration:**
+```bash
+# Send test notification
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/test/YOUR_APNS_TOKEN \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Test notification", "title": "Debug Test"}'
+```
+
+**🔧 Common APNs errors:**
+- **BadDeviceToken**: Use production app, not TestFlight
+- **Invalid Bundle ID**: Must match `com.ismats.birjob`
+- **Token format**: Must be 64+ hex chars, not UUID
+
+---
+
+### **🎯 Complete Working Example**
+
+```swift
+// Complete iOS implementation that works with your backend
+class JobNotificationManager {
+    static let shared = JobNotificationManager()
+    private let baseURL = "https://birjobbackend-ir3e.onrender.com/api/v1"
+    
+    // Device registration with proper error handling
+    func registerDevice() async throws {
+        guard let deviceToken = NotificationService.shared.pushToken else {
+            throw NotificationError.noToken
+        }
+        
+        let url = URL(string: "\(baseURL)/device/register")!
+        let payload = [
+            "device_token": deviceToken,
+            "keywords": ["ios", "swift", "python", "data"]
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotificationError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 200 {
+            print("✅ Device registered successfully")
+        } else {
+            let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            print("❌ Registration failed: \(errorData?["detail"] ?? "Unknown error")")
+            throw NotificationError.registrationFailed
+        }
+    }
+    
+    // Fetch notifications with proper token
+    func fetchNotifications() async throws -> [NotificationGroup] {
+        guard let deviceToken = NotificationService.shared.pushToken else {
+            throw NotificationError.noToken
+        }
+        
+        let url = URL(string: "\(baseURL)/notifications/inbox/\(deviceToken)")!
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotificationError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 404 {
+            print("❌ Device not found - check token: \(deviceToken)")
+            throw NotificationError.deviceNotFound
+        }
+        
+        if httpResponse.statusCode == 200 {
+            let response = try JSONDecoder().decode(NotificationInboxResponse.self, from: data)
+            print("✅ Loaded \(response.data.notifications.count) notification groups")
+            return response.data.notifications
+        } else {
+            throw NotificationError.fetchFailed
+        }
+    }
+    
+    // Update privacy consent
+    func updatePrivacyConsent(analyticsConsent: Bool) async throws {
+        guard let deviceToken = NotificationService.shared.pushToken else {
+            throw NotificationError.noToken
+        }
+        
+        let url = URL(string: "\(baseURL)/privacy/consent")!
+        let payload = [
+            "device_token": deviceToken,
+            "consent": analyticsConsent,
+            "privacy_policy_version": "1.0"
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NotificationError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 200 {
+            print("✅ Privacy consent updated")
+        } else {
+            print("❌ Privacy consent failed: \(httpResponse.statusCode)")
+            throw NotificationError.consentFailed
+        }
+    }
+}
+
+enum NotificationError: Error {
+    case noToken
+    case invalidResponse
+    case registrationFailed
+    case deviceNotFound
+    case fetchFailed
+    case consentFailed
+}
+```
+
 ---
 
 ### 7. Intelligent AI Features 🤖 **[MAJOR UPGRADE v3.5.0]**
