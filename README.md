@@ -2960,13 +2960,56 @@ func application(_ application: UIApplication, didRegisterForRemoteNotifications
 **🔧 Backend Fix Applied:**
 - ✅ Auto-create user profiles during device registration
 - ✅ Use `device_id` foreign key (proper relational design)
+- ✅ Fixed all endpoints to use proper JOIN queries
 - ✅ No duplicate token storage (cleaner schema)
 - ✅ Enable proper consent tracking
 
-**📊 Database Relationship:**
+**📊 Database Relationship & Query Pattern:**
 ```sql
 -- Correct schema relationship
 device_users (id, device_token) -> users (device_id references device_users.id)
+
+-- WRONG (old backend approach):
+SELECT * FROM users WHERE device_token = ?
+
+-- CORRECT (new backend approach):
+SELECT u.*, du.device_token
+FROM users u
+JOIN device_users du ON u.device_id = du.id
+WHERE du.device_token = ?
+```
+
+**🔧 Backend Query Examples:**
+```sql
+-- User profile lookup
+SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.location,
+       u.current_job_title, u.years_of_experience, u.linkedin_profile,
+       u.portfolio_url, u.bio, u.desired_job_types, u.remote_work_preference,
+       u.skills, u.preferred_locations, u.min_salary, u.max_salary,
+       u.salary_currency, u.salary_negotiable, u.job_matches_enabled,
+       u.application_reminders_enabled, u.weekly_digest_enabled,
+       u.market_insights_enabled, u.quiet_hours_enabled, u.quiet_hours_start,
+       u.quiet_hours_end, u.preferred_notification_time, u.profile_visibility,
+       u.share_analytics, u.share_job_view_history, u.allow_personalized_recommendations,
+       u.profile_completeness, u.created_at, u.updated_at
+FROM iosapp.users u
+JOIN iosapp.device_users du ON u.device_id = du.id
+WHERE du.device_token = ?
+
+-- User profile updates
+UPDATE iosapp.users 
+SET first_name = ?, email = ?, location = ?, current_job_title = ?,
+    years_of_experience = ?, min_salary = ?, max_salary = ?,
+    remote_work_preference = ?, updated_at = NOW()
+WHERE device_id = (
+    SELECT id FROM iosapp.device_users WHERE device_token = ?
+)
+
+-- User data deletion
+DELETE FROM iosapp.users 
+WHERE device_id = (
+    SELECT id FROM iosapp.device_users WHERE device_token = ?
+)
 ```
 
 **📱 iOS Integration:**
@@ -2977,7 +3020,7 @@ func updatePrivacyConsent(analyticsConsent: Bool) async {
     
     let url = URL(string: "\(baseURL)/privacy/consent")!
     let payload = [
-        "device_token": deviceToken,  // Backend finds device_id from device_token
+        "device_token": deviceToken,  // Backend uses JOIN to find device_id
         "consent": analyticsConsent,
         "privacy_policy_version": "1.0"
     ]
@@ -3057,11 +3100,13 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/test/Y
 #### **✅ Backend Fixes Completed:**
 1. **User Profile Auto-Creation** - Device registration now creates user profiles using `device_id` foreign key
 2. **Database Schema Alignment** - Uses proper relational design with `device_users.id -> users.device_id`
-3. **Privacy Consent Tracking** - Enables analytics consent functionality
-4. **Token Validation** - Supports both real APNs tokens and UUID format for development
-5. **Notification Deduplication** - 32-character hash-based system prevents spam
-6. **Rate Limiting** - 5 notifications/hour, 20/day per device
-7. **All Jobs Processing** - Handles 3900+ jobs, not just 1000
+3. **Proper JOIN Queries** - All endpoints now use correct JOIN queries instead of direct `device_token` access
+4. **Privacy Consent Tracking** - Enables analytics consent functionality with proper foreign key relationships
+5. **Token Validation** - Supports both real APNs tokens and UUID format for development
+6. **Notification Deduplication** - 32-character hash-based system prevents spam
+7. **Rate Limiting** - 5 notifications/hour, 20/day per device
+8. **All Jobs Processing** - Handles 3900+ jobs, not just 1000
+9. **Query Optimization** - Eliminated direct `device_token` lookups on `users` table
 
 #### **✅ iOS Fixes Completed:**
 1. **APNs Token Usage** - `NotificationInboxService.swift` now uses `notificationService.pushToken` instead of UUID
@@ -3076,6 +3121,31 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/test/Y
 - ✅ **Privacy Consent**: Settings updates work properly
 - ✅ **Analytics Tracking**: Enabled with proper consent
 - ✅ **Users Table**: No longer empty, populated during registration
+
+#### **🔧 Backend Query Fixes Applied:**
+
+**Files Updated:**
+- `users.py` - Fixed 4 queries to use proper JOINs
+- `device_registration.py` - Uses `device_id` foreign key for user creation
+- All other endpoints were already using correct `device_users` table queries
+
+**Query Types Fixed:**
+1. **User Profile Lookup** - Now uses JOIN instead of direct `device_token` access
+2. **User Profile Updates** - Uses `device_id` parameter instead of `device_token`
+3. **User Data Deletion** - Uses foreign key relationship for cascading deletes
+4. **Privacy Consent** - Already correct, uses `device_users` table
+
+**Before/After Example:**
+```sql
+-- BEFORE (causing errors):
+SELECT * FROM users WHERE device_token = ?
+
+-- AFTER (working correctly):
+SELECT u.*, du.device_token
+FROM users u
+JOIN device_users du ON u.device_id = du.id
+WHERE du.device_token = ?
+```
 
 #### **🧪 Test Checklist:**
 ```bash
@@ -3092,6 +3162,9 @@ curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/privacy/status/63e61e826
 curl -X POST "https://birjobbackend-ir3e.onrender.com/api/v1/device/register" \
   -H "Content-Type: application/json" \
   -d '{"device_token": "YOUR_APNS_TOKEN", "keywords": ["test"]}'
+
+# 5. Test user profile endpoints (should work without errors now)
+curl -s "https://birjobbackend-ir3e.onrender.com/api/v1/users/profile/YOUR_APNS_TOKEN" | jq '.success'
 ```
 
 ---
