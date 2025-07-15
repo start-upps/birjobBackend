@@ -235,20 +235,18 @@ async def get_privacy_policy():
                 "effective_date": "2025-07-13",
                 "last_updated": "2025-07-13"
             },
-            "data_collection": {
-                "what_we_collect": [
-                    "Device registration information",
-                    "Job search keywords and preferences",
-                    "App usage analytics (with consent)",
-                    "Notification interaction data (with consent)"
-                ],
-                "why_we_collect": [
-                    "To provide job notification services",
-                    "To improve app functionality (with consent)",
-                    "To generate anonymous usage statistics"
-                ],
-                "data_retention": "Analytics data is kept while consent is active. Registration data is kept until account deletion."
-            },
+            "data_collection": [
+                "Device registration information",
+                "Job search keywords and preferences", 
+                "App usage analytics (with consent)",
+                "Notification interaction data (with consent)"
+            ],
+            "data_usage": [
+                "To provide job notification services",
+                "To improve app functionality (with consent)", 
+                "To generate anonymous usage statistics"
+            ],
+            "data_retention": "Analytics data is kept while consent is active. Registration data is kept until account deletion.",
             "your_rights": {
                 "consent": "Grant or revoke analytics consent at any time",
                 "access": "Request a copy of your personal data",
