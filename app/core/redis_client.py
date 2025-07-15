@@ -197,6 +197,11 @@ class RedisClient:
         if count == 1:  # First increment, set expiration
             await self.expire(key, expire)
         return count
+    
+    async def reset_notification_count(self, device_id: str, period: str):
+        """Reset notification count for device (development only)"""
+        key = f"notification_count:{period}:{device_id}"
+        await self.delete(key)
 
 # Global Redis client instance
 redis_client = RedisClient()

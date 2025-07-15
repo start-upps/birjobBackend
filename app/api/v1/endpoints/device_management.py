@@ -426,3 +426,78 @@ async def refresh_device_token(old_device_token: str, new_token_data: Dict[str, 
     except Exception as e:
         logger.error(f"Error refreshing device token: {e}")
         raise HTTPException(status_code=500, detail="Failed to refresh device token")
+
+@router.post("/cleanup/test-data")
+async def cleanup_test_data():
+    """Clean up test/dummy device tokens for development"""
+    try:
+        # Delete devices with obviously fake tokens
+        cleanup_query = """
+            DELETE FROM iosapp.device_users
+            WHERE device_token LIKE '%aaaa%' 
+            OR device_token LIKE '%0000%'
+            OR device_token LIKE '%ffff%'
+            OR LENGTH(device_token) < 32
+            OR device_token ~ '^(.)\1+$'  -- Regex for repeating characters
+            RETURNING device_token
+        """
+        
+        deleted_devices = await db_manager.execute_query(cleanup_query)
+        
+        logger.info(f"Cleaned up {len(deleted_devices)} test device tokens")
+        
+        return {
+            "success": True,
+            "message": f"Cleaned up {len(deleted_devices)} test device tokens",
+            "data": {
+                "deleted_count": len(deleted_devices),
+                "deleted_tokens": [token['device_token'][:16] + "..." for token in deleted_devices]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up test data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clean up test data")
+
+@router.post("/reset-throttling/{device_token}")
+async def reset_notification_throttling(device_token: str):
+    """Reset notification throttling for a device (development only)"""
+    try:
+        from app.core.redis_client import redis_client
+        
+        # Validate device token
+        device_token = validate_device_token(device_token)
+        
+        # Get device info
+        device_query = """
+            SELECT id FROM iosapp.device_users
+            WHERE device_token = $1
+        """
+        device_result = await db_manager.execute_query(device_query, device_token)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        device_id = str(device_result[0]['id'])
+        
+        # Reset Redis counters
+        await redis_client.reset_notification_count(device_id, "hour")
+        await redis_client.reset_notification_count(device_id, "day")
+        
+        logger.info(f"Reset notification throttling for device {device_id}")
+        
+        return {
+            "success": True,
+            "message": "Notification throttling reset successfully",
+            "data": {
+                "device_id": device_id,
+                "device_token_preview": device_token[:16] + "...",
+                "reset_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting throttling: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset throttling")

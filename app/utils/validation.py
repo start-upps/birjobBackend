@@ -107,6 +107,13 @@ def validate_device_token(device_token: str) -> str:
             detail="Invalid device_token: obviously fake tokens not allowed"
         )
     
+    # Check for repeating character patterns (like "aaa...aaa")
+    if len(set(device_token)) <= 2:  # Only 1-2 unique characters
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid device_token: tokens with repeating patterns not allowed"
+        )
+    
     return device_token
 
 def validate_device_id(device_id: str) -> str:
