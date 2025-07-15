@@ -873,7 +873,326 @@ struct ContextUsed: Codable {
 
 ---
 
-### 5. Job Market Analytics 📊
+### 5. Privacy Management 🔐 **[GDPR/CCPA Compliant]**
+
+> **Full Privacy Compliance**: Complete GDPR and CCPA compliance with explicit consent controls, data deletion, and user rights management.
+
+#### **GET** `/api/v1/privacy/policy`
+**📋 Privacy Policy & Data Practices**
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "privacy_policy": {
+      "version": "1.0",
+      "effective_date": "2025-07-13",
+      "last_updated": "2025-07-13"
+    },
+    "data_collection": [
+      "Device registration information",
+      "Job search keywords and preferences",
+      "App usage analytics (with consent)",
+      "Notification interaction data (with consent)"
+    ],
+    "data_usage": [
+      "To provide job notification services",
+      "To improve app functionality (with consent)",
+      "To generate anonymous usage statistics"
+    ],
+    "data_retention": "Analytics data is kept while consent is active. Registration data is kept until account deletion.",
+    "your_rights": {
+      "consent": "Grant or revoke analytics consent at any time",
+      "access": "Request a copy of your personal data",
+      "deletion": "Request deletion of your personal data",
+      "portability": "Export your data in machine-readable format",
+      "objection": "Object to processing of your data"
+    }
+  }
+}
+```
+
+#### **GET** `/api/v1/privacy/status/{device_token}`
+**🔍 Privacy Status & User Rights**
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "device_id": "35ea7fc3-a419-4997-93db-b8fedca331c7",
+    "device_token_preview": "1234567890abcdef...",
+    "privacy_status": {
+      "analytics_consent": false,
+      "consent_date": null,
+      "privacy_policy_version": "1.0",
+      "notifications_enabled": true
+    },
+    "data_summary": {
+      "analytics_events_stored": 0,
+      "registration_date": "2025-07-14T16:50:43.624692+00:00",
+      "data_retention_note": "Analytics data is retained while consent is active"
+    },
+    "your_rights": {
+      "consent": "You can grant or revoke analytics consent at any time",
+      "access": "You can request a copy of your data",
+      "deletion": "You can request deletion of your data",
+      "portability": "You can export your data in JSON format"
+    }
+  }
+}
+```
+
+#### **POST** `/api/v1/privacy/consent`
+**✅ Grant/Revoke Analytics Consent**
+
+**Request:**
+```json
+{
+  "device_token": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "consent": true,
+  "privacy_policy_version": "1.0"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Analytics consent granted successfully",
+  "data": {
+    "analytics_consent": true,
+    "privacy_policy_version": "1.0",
+    "consent_date": "2025-07-14T20:53:03.140761+00:00",
+    "data_retention": "Data will be collected and stored",
+    "rights_note": "You can change this setting at any time"
+  }
+}
+```
+
+#### **DELETE** `/api/v1/privacy/data/{device_token}`
+**🗑️ Delete All User Data (GDPR Right to be Forgotten)**
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User data deleted successfully",
+  "data": {
+    "deleted_items": [
+      "Device registration",
+      "Analytics data",
+      "Notification history",
+      "Privacy preferences"
+    ],
+    "deletion_date": "2025-07-14T20:53:03.140761+00:00",
+    "confirmation": "All data has been permanently deleted"
+  }
+}
+```
+
+#### **GET** `/api/v1/privacy/export`
+**📥 Export User Data (GDPR Data Portability)**
+
+**Request:**
+```json
+{
+  "device_token": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User data exported successfully",
+  "data": {
+    "device_registration": { ... },
+    "analytics_events": [ ... ],
+    "privacy_preferences": { ... },
+    "consent_history": [ ... ]
+  },
+  "export_info": {
+    "format": "JSON",
+    "exported_at": "2025-07-14T20:53:03.140761+00:00",
+    "includes": [
+      "Device registration data",
+      "Analytics events (if consented)",
+      "Privacy preferences",
+      "Consent history"
+    ]
+  }
+}
+```
+
+#### **📱 iOS Implementation for Privacy Management:**
+
+```swift
+struct PrivacySettingsView: View {
+    @State private var analyticsConsent = false
+    @State private var privacyStatus: PrivacyStatus?
+    @State private var isLoading = false
+    
+    var body: some View {
+        List {
+            Section("Analytics Consent") {
+                Toggle("Allow Analytics Tracking", isOn: $analyticsConsent)
+                    .onChange(of: analyticsConsent) { newValue in
+                        Task { await updateConsent(newValue) }
+                    }
+                
+                if analyticsConsent {
+                    Text("We collect usage data to improve the app")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("No analytics data is collected")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Section("Your Rights") {
+                Button("Export My Data") {
+                    Task { await exportData() }
+                }
+                
+                Button("Delete All Data", role: .destructive) {
+                    Task { await deleteAllData() }
+                }
+            }
+        }
+        .navigationTitle("Privacy Settings")
+        .onAppear {
+            Task { await loadPrivacyStatus() }
+        }
+    }
+    
+    func loadPrivacyStatus() async {
+        let url = URL(string: "\(baseURL)/api/v1/privacy/status/\(deviceToken)")!
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(PrivacyStatusResponse.self, from: data)
+            privacyStatus = response.data
+            analyticsConsent = response.data.privacy_status.analytics_consent
+        } catch {
+            print("Error loading privacy status: \(error)")
+        }
+    }
+    
+    func updateConsent(_ consent: Bool) async {
+        isLoading = true
+        let url = URL(string: "\(baseURL)/api/v1/privacy/consent")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = ConsentRequest(
+            device_token: deviceToken,
+            consent: consent,
+            privacy_policy_version: "1.0"
+        )
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (_, _) = try await URLSession.shared.data(for: request)
+            // Success - consent updated
+        } catch {
+            print("Error updating consent: \(error)")
+            // Revert toggle on error
+            analyticsConsent = !consent
+        }
+        
+        isLoading = false
+    }
+    
+    func exportData() async {
+        let url = URL(string: "\(baseURL)/api/v1/privacy/export")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = ExportRequest(device_token: deviceToken)
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, _) = try await URLSession.shared.data(for: request)
+            // Handle exported data (save to files, share, etc.)
+        } catch {
+            print("Error exporting data: \(error)")
+        }
+    }
+    
+    func deleteAllData() async {
+        let url = URL(string: "\(baseURL)/api/v1/privacy/data/\(deviceToken)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        do {
+            let (_, _) = try await URLSession.shared.data(for: request)
+            // Data deleted successfully - redirect to onboarding
+        } catch {
+            print("Error deleting data: \(error)")
+        }
+    }
+}
+
+struct ConsentRequest: Codable {
+    let device_token: String
+    let consent: Bool
+    let privacy_policy_version: String
+}
+
+struct ExportRequest: Codable {
+    let device_token: String
+}
+
+struct PrivacyStatusResponse: Codable {
+    let success: Bool
+    let data: PrivacyStatus
+}
+
+struct PrivacyStatus: Codable {
+    let device_id: String
+    let device_token_preview: String
+    let privacy_status: PrivacyStatusDetails
+    let data_summary: DataSummary
+    let your_rights: UserRights
+}
+
+struct PrivacyStatusDetails: Codable {
+    let analytics_consent: Bool
+    let consent_date: String?
+    let privacy_policy_version: String
+    let notifications_enabled: Bool
+}
+
+struct DataSummary: Codable {
+    let analytics_events_stored: Int
+    let registration_date: String
+    let data_retention_note: String
+}
+
+struct UserRights: Codable {
+    let consent: String
+    let access: String
+    let deletion: String
+    let portability: String
+}
+```
+
+**🔐 Privacy Compliance Features:**
+- **Explicit Consent**: Users must explicitly grant analytics consent
+- **Consent Revocation**: Users can revoke consent at any time with automatic data deletion
+- **Data Transparency**: Clear information about what data is collected and why
+- **Right to be Forgotten**: Complete data deletion including all analytics and history
+- **Data Portability**: Export all user data in machine-readable format
+- **Audit Trail**: Complete consent history and data retention tracking
+
+---
+
+### 6. Job Market Analytics 📊
 
 > **Perfect for iOS Development**: Real-time job market insights from 50+ sources with hourly updates. All endpoints return consistent JSON structures ideal for SwiftUI charts and analytics dashboards.
 
