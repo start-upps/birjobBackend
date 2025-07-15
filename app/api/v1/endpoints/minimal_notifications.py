@@ -29,7 +29,7 @@ async def process_all_job_notifications(
         
         logger.info(f"Processing all jobs for notifications (triggered by: {trigger_source})")
         
-        # Get all jobs from database efficiently
+        # Get recent jobs from database efficiently (limit for performance)
         jobs_query = """
             SELECT 
                 id,
@@ -40,6 +40,7 @@ async def process_all_job_notifications(
                 created_at as posted_at
             FROM scraper.jobs_jobpost
             ORDER BY created_at DESC
+            LIMIT 1000
         """
         
         jobs_result = await db_manager.execute_query(jobs_query)

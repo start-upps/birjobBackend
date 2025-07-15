@@ -193,7 +193,8 @@ class MinimalNotificationService:
                                       source_filter: Optional[str] = None,
                                       dry_run: bool = False) -> Dict[str, int]:
         """
-        Process job notifications for all active devices
+        Process job notifications for all active devices - EFFICIENT VERSION
+        Send ONE summary notification per device instead of individual notifications for each job
         
         Args:
             jobs: List of job dictionaries from scraper
@@ -213,70 +214,81 @@ class MinimalNotificationService:
                 return {"processed_jobs": 0, "matched_devices": 0, "notifications_sent": 0}
             
             stats = {
-                "processed_jobs": 0,
+                "processed_jobs": len(jobs),
                 "matched_devices": 0,
                 "notifications_sent": 0,
                 "errors": 0
             }
             
-            # Process each job
-            for job in jobs:
+            # Process each device to find matches
+            for device in devices:
                 try:
-                    # Apply source filter if specified
-                    if source_filter and job.get('source', '').lower() != source_filter.lower():
-                        continue
+                    device_id = device['device_id']
+                    device_token = device['device_token']
+                    user_keywords = device['keywords']
                     
-                    stats["processed_jobs"] += 1
-                    job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                    logger.info(f"Processing device {device_id[:8]}... with keywords: {user_keywords}")
                     
-                    # Check each device for keyword matches
-                    for device in devices:
+                    # Find ALL matching jobs for this device
+                    matching_jobs = []
+                    all_matched_keywords = set()
+                    
+                    for job in jobs:
                         try:
-                            device_id = device['device_id']
-                            device_token = device['device_token']
-                            user_keywords = device['keywords']
+                            # Apply source filter if specified
+                            if source_filter and job.get('source', '').lower() != source_filter.lower():
+                                continue
                             
                             # Check if job matches user keywords
                             matched_keywords = self.match_keywords(job, user_keywords)
                             
-                            if not matched_keywords:
-                                continue  # No keyword match
-                            
-                            # Check if already notified
-                            already_sent = await self.is_notification_already_sent(device_id, job_hash)
-                            if already_sent:
-                                continue  # Already sent
-                            
-                            stats["matched_devices"] += 1
-                            
-                            if not dry_run:
-                                # Send actual notification
-                                success = await self.send_job_notification(
-                                    device_token, device_id, job, matched_keywords
-                                )
+                            if matched_keywords:
+                                job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
                                 
-                                if success:
-                                    # Record notification hash
-                                    await self.record_notification_sent(
-                                        device_id, job_hash, 
-                                        job.get('title', ''), job.get('company', ''),
-                                        job.get('source', ''), matched_keywords
-                                    )
-                                    stats["notifications_sent"] += 1
-                                else:
-                                    stats["errors"] += 1
-                            else:
-                                # Dry run - just count
-                                stats["notifications_sent"] += 1
-                                logger.debug(f"DRY RUN: Would notify device {device_id[:8]}... about job: {job.get('title', '')[:50]}")
-                        
+                                # Check if already notified
+                                already_sent = await self.is_notification_already_sent(device_id, job_hash)
+                                if not already_sent:
+                                    matching_jobs.append(job)
+                                    all_matched_keywords.update(matched_keywords)
+                                    
+                                    # Record that we'll notify about this job (prevent duplicates)
+                                    if not dry_run:
+                                        await self.record_notification_sent(
+                                            device_id, job_hash, 
+                                            job.get('title', ''), job.get('company', ''),
+                                            job.get('source', ''), matched_keywords
+                                        )
                         except Exception as e:
-                            logger.error(f"Error processing device {device.get('device_id', 'unknown')}: {e}")
-                            stats["errors"] += 1
+                            logger.error(f"Error processing job {job.get('id', 'unknown')} for device {device_id}: {e}")
                             continue
+                    
+                    # Send ONE notification per device if there are matches
+                    if matching_jobs:
+                        stats["matched_devices"] += 1
+                        
+                        logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
+                        
+                        if not dry_run:
+                            # Send summary notification
+                            success = await self.send_summary_notification(
+                                device_token, device_id, len(matching_jobs), list(all_matched_keywords), matching_jobs[:3]
+                            )
+                            
+                            if success:
+                                stats["notifications_sent"] += 1
+                                logger.info(f"✅ Sent summary notification to device {device_id[:8]}...")
+                            else:
+                                stats["errors"] += 1
+                                logger.error(f"❌ Failed to send notification to device {device_id[:8]}...")
+                        else:
+                            # Dry run - just count
+                            stats["notifications_sent"] += 1
+                            logger.info(f"DRY RUN: Would send summary notification to device {device_id[:8]}... for {len(matching_jobs)} jobs")
+                    else:
+                        logger.info(f"No new matches for device {device_id[:8]}...")
                 
                 except Exception as e:
-                    logger.error(f"Error processing job {job.get('id', 'unknown')}: {e}")
+                    logger.error(f"Error processing device {device.get('device_id', 'unknown')}: {e}")
                     stats["errors"] += 1
                     continue
             
@@ -286,6 +298,30 @@ class MinimalNotificationService:
         except Exception as e:
             logger.error(f"Error in process_job_notifications: {e}")
             return {"processed_jobs": 0, "matched_devices": 0, "notifications_sent": 0, "errors": 1}
+    
+    async def send_summary_notification(self, device_token: str, device_id: str, 
+                                      job_count: int, matched_keywords: List[str], 
+                                      sample_jobs: List[Dict[str, Any]]) -> bool:
+        """Send one summary notification instead of individual job notifications"""
+        try:
+            # Create summary job for notification
+            summary_job = {
+                "id": "summary",
+                "title": f"{job_count} New Job{'s' if job_count != 1 else ''} Found!",
+                "company": f"Matching: {', '.join(matched_keywords[:3])}",
+                "source": "job_summary",
+                "apply_link": "",
+                "posted_at": datetime.now().isoformat()
+            }
+            
+            success = await self.send_job_notification(
+                device_token, device_id, summary_job, matched_keywords[:5]  # Limit keywords
+            )
+            
+            return success
+        except Exception as e:
+            logger.error(f"Error sending summary notification: {e}")
+            return False
     
     async def cleanup_old_notification_hashes(self, days_old: int = 30) -> int:
         """Clean up old notification hashes to prevent table growth"""

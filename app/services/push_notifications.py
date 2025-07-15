@@ -792,9 +792,10 @@ class PushNotificationService:
         if not device_token:
             return False
         
-        # APNs device tokens should be 64 characters (hex)
-        if len(device_token) != 64:
-            self.logger.error(f"Invalid token length: {len(device_token)} (expected 64)")
+        # APNs device tokens can be 64, 128, or 160 characters (hex)
+        valid_lengths = [64, 128, 160]
+        if len(device_token) not in valid_lengths:
+            self.logger.error(f"Invalid token length: {len(device_token)} (expected 64, 128, or 160)")
             return False
         
         # Should only contain hex characters
