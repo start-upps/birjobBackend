@@ -3093,6 +3093,70 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/test/Y
 - **Invalid Bundle ID**: Must match `com.ismats.birjob`
 - **Token format**: Must be 64+ hex chars, not UUID
 
+#### **Issue 6: Database UUID Schema Errors**
+
+**🔍 Symptoms:**
+```
+ERROR: invalid input for query argument $1: UUID(...) (expected str, got UUID)
+POST /api/v1/device/register → 500 Internal Server Error
+```
+
+**🎯 Root Cause:**
+Database schema inconsistency between UUID and VARCHAR columns:
+- ✅ `device_users.id` → UUID (correct)
+- ❌ `users.device_id` → VARCHAR (wrong, should be UUID)
+- ❌ `saved_jobs.user_id` → VARCHAR (wrong, should be UUID)
+
+**🔧 Database Schema Fix:**
+```sql
+-- Fix users table
+ALTER TABLE iosapp.users ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+ALTER TABLE iosapp.users ALTER COLUMN device_id TYPE UUID USING device_id::UUID;
+
+-- Fix dependent tables
+ALTER TABLE iosapp.saved_jobs ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+ALTER TABLE iosapp.saved_jobs ALTER COLUMN user_id TYPE UUID USING user_id::UUID;
+ALTER TABLE iosapp.job_views ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+ALTER TABLE iosapp.job_views ALTER COLUMN user_id TYPE UUID USING user_id::UUID;
+ALTER TABLE iosapp.job_applications ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+ALTER TABLE iosapp.job_applications ALTER COLUMN user_id TYPE UUID USING user_id::UUID;
+```
+
+**✅ Code Fix (Analytics Service):**
+```python
+# Privacy analytics service UUID conversion
+async def check_analytics_consent(self, device_id: str) -> bool:
+    result = await db_manager.execute_query(query, uuid.UUID(device_id))
+
+async def track_action_with_consent(self, device_id: str, action: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    await db_manager.execute_command(query, uuid.UUID(device_id), action, metadata_json)
+```
+
+**🧪 Test Registration:**
+```bash
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/device/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_token": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    "keywords": ["python", "backend", "test"]
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "device_id": "40feefd8-2f68-45ff-9df2-e22840a933eb",
+    "device_token_preview": "abcdef1234567890...",
+    "keywords_count": 3,
+    "notifications_enabled": true,
+    "registered_at": "2025-07-16T08:45:36.774218+00:00",
+    "message": "Device registered successfully - ready for job notifications!"
+  }
+}
+```
+
 ---
 
 ### **🎉 Current Implementation Status**
