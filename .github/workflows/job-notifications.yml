@@ -1,9 +1,9 @@
 name: Job Notifications
 
 on:
-  # Run every 40 minutes
+  # Run every 155 minutes
   schedule:
-    - cron: '*/45 * * * *'
+    - cron: '*/155 * * * *'
   
   # Allow manual trigger for testing
   workflow_dispatch:
