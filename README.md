@@ -4,7 +4,7 @@
 
 **Device-based, production-ready backend for iOS job notification apps**. Features comprehensive database schema with device-based user management, hash-based notification deduplication, real-time analytics, AI-powered job recommendations, and complete user profile management system.
 
-**🎯 Latest Update**: Privacy compliance fix! All analytics now require explicit user consent (GDPR/CCPA compliant) + intelligent AI career assistant with real-time market data.
+**🎯 Latest Update**: Database schema consistency fix! All UUID columns are now properly typed (resolved device registration 500 errors) + Privacy compliance with GDPR/CCPA consent + intelligent AI career assistant with real-time market data.
 
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
@@ -3171,6 +3171,8 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/device/register \
 7. **Rate Limiting** - 5 notifications/hour, 20/day per device
 8. **All Jobs Processing** - Handles 3900+ jobs, not just 1000
 9. **Query Optimization** - Eliminated direct `device_token` lookups on `users` table
+10. **UUID Schema Consistency** - Fixed all database tables to use proper UUID columns instead of VARCHAR
+11. **Analytics Service UUID Conversion** - Fixed privacy analytics service to handle UUID type conversions correctly
 
 #### **✅ iOS Fixes Completed:**
 1. **APNs Token Usage** - `NotificationInboxService.swift` now uses `notificationService.pushToken` instead of UUID
