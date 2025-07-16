@@ -4,6 +4,7 @@ GDPR/CCPA compliant analytics tracking with user consent
 """
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Tuple
 
@@ -31,7 +32,7 @@ class PrivacyAnalyticsService:
                 WHERE id = $1
             """
             
-            result = await db_manager.execute_query(query, device_id)
+            result = await db_manager.execute_query(query, uuid.UUID(device_id))
             
             if result and result[0]['analytics_consent']:
                 return True
@@ -69,7 +70,7 @@ class PrivacyAnalyticsService:
                 VALUES ($1, $2, $3, NOW())
             """
             
-            await db_manager.execute_command(query, device_id, action, metadata_json)
+            await db_manager.execute_command(query, uuid.UUID(device_id), action, metadata_json)
             logger.debug(f"Analytics tracked for device {device_id}: {action}")
             return True
             
