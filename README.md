@@ -3220,6 +3220,74 @@ curl -X GET https://birjobbackend-ir3e.onrender.com/api/v1/notifications/history
 - ✅ Notification inbox shows job details with read status
 - ✅ Unread count reflects actual unread notifications
 
+#### **Issue 8: iOS App Using Wrong Token Format**
+
+**🔍 Symptoms:**
+```
+GET /api/v1/notifications/history/C2D26500-C1BD-4590-B928-1AE49BE7495B → 404 Not Found
+"my notification inbox can not mark notifications as read"
+```
+
+**🎯 Root Cause:**
+iOS app is using **UUID format** instead of **APNs token format** for notification API calls:
+- ❌ **iOS app sends**: `C2D26500-C1BD-4590-B928-1AE49BE7495B` (UUID format)
+- ✅ **Backend expects**: `466f87378aaf3a37486f84077125103ddf7282d85cc6ef127ef6f2cc4a90ed7d` (APNs token)
+
+**🔧 iOS Fix:**
+```swift
+// ❌ Wrong - Don't use device UUID
+let deviceUUID = UIDevice.current.identifierForVendor?.uuidString
+
+// ✅ Correct - Use APNs device token
+let apnsToken = notificationService.pushToken // 64-160 hex characters
+
+// Update all notification API calls to use APNs token
+class NotificationService {
+    func getNotificationHistory() async {
+        guard let token = self.pushToken else { return }
+        
+        let url = "\(baseURL)/api/v1/notifications/history/\(token)?limit=20"
+        // Make API call with APNs token
+    }
+    
+    func markAsRead(notificationIds: [String]) async {
+        guard let token = self.pushToken else { return }
+        
+        let url = "\(baseURL)/api/v1/notifications/mark-read/\(token)"
+        let body = ["notification_ids": notificationIds]
+        // Make API call with APNs token
+    }
+}
+```
+
+**🧪 Test Token Format:**
+```bash
+# Check what tokens are registered
+curl https://birjobbackend-ir3e.onrender.com/api/v1/devices/debug/list-all
+
+# Test with correct APNs token (64-160 hex characters)
+curl https://birjobbackend-ir3e.onrender.com/api/v1/notifications/history/YOUR_APNS_TOKEN?limit=1
+```
+
+**✅ Expected Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "device_token_preview": "466f87378aaf3a37...",
+    "total_notifications": 88,
+    "notifications": [
+      {
+        "id": "ab2d2017-25e0-480f-9f97-ab6d41ed45e9",
+        "job_title": "Data üzrə mühəndis",
+        "is_read": true,
+        "read_at": "2025-07-16T15:42:48.393780+00:00"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ### **🎉 Current Implementation Status**
