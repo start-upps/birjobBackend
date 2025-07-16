@@ -78,7 +78,7 @@ async def register_device_minimal(request: Dict[str, Any]):
         
         user_result = await db_manager.execute_query(
             user_profile_query,
-            device_id
+            str(device_id)
         )
         
         if user_result:
@@ -86,7 +86,7 @@ async def register_device_minimal(request: Dict[str, Any]):
         
         # Record analytics (with consent check)
         await privacy_analytics_service.track_action_with_consent(
-            device_id, 
+            str(device_id), 
             'registration', 
             {
                 "keywords_count": len(keywords),
@@ -143,7 +143,7 @@ async def update_keywords(request: Dict[str, Any]):
         
         # Record analytics (with consent check)
         await privacy_analytics_service.track_action_with_consent(
-            device_id, 
+            str(device_id), 
             'keywords_update', 
             {
                 "keywords_count": len(keywords),
@@ -228,7 +228,7 @@ async def track_user_action(request: Dict[str, Any]):
         
         # Track action (with consent check)
         await privacy_analytics_service.track_action_with_consent(
-            device_id, 
+            str(device_id), 
             action, 
             metadata
         )
