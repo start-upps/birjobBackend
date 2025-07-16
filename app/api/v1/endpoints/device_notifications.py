@@ -54,7 +54,9 @@ async def get_notification_history(
                 job_company,
                 job_source,
                 matched_keywords,
-                sent_at
+                sent_at,
+                is_read,
+                read_at
             FROM iosapp.notification_hashes
             WHERE device_id = $1
             ORDER BY sent_at DESC
@@ -93,7 +95,9 @@ async def get_notification_history(
                 "job_source": notification['job_source'],
                 "matched_keywords": matched_keywords,
                 "sent_at": notification['sent_at'].isoformat() if notification['sent_at'] else None,
-                "job_hash": notification['job_hash']
+                "job_hash": notification['job_hash'],
+                "is_read": notification.get('is_read', False),
+                "read_at": notification['read_at'].isoformat() if notification.get('read_at') else None
             })
         
         return {
@@ -150,8 +154,11 @@ async def get_notification_inbox(
                     array_agg(job_title ORDER BY sent_at DESC) as job_titles,
                     array_agg(job_company ORDER BY sent_at DESC) as job_companies,
                     array_agg(job_source ORDER BY sent_at DESC) as job_sources,
+                    array_agg(job_hash ORDER BY sent_at DESC) as job_hashes,
                     MAX(sent_at) as latest_sent_at,
-                    array_agg(id ORDER BY sent_at DESC) as notification_ids
+                    array_agg(id ORDER BY sent_at DESC) as notification_ids,
+                    array_agg(is_read ORDER BY sent_at DESC) as read_statuses,
+                    COUNT(CASE WHEN is_read = false THEN 1 END) as unread_count
                 FROM iosapp.notification_hashes
                 WHERE device_id = $1
                 GROUP BY DATE(sent_at), matched_keywords
@@ -185,19 +192,27 @@ async def get_notification_inbox(
                     "title": title,
                     "message": message,
                     "job_count": job_count,
+                    "unread_count": group['unread_count'],
                     "matched_keywords": matched_keywords,
                     "notification_date": group['notification_date'].isoformat() if group['notification_date'] else None,
                     "latest_sent_at": group['latest_sent_at'].isoformat() if group['latest_sent_at'] else None,
+                    "notification_ids": [str(nid) for nid in group['notification_ids']],
                     "jobs": [
                         {
                             "title": title,
                             "company": company,
-                            "source": source
+                            "source": source,
+                            "job_hash": job_hash,
+                            "notification_id": str(notification_id),
+                            "is_read": is_read
                         }
-                        for title, company, source in zip(
+                        for title, company, source, job_hash, notification_id, is_read in zip(
                             group['job_titles'][:5],  # Show first 5 jobs
                             group['job_companies'][:5],
-                            group['job_sources'][:5]
+                            group['job_sources'][:5],
+                            group['job_hashes'][:5],
+                            group['notification_ids'][:5],
+                            group['read_statuses'][:5]
                         )
                     ]
                 })
@@ -209,8 +224,11 @@ async def get_notification_inbox(
                     job_title,
                     job_company,
                     job_source,
+                    job_hash,
                     matched_keywords,
-                    sent_at
+                    sent_at,
+                    is_read,
+                    read_at
                 FROM iosapp.notification_hashes
                 WHERE device_id = $1
                 ORDER BY sent_at DESC
@@ -240,18 +258,23 @@ async def get_notification_inbox(
                     "job_count": 1,
                     "matched_keywords": matched_keywords,
                     "sent_at": notification['sent_at'].isoformat() if notification['sent_at'] else None,
+                    "is_read": notification.get('is_read', False),
+                    "read_at": notification['read_at'].isoformat() if notification.get('read_at') else None,
                     "jobs": [{
                         "title": notification['job_title'],
                         "company": notification['job_company'],
-                        "source": notification['job_source']
+                        "source": notification['job_source'],
+                        "job_hash": notification['job_hash'],
+                        "notification_id": str(notification['id']),
+                        "is_read": notification.get('is_read', False)
                     }]
                 })
         
-        # Get total unread count (all notifications from last 7 days)
+        # Get total unread count (all unread notifications)
         unread_query = """
             SELECT COUNT(*) as unread_count
             FROM iosapp.notification_hashes
-            WHERE device_id = $1 AND sent_at >= NOW() - INTERVAL '7 days'
+            WHERE device_id = $1 AND is_read = false
         """
         unread_result = await db_manager.execute_query(unread_query, device_id)
         unread_count = unread_result[0]['unread_count'] if unread_result else 0
@@ -542,44 +565,63 @@ async def mark_notifications_as_read(
         
         if mark_all or not notification_ids:
             # Mark all notifications as read
-            all_notifications_query = """
-                SELECT id FROM iosapp.notification_hashes
-                WHERE device_id = $1
+            mark_all_query = """
+                UPDATE iosapp.notification_hashes
+                SET is_read = true, read_at = NOW()
+                WHERE device_id = $1 AND is_read = false
+                RETURNING id
             """
-            all_notifications = await db_manager.execute_query(all_notifications_query, device_id)
+            marked_result = await db_manager.execute_query(mark_all_query, device_id)
+            marked_count = len(marked_result) if marked_result else 0
             
             # Record bulk read event (with consent check)
             metadata = {
-                "notification_count": len(all_notifications),
+                "notification_count": marked_count,
                 "read_at": datetime.now(timezone.utc).isoformat()
             }
             
             await privacy_analytics_service.track_action_with_consent(
-                device_id,
+                str(device_id),
                 'notifications_all_read',
                 metadata
             )
             
-            marked_count = len(all_notifications)
             message = f"Marked all {marked_count} notifications as read"
         else:
             # Mark specific notifications as read
             marked_count = 0
             for notification_id in notification_ids:
-                # Record read event in analytics (with consent check)
-                metadata = {
-                    "notification_id": str(notification_id),
-                    "read_at": datetime.now(timezone.utc).isoformat()
-                }
-                
                 try:
-                    await privacy_analytics_service.track_action_with_consent(
-                        device_id,
-                        'notification_read',
-                        metadata
-                    )
-                    marked_count += 1
-                except:
+                    import uuid
+                    notification_uuid = uuid.UUID(str(notification_id))
+                    
+                    # Update the specific notification
+                    mark_query = """
+                        UPDATE iosapp.notification_hashes
+                        SET is_read = true, read_at = NOW()
+                        WHERE device_id = $1 AND id = $2 AND is_read = false
+                        RETURNING id
+                    """
+                    mark_result = await db_manager.execute_query(mark_query, device_id, notification_uuid)
+                    
+                    if mark_result:
+                        marked_count += 1
+                        
+                        # Record read event in analytics (with consent check)
+                        metadata = {
+                            "notification_id": str(notification_id),
+                            "read_at": datetime.now(timezone.utc).isoformat()
+                        }
+                        
+                        await privacy_analytics_service.track_action_with_consent(
+                            str(device_id),
+                            'notification_read',
+                            metadata
+                        )
+                except (ValueError, TypeError):
+                    # Invalid UUID format, skip
+                    continue
+                except Exception:
                     continue
             
             message = f"Marked {marked_count} notifications as read"
@@ -645,7 +687,7 @@ async def delete_notifications(
             }
             
             await privacy_analytics_service.track_action_with_consent(
-                device_id,
+                str(device_id),
                 'notifications_all_deleted',
                 metadata
             )
@@ -681,7 +723,7 @@ async def delete_notifications(
             }
             
             await privacy_analytics_service.track_action_with_consent(
-                device_id,
+                str(device_id),
                 'notifications_deleted',
                 metadata
             )
