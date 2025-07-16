@@ -4,7 +4,7 @@
 
 **Device-based, production-ready backend for iOS job notification apps**. Features comprehensive database schema with device-based user management, hash-based notification deduplication, real-time analytics, AI-powered job recommendations, and complete user profile management system.
 
-**🎯 Latest Update**: Database schema consistency fix! All UUID columns are now properly typed (resolved device registration 500 errors) + Privacy compliance with GDPR/CCPA consent + intelligent AI career assistant with real-time market data.
+**🎯 Latest Update**: Notification management fixed! Mark as read, delete notifications, and job details now work correctly + Database schema consistency + Privacy compliance with GDPR/CCPA consent + intelligent AI career assistant with real-time market data.
 
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
@@ -3157,6 +3157,69 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/device/register \
 }
 ```
 
+#### **Issue 7: Notification Management Problems**
+
+**🔍 Symptoms:**
+- ❌ Delete notifications doesn't work (reappears after refresh)
+- ❌ Notification inbox shows empty instead of job details
+- ❌ Mark as read doesn't persist (still shows unread after refresh)
+
+**🎯 Root Cause:**
+1. **No read status tracking**: `notification_hashes` table missing `is_read` and `read_at` columns
+2. **Analytics UUID conversion**: Passing UUID objects instead of strings to analytics service
+3. **Incomplete job details**: Notification responses missing job hashes and read status
+
+**🔧 Database Schema Fix:**
+```sql
+-- Add read status tracking
+ALTER TABLE iosapp.notification_hashes ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
+ALTER TABLE iosapp.notification_hashes ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
+```
+
+**🔧 Code Fixes:**
+```python
+# 1. Fix mark-as-read to actually update database
+mark_all_query = """
+    UPDATE iosapp.notification_hashes
+    SET is_read = true, read_at = NOW()
+    WHERE device_id = $1 AND is_read = false
+    RETURNING id
+"""
+
+# 2. Fix analytics UUID conversion
+await privacy_analytics_service.track_action_with_consent(
+    str(device_id),  # Convert UUID to string
+    'notifications_all_read',
+    metadata
+)
+
+# 3. Add read status to responses
+"is_read": notification.get('is_read', False),
+"read_at": notification['read_at'].isoformat() if notification.get('read_at') else None
+```
+
+**🧪 Test Notification Management:**
+```bash
+# Test mark all as read
+curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/notifications/mark-read/YOUR_TOKEN \
+  -H "Content-Type: application/json" \
+  -d '{"mark_all": true}'
+
+# Test delete specific notification
+curl -X DELETE https://birjobbackend-ir3e.onrender.com/api/v1/notifications/delete/YOUR_TOKEN \
+  -H "Content-Type: application/json" \
+  -d '{"notification_ids": ["notification-uuid"]}'
+
+# Test notification history with read status
+curl -X GET https://birjobbackend-ir3e.onrender.com/api/v1/notifications/history/YOUR_TOKEN?limit=5
+```
+
+**✅ Expected Behavior:**
+- ✅ Mark as read persists after app refresh
+- ✅ Delete notifications removes them permanently
+- ✅ Notification inbox shows job details with read status
+- ✅ Unread count reflects actual unread notifications
+
 ---
 
 ### **🎉 Current Implementation Status**
@@ -3173,6 +3236,10 @@ curl -X POST https://birjobbackend-ir3e.onrender.com/api/v1/device/register \
 9. **Query Optimization** - Eliminated direct `device_token` lookups on `users` table
 10. **UUID Schema Consistency** - Fixed all database tables to use proper UUID columns instead of VARCHAR
 11. **Analytics Service UUID Conversion** - Fixed privacy analytics service to handle UUID type conversions correctly
+12. **Notification Read Status Tracking** - Added `is_read` and `read_at` columns to properly track notification status
+13. **Persistent Mark-as-Read** - Mark as read now updates database instead of just logging analytics
+14. **Notification Deletion** - Delete notifications now works correctly with proper UUID handling
+15. **Enhanced Notification Responses** - Added job details, read status, and unread counts to all notification endpoints
 
 #### **✅ iOS Fixes Completed:**
 1. **APNs Token Usage** - `NotificationInboxService.swift` now uses `notificationService.pushToken` instead of UUID
