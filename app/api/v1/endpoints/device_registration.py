@@ -45,13 +45,11 @@ async def register_device_minimal(request: Dict[str, Any]):
             RETURNING id, created_at
         """
         
-        logger.info(f"Executing device registration query for token: {device_token[:16]}...")
         result = await db_manager.execute_query(
             insert_query, 
             device_token, 
             json.dumps(keywords)
         )
-        logger.info(f"Device registration query completed successfully")
         
         if not result:
             raise Exception("Failed to register device")
@@ -78,18 +76,15 @@ async def register_device_minimal(request: Dict[str, Any]):
             RETURNING id
         """
         
-        logger.info(f"Executing user profile query for device_id: {device_id}")
         user_result = await db_manager.execute_query(
             user_profile_query,
-            device_id
+            str(device_id)
         )
-        logger.info(f"User profile query completed successfully")
         
         if user_result:
             logger.info(f"User profile created/updated for device {device_id}")
         
         # Record analytics (with consent check)
-        logger.info(f"Recording analytics for device_id: {device_id}")
         await privacy_analytics_service.track_action_with_consent(
             str(device_id), 
             'registration', 
@@ -99,7 +94,6 @@ async def register_device_minimal(request: Dict[str, Any]):
                 "registration_method": "minimal"
             }
         )
-        logger.info(f"Analytics recorded successfully")
         
         return {
             "success": True,
