@@ -78,7 +78,7 @@ async def register_device_minimal(request: Dict[str, Any]):
         
         user_result = await db_manager.execute_query(
             user_profile_query,
-            str(device_id)
+            device_id
         )
         
         if user_result:
