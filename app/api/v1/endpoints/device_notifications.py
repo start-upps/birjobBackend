@@ -854,3 +854,101 @@ async def process_notifications_compatibility(request: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error processing notifications for compatibility: {e}")
         raise HTTPException(status_code=500, detail="Failed to process notifications")
+
+@router.get("/job-by-hash/{job_hash}", response_model=Dict[str, Any])
+async def get_notification_job_by_hash(job_hash: str):
+    """Get job details by hash for notification apply button (persistent after truncate-and-load)"""
+    try:
+        # First, try to find the job by hash using title and company
+        # This works even after truncate-and-load operations
+        job_query = """
+            SELECT 
+                id,
+                title,
+                company,
+                apply_link,
+                source,
+                created_at as posted_at
+            FROM scraper.jobs_jobpost
+            WHERE SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+        
+        job_result = await db_manager.execute_query(job_query, job_hash)
+        
+        if not job_result:
+            # If not found by hash, try alternative search by comparing recent jobs
+            fallback_query = """
+                SELECT 
+                    id,
+                    title,
+                    company,
+                    apply_link,
+                    source,
+                    created_at as posted_at,
+                    SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) as computed_hash
+                FROM scraper.jobs_jobpost
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 1000
+            """
+            
+            all_jobs = await db_manager.execute_query(fallback_query)
+            
+            # Find matching job by hash
+            for job in all_jobs:
+                if job.get('computed_hash') == job_hash:
+                    job_result = [job]
+                    break
+        
+        if not job_result:
+            # Return a fallback response with stored notification data
+            return {
+                "success": False,
+                "error": "job_not_found",
+                "message": "Job not found. It may have been removed or is older than 30 days.",
+                "data": {
+                    "hash": job_hash,
+                    "fallback_action": "search_similar_jobs",
+                    "deep_link": f"birjob://search?hash={job_hash}"
+                }
+            }
+        
+        job = job_result[0]
+        
+        # Check if apply link is still valid (not empty or placeholder)
+        apply_link = job.get('apply_link', '').strip()
+        if not apply_link or apply_link.lower() in ['', 'null', 'none', 'n/a']:
+            apply_link = None
+        
+        job_data = {
+            "id": job['id'],
+            "title": job['title'] or "No Title",
+            "company": job['company'] or "Unknown Company", 
+            "apply_link": apply_link,
+            "source": job['source'] or "Unknown",
+            "posted_at": job['posted_at'].isoformat() if job['posted_at'] else None,
+            "hash": job_hash,
+            "found_by": "hash_lookup",
+            "can_apply": bool(apply_link),
+            "apply_method": "external_link" if apply_link else "unavailable"
+        }
+        
+        return {
+            "success": True,
+            "data": job_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting notification job by hash {job_hash}: {e}")
+        return {
+            "success": False,
+            "error": "lookup_failed",
+            "message": "Failed to lookup job by hash",
+            "data": {
+                "hash": job_hash,
+                "fallback_action": "search_similar_jobs",
+                "deep_link": f"birjob://search?hash={job_hash}"
+            }
+        }
