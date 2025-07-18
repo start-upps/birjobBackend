@@ -694,10 +694,14 @@ class PushNotificationService:
                 ON CONFLICT (device_id, job_hash) DO NOTHING
             """
             
-            # Create a hash for this notification
+            # Create a hash for this notification using same method as MinimalNotificationService
             import hashlib
-            hash_input = f"{job_title}_{job_company}_{match_id or ''}"
-            job_hash = hashlib.md5(hash_input.encode()).hexdigest()
+            # Normalize inputs same way
+            title_normalized = (job_title or "").strip().lower()
+            company_normalized = (job_company or "").strip().lower()
+            
+            hash_input = f"{title_normalized}|{company_normalized}".encode('utf-8')
+            job_hash = hashlib.sha256(hash_input).hexdigest()[:32]
             
             # Extract matched keywords from payload
             matched_keywords = payload.get('matched_keywords', [])

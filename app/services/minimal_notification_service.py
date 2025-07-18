@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 
 from app.core.database import db_manager
+from app.core.redis_client import redis_client
 from app.services.push_notifications import PushNotificationService
 from app.services.privacy_analytics_service import privacy_analytics_service
 
@@ -53,7 +54,7 @@ class MinimalNotificationService:
     async def record_notification_sent(self, device_id: str, job_hash: str, 
                                      job_title: str, company: str, 
                                      job_source: str, matched_keywords: List[str]) -> bool:
-        """Record that notification was sent"""
+        """Record that notification was sent - returns True if this is the first time"""
         try:
             query = """
                 INSERT INTO iosapp.notification_hashes 
@@ -68,13 +69,19 @@ class MinimalNotificationService:
                 job_source, json.dumps(matched_keywords)
             )
             
-            # Record analytics
-            if result:
-                await self.track_notification_sent(device_id, matched_keywords)
+            # If result is empty, notification already exists (duplicate)
+            is_first_time = len(result) > 0
             
-            return len(result) > 0
+            if is_first_time:
+                # Record analytics for new notifications only
+                await self.track_notification_sent(device_id, matched_keywords)
+                logger.debug(f"Recorded new notification for device {device_id[:8]}... job_hash: {job_hash}")
+            else:
+                logger.debug(f"Duplicate notification blocked for device {device_id[:8]}... job_hash: {job_hash}")
+            
+            return is_first_time
         except Exception as e:
-            logger.error(f"Error recording notification: {e}")
+            logger.error(f"Error recording notification for device {device_id[:8]}... job_hash: {job_hash}: {e}")
             return False
     
     async def track_notification_sent(self, device_id: str, matched_keywords: List[str]):
@@ -245,19 +252,44 @@ class MinimalNotificationService:
                             if matched_keywords:
                                 job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
                                 
-                                # Check if already notified
-                                already_sent = await self.is_notification_already_sent(device_id, job_hash)
-                                if not already_sent:
-                                    matching_jobs.append(job)
-                                    all_matched_keywords.update(matched_keywords)
-                                    
-                                    # Record that we'll notify about this job (prevent duplicates)
-                                    if not dry_run:
-                                        await self.record_notification_sent(
+                                # Use distributed lock to prevent race conditions
+                                lock_key = f"notification_lock:{device_id}:{job_hash}"
+                                
+                                if not dry_run:
+                                    # Try to acquire lock for this notification
+                                    try:
+                                        async with redis_client.lock(lock_key, timeout=5):
+                                            # Check if already sent (inside lock)
+                                            already_sent = await self.is_notification_already_sent(device_id, job_hash)
+                                            if not already_sent:
+                                                # Record notification
+                                                notification_recorded = await self.record_notification_sent(
+                                                    device_id, job_hash, 
+                                                    job.get('title', ''), job.get('company', ''),
+                                                    job.get('source', ''), matched_keywords
+                                                )
+                                                
+                                                if notification_recorded:
+                                                    matching_jobs.append(job)
+                                                    all_matched_keywords.update(matched_keywords)
+                                    except Exception as lock_error:
+                                        logger.warning(f"Failed to acquire lock for {device_id}:{job_hash}: {lock_error}")
+                                        # Fallback to database-only deduplication
+                                        notification_recorded = await self.record_notification_sent(
                                             device_id, job_hash, 
                                             job.get('title', ''), job.get('company', ''),
                                             job.get('source', ''), matched_keywords
                                         )
+                                        
+                                        if notification_recorded:
+                                            matching_jobs.append(job)
+                                            all_matched_keywords.update(matched_keywords)
+                                else:
+                                    # In dry run mode, still check if already sent
+                                    already_sent = await self.is_notification_already_sent(device_id, job_hash)
+                                    if not already_sent:
+                                        matching_jobs.append(job)
+                                        all_matched_keywords.update(matched_keywords)
                         except Exception as e:
                             logger.error(f"Error processing job {job.get('id', 'unknown')} for device {device_id}: {e}")
                             continue

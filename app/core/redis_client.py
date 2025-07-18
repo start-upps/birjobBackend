@@ -4,6 +4,8 @@ import json
 import logging
 import aiohttp
 import os
+import asyncio
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
 
@@ -202,6 +204,53 @@ class RedisClient:
         """Reset notification count for device (development only)"""
         key = f"notification_count:{period}:{device_id}"
         await self.delete(key)
+    
+    @asynccontextmanager
+    async def lock(self, key: str, timeout: int = 10):
+        """Distributed lock context manager"""
+        lock_key = f"lock:{key}"
+        identifier = f"{os.getpid()}:{id(asyncio.current_task())}"
+        
+        # Try to acquire lock
+        acquired = False
+        try:
+            # Use SET with NX (not exists) and EX (expiry)
+            if self.use_upstash:
+                result = await self._upstash_request("SET", lock_key, identifier, "NX", "EX", timeout)
+                acquired = result == "OK"
+            else:
+                if not self.redis:
+                    await self.init_redis()
+                if self.redis:
+                    acquired = await self.redis.set(lock_key, identifier, nx=True, ex=timeout)
+            
+            if not acquired:
+                raise Exception(f"Failed to acquire lock for {key}")
+            
+            yield
+        
+        finally:
+            # Release lock only if we own it
+            if acquired:
+                try:
+                    if self.use_upstash:
+                        # Check if we still own the lock before deleting
+                        current_value = await self._upstash_request("GET", lock_key)
+                        if current_value == identifier:
+                            await self._upstash_request("DEL", lock_key)
+                    else:
+                        if self.redis:
+                            # Use Lua script to atomically check and delete
+                            lua_script = """
+                            if redis.call("get", KEYS[1]) == ARGV[1] then
+                                return redis.call("del", KEYS[1])
+                            else
+                                return 0
+                            end
+                            """
+                            await self.redis.eval(lua_script, 1, lock_key, identifier)
+                except Exception as e:
+                    logger.warning(f"Failed to release lock {key}: {e}")
 
 # Global Redis client instance
 redis_client = RedisClient()
