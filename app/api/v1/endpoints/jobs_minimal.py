@@ -212,6 +212,87 @@ async def get_job_by_id(job_id: int):
             detail="Failed to get job"
         )
 
+@router.get("/hash/{job_hash}", response_model=Dict[str, Any])
+async def get_job_by_hash(job_hash: str):
+    """Get a specific job by hash (for persistent notification references)"""
+    try:
+        # First, try to find the job by hash using title and company
+        # This works even after truncate-and-load operations
+        job_query = """
+            SELECT 
+                id,
+                title,
+                company,
+                apply_link,
+                source,
+                created_at as posted_at
+            FROM scraper.jobs_jobpost
+            WHERE LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)) = $1
+               OR SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+        
+        # Try to find by reconstructed hash pattern or exact hash match
+        job_result = await db_manager.execute_query(job_query, job_hash, job_hash)
+        
+        if not job_result:
+            # If not found by hash, try alternative search by comparing all jobs
+            fallback_query = """
+                SELECT 
+                    id,
+                    title,
+                    company,
+                    apply_link,
+                    source,
+                    created_at as posted_at,
+                    SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) as computed_hash
+                FROM scraper.jobs_jobpost
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 500
+            """
+            
+            all_jobs = await db_manager.execute_query(fallback_query)
+            
+            # Find matching job by hash
+            for job in all_jobs:
+                if job.get('computed_hash') == job_hash:
+                    job_result = [job]
+                    break
+        
+        if not job_result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job not found by hash. This may happen if the job is older than 30 days or has been removed."
+            )
+        
+        job = job_result[0]
+        job_data = {
+            "id": job['id'],
+            "title": job['title'] or "No Title",
+            "company": job['company'] or "Unknown Company", 
+            "apply_link": job['apply_link'] or "",
+            "source": job['source'] or "Unknown",
+            "posted_at": job['posted_at'].isoformat() if job['posted_at'] else None,
+            "hash": job_hash,
+            "found_by": "hash_lookup"
+        }
+        
+        return {
+            "success": True,
+            "data": job_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job by hash {job_hash}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get job by hash"
+        )
+
 @router.get("/sources/list", response_model=Dict[str, Any])  
 async def get_job_sources():
     """Get list of available job sources"""

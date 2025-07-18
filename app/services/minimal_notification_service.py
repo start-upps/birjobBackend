@@ -185,7 +185,7 @@ class MinimalNotificationService:
                 device_id=device_id,
                 job=job,
                 matched_keywords=matched_keywords,
-                match_id=job_hash[:16]  # First 16 chars as match ID
+                match_id=job_hash  # Full hash for persistent reference
             )
             
             if success:

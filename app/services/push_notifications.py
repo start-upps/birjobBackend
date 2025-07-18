@@ -437,8 +437,17 @@ class PushNotificationService:
                 "match_count": job_count,
                 "notification_ids": notification_ids,
                 "job_ids": [job['job_dict'].get('id') for job in jobs],
+                "job_hashes": [job.get('job_hash', '') for job in jobs],  # Add hashes for persistence
+                "job_data": [  # Store essential job data for offline access
+                    {
+                        "hash": job.get('job_hash', ''),
+                        "title": job['job_dict'].get('title', ''),
+                        "company": job['job_dict'].get('company', ''),
+                        "apply_link": job['job_dict'].get('apply_link', '')
+                    } for job in jobs[:5]  # Limit to 5 jobs to avoid payload size issues
+                ],
                 "matched_keywords": unique_keywords,
-                "deep_link": "birjob://jobs/matches"
+                "deep_link": "birjob://jobs/matches/bulk"
             }
         }
     
@@ -471,8 +480,12 @@ class PushNotificationService:
                 "type": "job_match",
                 "match_id": match_id,
                 "job_id": job.get('id'),
+                "job_hash": match_id,  # Use hash for persistent reference
+                "job_title": job.get('title', ''),
+                "job_company": job.get('company', ''),
+                "apply_link": job.get('apply_link', ''),  # Store direct apply link
                 "matched_keywords": matched_keywords,
-                "deep_link": f"birjob://job/{job.get('id')}"
+                "deep_link": f"birjob://job/hash/{match_id}"  # Hash-based deep link
             }
         }
     
