@@ -870,7 +870,7 @@ async def get_notification_job_by_hash(job_hash: str):
                 source,
                 created_at as posted_at
             FROM scraper.jobs_jobpost
-            WHERE SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) = $1
+            WHERE LEFT(ENCODE(SHA256(CONVERT_TO(LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)), 'UTF8')), 'hex'), 32) = $1
             ORDER BY created_at DESC
             LIMIT 1
         """
@@ -887,7 +887,7 @@ async def get_notification_job_by_hash(job_hash: str):
                     apply_link,
                     source,
                     created_at as posted_at,
-                    SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) as computed_hash
+                    LEFT(ENCODE(SHA256(CONVERT_TO(LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)), 'UTF8')), 'hex'), 32) as computed_hash
                 FROM scraper.jobs_jobpost
                 WHERE created_at >= NOW() - INTERVAL '30 days'
                 ORDER BY created_at DESC
@@ -904,14 +904,20 @@ async def get_notification_job_by_hash(job_hash: str):
         
         if not job_result:
             # Return a fallback response with stored notification data
+            logger.info(f"Job not found for hash {job_hash}. Providing fallback response.")
             return {
                 "success": False,
                 "error": "job_not_found",
-                "message": "Job not found. It may have been removed or is older than 30 days.",
+                "message": "Job not found. It may have been removed during data refresh or is older than 30 days.",
                 "data": {
                     "hash": job_hash,
                     "fallback_action": "search_similar_jobs",
-                    "deep_link": f"birjob://search?hash={job_hash}"
+                    "deep_link": f"birjob://search?hash={job_hash}",
+                    "debug_info": {
+                        "searched_period": "30 days",
+                        "search_method": "hash_lookup_with_fallback",
+                        "likely_cause": "job_removed_during_data_refresh"
+                    }
                 }
             }
         
@@ -949,6 +955,89 @@ async def get_notification_job_by_hash(job_hash: str):
             "data": {
                 "hash": job_hash,
                 "fallback_action": "search_similar_jobs",
-                "deep_link": f"birjob://search?hash={job_hash}"
+                "deep_link": f"birjob://search?hash={job_hash}",
+                "debug_info": {
+                    "error_type": "database_error",
+                    "search_method": "hash_lookup_with_fallback",
+                    "likely_cause": "database_connection_issue"
+                }
+            }
+        }
+
+@router.get("/debug/hash-lookup/{job_hash}", response_model=Dict[str, Any])
+async def debug_hash_lookup(job_hash: str):
+    """Debug endpoint for hash lookup issues"""
+    try:
+        from app.services.minimal_notification_service import MinimalNotificationService
+        notification_service = MinimalNotificationService()
+        
+        debug_info = {
+            "input_hash": job_hash,
+            "hash_length": len(job_hash),
+            "database_status": "checking...",
+            "jobs_available": 0,
+            "recent_jobs": [],
+            "hash_generation_test": {}
+        }
+        
+        # Check database connectivity
+        try:
+            count_query = "SELECT COUNT(*) as count FROM scraper.jobs_jobpost"
+            count_result = await db_manager.execute_query(count_query)
+            jobs_count = count_result[0]['count'] if count_result else 0
+            debug_info["jobs_available"] = jobs_count
+            debug_info["database_status"] = "connected"
+        except Exception as e:
+            debug_info["database_status"] = f"error: {str(e)}"
+            debug_info["jobs_available"] = "unknown"
+        
+        # Get recent jobs for testing
+        try:
+            recent_query = """
+                SELECT title, company, 
+                       LEFT(ENCODE(SHA256(CONVERT_TO(LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)), 'UTF8')), 'hex'), 32) as computed_hash
+                FROM scraper.jobs_jobpost
+                ORDER BY created_at DESC
+                LIMIT 5
+            """
+            recent_jobs = await db_manager.execute_query(recent_query)
+            debug_info["recent_jobs"] = [
+                {
+                    "title": job['title'],
+                    "company": job['company'],
+                    "hash": job['computed_hash'],
+                    "matches_input": job['computed_hash'] == job_hash
+                }
+                for job in recent_jobs
+            ]
+        except Exception as e:
+            debug_info["recent_jobs"] = f"error: {str(e)}"
+        
+        # Test hash generation
+        test_cases = [
+            ("Senior Python Developer", "Tech Corp"),
+            ("Python Developer", "StartupXYZ"),
+            ("Backend Engineer", "Company Inc"),
+        ]
+        
+        for title, company in test_cases:
+            generated_hash = notification_service.generate_job_hash(title, company)
+            debug_info["hash_generation_test"][f"{title} | {company}"] = {
+                "generated_hash": generated_hash,
+                "matches_input": generated_hash == job_hash
+            }
+        
+        return {
+            "success": True,
+            "data": debug_info
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "hash": job_hash,
+                "debug_failed": True
             }
         }

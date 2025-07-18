@@ -227,14 +227,13 @@ async def get_job_by_hash(job_hash: str):
                 source,
                 created_at as posted_at
             FROM scraper.jobs_jobpost
-            WHERE LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)) = $1
-               OR SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) = $2
+            WHERE LEFT(ENCODE(SHA256(CONVERT_TO(LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)), 'UTF8')), 'hex'), 32) = $1
             ORDER BY created_at DESC
             LIMIT 1
         """
         
-        # Try to find by reconstructed hash pattern or exact hash match
-        job_result = await db_manager.execute_query(job_query, job_hash, job_hash)
+        # Try to find by hash match
+        job_result = await db_manager.execute_query(job_query, job_hash)
         
         if not job_result:
             # If not found by hash, try alternative search by comparing all jobs
@@ -246,7 +245,7 @@ async def get_job_by_hash(job_hash: str):
                     apply_link,
                     source,
                     created_at as posted_at,
-                    SUBSTRING(ENCODE(SHA256((LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)))::bytea), 'hex'), 1, 32) as computed_hash
+                    LEFT(ENCODE(SHA256(CONVERT_TO(LOWER(TRIM(title)) || '|' || LOWER(TRIM(company)), 'UTF8')), 'hex'), 32) as computed_hash
                 FROM scraper.jobs_jobpost
                 WHERE created_at >= NOW() - INTERVAL '30 days'
                 ORDER BY created_at DESC
