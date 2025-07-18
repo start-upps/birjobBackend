@@ -805,8 +805,9 @@ class PushNotificationService:
         pass
     
     def _validate_device_token(self, device_token: str) -> bool:
-        """Validate APNs device token format"""
+        """Validate APNs device token format with enhanced validation"""
         if not device_token:
+            self.logger.error("Device token is empty")
             return False
         
         # APNs device tokens can be 64, 128, or 160 characters (hex)
@@ -818,10 +819,39 @@ class PushNotificationService:
         # Should only contain hex characters
         try:
             int(device_token, 16)
-            return True
         except ValueError:
             self.logger.error(f"Invalid token format: contains non-hex characters")
             return False
+        
+        # Check for repeating patterns (common in simulator/test tokens)
+        # APNs rejects tokens with too much repetition
+        if self._has_repeating_pattern(device_token):
+            self.logger.warning(f"Device token has repeating patterns - likely iOS Simulator token")
+            self.logger.warning(f"APNs will reject this token. Use a real device for testing.")
+            return False
+            
+        return True
+    
+    def _has_repeating_pattern(self, token: str) -> bool:
+        """Check if token has excessive repeating patterns (common in simulator tokens)"""
+        # Check for excessive repetition of small patterns
+        for pattern_length in [2, 4, 8]:
+            for i in range(0, len(token) - pattern_length + 1, pattern_length):
+                pattern = token[i:i + pattern_length]
+                repetitions = 0
+                
+                # Count consecutive repetitions
+                for j in range(i + pattern_length, len(token), pattern_length):
+                    if j + pattern_length <= len(token) and token[j:j + pattern_length] == pattern:
+                        repetitions += 1
+                    else:
+                        break
+                
+                # If we find 4+ consecutive repetitions of the same pattern, it's likely a test token
+                if repetitions >= 4:
+                    return True
+        
+        return False
     
     def _parse_apns_error(self, response) -> Dict[str, Any]:
         """Parse APNs error response for detailed debugging"""

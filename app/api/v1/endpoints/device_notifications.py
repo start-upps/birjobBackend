@@ -204,7 +204,11 @@ async def get_notification_inbox(
                             "source": source,
                             "job_hash": job_hash,
                             "notification_id": str(notification_id),
-                            "is_read": is_read
+                            "is_read": is_read,
+                            "apply_link": f"/api/v1/device-notifications/job-by-hash/{job_hash}",
+                            "deep_link": f"birjob://job/hash/{job_hash}",
+                            "can_apply": True,
+                            "apply_method": "hash_lookup"
                         }
                         for title, company, source, job_hash, notification_id, is_read in zip(
                             group['job_titles'][:5],  # Show first 5 jobs
@@ -266,7 +270,11 @@ async def get_notification_inbox(
                         "source": notification['job_source'],
                         "job_hash": notification['job_hash'],
                         "notification_id": str(notification['id']),
-                        "is_read": notification.get('is_read', False)
+                        "is_read": notification.get('is_read', False),
+                        "apply_link": f"/api/v1/device-notifications/job-by-hash/{notification['job_hash']}",
+                        "deep_link": f"birjob://job/hash/{notification['job_hash']}",
+                        "can_apply": True,
+                        "apply_method": "hash_lookup"
                     }]
                 })
         
@@ -903,23 +911,63 @@ async def get_notification_job_by_hash(job_hash: str):
                     break
         
         if not job_result:
-            # Return a fallback response with stored notification data
-            logger.info(f"Job not found for hash {job_hash}. Providing fallback response.")
-            return {
-                "success": False,
-                "error": "job_not_found",
-                "message": "Job not found. It may have been removed during data refresh or is older than 30 days.",
-                "data": {
-                    "hash": job_hash,
-                    "fallback_action": "search_similar_jobs",
-                    "deep_link": f"birjob://search?hash={job_hash}",
-                    "debug_info": {
-                        "searched_period": "30 days",
-                        "search_method": "hash_lookup_with_fallback",
-                        "likely_cause": "job_removed_during_data_refresh"
+            # Try to get stored notification data for this hash
+            notification_query = """
+                SELECT job_title, job_company, job_source, sent_at
+                FROM iosapp.notification_hashes
+                WHERE job_hash = $1
+                ORDER BY sent_at DESC
+                LIMIT 1
+            """
+            notification_result = await db_manager.execute_query(notification_query, job_hash)
+            
+            if notification_result:
+                # Return fallback response with stored notification data
+                notification_data = notification_result[0]
+                logger.info(f"Job not found for hash {job_hash}, but notification data exists. Providing fallback response.")
+                return {
+                    "success": False,
+                    "error": "job_not_found",
+                    "message": "This job is no longer available. It may have been removed during data refresh.",
+                    "data": {
+                        "hash": job_hash,
+                        "title": notification_data['job_title'],
+                        "company": notification_data['job_company'],
+                        "source": notification_data['job_source'],
+                        "posted_at": notification_data['sent_at'].isoformat() if notification_data['sent_at'] else None,
+                        "can_apply": False,
+                        "apply_method": "unavailable",
+                        "fallback_action": "search_similar_jobs",
+                        "deep_link": f"birjob://search?company={notification_data['job_company']}&title={notification_data['job_title']}",
+                        "search_link": f"/api/v1/jobs-minimal/?search={notification_data['job_title']}&company={notification_data['job_company']}",
+                        "debug_info": {
+                            "searched_period": "30 days",
+                            "search_method": "hash_lookup_with_fallback",
+                            "likely_cause": "job_removed_during_data_refresh"
+                        }
                     }
                 }
-            }
+            else:
+                # No notification data found either
+                logger.info(f"Job and notification data not found for hash {job_hash}. Providing basic fallback response.")
+                return {
+                    "success": False,
+                    "error": "job_not_found",
+                    "message": "Job not found. It may have been removed during data refresh or is older than 30 days.",
+                    "data": {
+                        "hash": job_hash,
+                        "can_apply": False,
+                        "apply_method": "unavailable",
+                        "fallback_action": "search_similar_jobs",
+                        "deep_link": f"birjob://search?hash={job_hash}",
+                        "search_link": f"/api/v1/jobs-minimal/?search=",
+                        "debug_info": {
+                            "searched_period": "30 days",
+                            "search_method": "hash_lookup_with_fallback",
+                            "likely_cause": "job_removed_during_data_refresh"
+                        }
+                    }
+                }
         
         job = job_result[0]
         
@@ -963,6 +1011,147 @@ async def get_notification_job_by_hash(job_hash: str):
                 }
             }
         }
+
+@router.post("/apply/{device_token}")
+async def handle_notification_apply(
+    device_token: str,
+    request_data: Dict[str, Any]
+):
+    """Handle apply action from iOS notification inbox with enhanced fallback mechanisms"""
+    try:
+        # Validate device token
+        device_token = validate_device_token(device_token)
+        
+        job_hash = request_data.get("job_hash")
+        notification_id = request_data.get("notification_id")
+        
+        if not job_hash:
+            raise HTTPException(status_code=400, detail="job_hash is required")
+        
+        # Get device info
+        device_query = """
+            SELECT id FROM iosapp.device_users
+            WHERE device_token = $1
+        """
+        device_result = await db_manager.execute_query(device_query, device_token)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        device_id = device_result[0]['id']
+        
+        # Try to get the job by hash first
+        job_lookup_result = await get_notification_job_by_hash(job_hash)
+        
+        if job_lookup_result.get("success"):
+            # Job found, return direct apply link
+            job_data = job_lookup_result["data"]
+            
+            # Mark notification as read if notification_id provided
+            if notification_id:
+                try:
+                    import uuid
+                    notification_uuid = uuid.UUID(str(notification_id))
+                    mark_read_query = """
+                        UPDATE iosapp.notification_hashes
+                        SET is_read = true, read_at = NOW()
+                        WHERE device_id = $1 AND id = $2
+                    """
+                    await db_manager.execute_query(mark_read_query, device_id, notification_uuid)
+                except Exception as e:
+                    logger.warning(f"Failed to mark notification as read: {e}")
+            
+            # Track apply attempt (with consent check)
+            metadata = {
+                "job_hash": job_hash,
+                "apply_method": job_data.get("apply_method", "direct"),
+                "success": True,
+                "applied_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await privacy_analytics_service.track_action_with_consent(
+                str(device_id),
+                'job_apply_attempt',
+                metadata
+            )
+            
+            return {
+                "success": True,
+                "action": "apply_direct",
+                "data": {
+                    "apply_link": job_data.get("apply_link"),
+                    "job_title": job_data.get("title"),
+                    "job_company": job_data.get("company"),
+                    "deep_link": f"birjob://job/details/{job_data.get('id')}",
+                    "external_apply": bool(job_data.get("apply_link")),
+                    "message": "Redirecting to job application..."
+                }
+            }
+        else:
+            # Job not found, provide fallback search options
+            fallback_data = job_lookup_result.get("data", {})
+            
+            # Track failed apply attempt (with consent check)
+            metadata = {
+                "job_hash": job_hash,
+                "apply_method": "fallback_search",
+                "success": False,
+                "error": job_lookup_result.get("error", "job_not_found"),
+                "applied_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await privacy_analytics_service.track_action_with_consent(
+                str(device_id),
+                'job_apply_attempt',
+                metadata
+            )
+            
+            # Provide search alternatives
+            search_options = []
+            
+            if fallback_data.get("title") and fallback_data.get("company"):
+                search_options.append({
+                    "type": "similar_jobs",
+                    "label": f"Find similar jobs at {fallback_data.get('company')}",
+                    "search_link": f"/api/v1/jobs-minimal/?company={fallback_data.get('company')}",
+                    "deep_link": f"birjob://search?company={fallback_data.get('company')}"
+                })
+                
+                search_options.append({
+                    "type": "title_search", 
+                    "label": f"Search for '{fallback_data.get('title')}'",
+                    "search_link": f"/api/v1/jobs-minimal/?search={fallback_data.get('title')}",
+                    "deep_link": f"birjob://search?title={fallback_data.get('title')}"
+                })
+            
+            search_options.append({
+                "type": "general_search",
+                "label": "Browse all recent jobs",
+                "search_link": "/api/v1/jobs-minimal/?days=7",
+                "deep_link": "birjob://search?recent=true"
+            })
+            
+            return {
+                "success": False,
+                "action": "show_alternatives",
+                "error": "job_no_longer_available",
+                "message": "This job is no longer available. Here are some alternatives:",
+                "data": {
+                    "original_job": {
+                        "title": fallback_data.get("title", "Unknown Job"),
+                        "company": fallback_data.get("company", "Unknown Company"),
+                        "hash": job_hash
+                    },
+                    "search_options": search_options,
+                    "fallback_action": fallback_data.get("fallback_action", "search_similar_jobs")
+                }
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error handling notification apply: {e}")
+        raise HTTPException(status_code=500, detail="Failed to handle apply action")
 
 @router.get("/debug/hash-lookup/{job_hash}", response_model=Dict[str, Any])
 async def debug_hash_lookup(job_hash: str):
