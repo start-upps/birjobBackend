@@ -53,20 +53,21 @@ class MinimalNotificationService:
     
     async def record_notification_sent(self, device_id: str, job_hash: str, 
                                      job_title: str, company: str, 
-                                     job_source: str, matched_keywords: List[str]) -> bool:
+                                     job_source: str, matched_keywords: List[str],
+                                     apply_link: str = None) -> bool:
         """Record that notification was sent - returns True if this is the first time"""
         try:
             query = """
                 INSERT INTO iosapp.notification_hashes 
-                (device_id, job_hash, job_title, job_company, job_source, matched_keywords)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                (device_id, job_hash, job_title, job_company, job_source, matched_keywords, apply_link)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (device_id, job_hash) DO NOTHING
                 RETURNING id
             """
             
             result = await db_manager.execute_query(
                 query, device_id, job_hash, job_title, company, 
-                job_source, json.dumps(matched_keywords)
+                job_source, json.dumps(matched_keywords), apply_link
             )
             
             # If result is empty, notification already exists (duplicate)
@@ -266,7 +267,8 @@ class MinimalNotificationService:
                                                 notification_recorded = await self.record_notification_sent(
                                                     device_id, job_hash, 
                                                     job.get('title', ''), job.get('company', ''),
-                                                    job.get('source', ''), matched_keywords
+                                                    job.get('source', ''), matched_keywords,
+                                                    job.get('apply_link')
                                                 )
                                                 
                                                 if notification_recorded:
@@ -278,7 +280,8 @@ class MinimalNotificationService:
                                         notification_recorded = await self.record_notification_sent(
                                             device_id, job_hash, 
                                             job.get('title', ''), job.get('company', ''),
-                                            job.get('source', ''), matched_keywords
+                                            job.get('source', ''), matched_keywords,
+                                            job.get('apply_link')
                                         )
                                         
                                         if notification_recorded:

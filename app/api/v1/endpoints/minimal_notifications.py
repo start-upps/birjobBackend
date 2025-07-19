@@ -243,7 +243,8 @@ async def test_device_notification(device_token: str):
             )
             await minimal_notification_service.record_notification_sent(
                 device_id, job_hash, test_job["title"], 
-                test_job["company"], "test", ["test"]
+                test_job["company"], "test", ["test"], 
+                "https://example.com/apply/test"  # Test apply link
             )
         
         return {

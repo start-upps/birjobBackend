@@ -391,7 +391,8 @@ async def send_test_notification(device_token: str):
             
             await minimal_notification_service.record_notification_sent(
                 str(device_id), job_hash, test_job["title"], 
-                test_job["company"], "test", keywords[:2] if keywords else ["Test"]
+                test_job["company"], "test", keywords[:2] if keywords else ["Test"],
+                "https://example.com/apply/test-notification"  # Test apply link
             )
         
         return {
@@ -913,7 +914,7 @@ async def get_notification_job_by_hash(job_hash: str):
         if not job_result:
             # Try to get stored notification data for this hash
             notification_query = """
-                SELECT job_title, job_company, job_source, sent_at
+                SELECT job_title, job_company, job_source, sent_at, apply_link
                 FROM iosapp.notification_hashes
                 WHERE job_hash = $1
                 ORDER BY sent_at DESC
@@ -922,31 +923,53 @@ async def get_notification_job_by_hash(job_hash: str):
             notification_result = await db_manager.execute_query(notification_query, job_hash)
             
             if notification_result:
-                # Return fallback response with stored notification data
+                # Return response with stored notification data
                 notification_data = notification_result[0]
-                logger.info(f"Job not found for hash {job_hash}, but notification data exists. Providing fallback response.")
-                return {
-                    "success": False,
-                    "error": "job_not_found",
-                    "message": "This job is no longer available. It may have been removed during data refresh.",
-                    "data": {
-                        "hash": job_hash,
-                        "title": notification_data['job_title'],
-                        "company": notification_data['job_company'],
-                        "source": notification_data['job_source'],
-                        "posted_at": notification_data['sent_at'].isoformat() if notification_data['sent_at'] else None,
-                        "can_apply": False,
-                        "apply_method": "unavailable",
-                        "fallback_action": "search_similar_jobs",
-                        "deep_link": f"birjob://search?company={notification_data['job_company']}&title={notification_data['job_title']}",
-                        "search_link": f"/api/v1/jobs-minimal/?search={notification_data['job_title']}&company={notification_data['job_company']}",
-                        "debug_info": {
-                            "searched_period": "30 days",
-                            "search_method": "hash_lookup_with_fallback",
-                            "likely_cause": "job_removed_during_data_refresh"
+                stored_apply_link = notification_data.get('apply_link')
+                
+                if stored_apply_link:
+                    # We have a stored apply link - return success for direct application
+                    logger.info(f"Job not found for hash {job_hash}, but stored apply link available. Providing direct apply.")
+                    return {
+                        "success": True,
+                        "data": {
+                            "id": "stored_notification",
+                            "title": notification_data['job_title'],
+                            "company": notification_data['job_company'],
+                            "source": notification_data['job_source'],
+                            "posted_at": notification_data['sent_at'].isoformat() if notification_data['sent_at'] else None,
+                            "hash": job_hash,
+                            "apply_link": stored_apply_link,
+                            "can_apply": True,
+                            "apply_method": "stored_link",
+                            "found_by": "notification_storage"
                         }
                     }
-                }
+                else:
+                    # No stored apply link - provide fallback search options
+                    logger.info(f"Job not found for hash {job_hash}, no stored apply link. Providing fallback response.")
+                    return {
+                        "success": False,
+                        "error": "job_not_found",
+                        "message": "This job is no longer available. It may have been removed during data refresh.",
+                        "data": {
+                            "hash": job_hash,
+                            "title": notification_data['job_title'],
+                            "company": notification_data['job_company'],
+                            "source": notification_data['job_source'],
+                            "posted_at": notification_data['sent_at'].isoformat() if notification_data['sent_at'] else None,
+                            "can_apply": False,
+                            "apply_method": "unavailable",
+                            "fallback_action": "search_similar_jobs",
+                            "deep_link": f"birjob://search?company={notification_data['job_company']}&title={notification_data['job_title']}",
+                            "search_link": f"/api/v1/jobs-minimal/?search={notification_data['job_title']}&company={notification_data['job_company']}",
+                            "debug_info": {
+                                "searched_period": "30 days",
+                                "search_method": "hash_lookup_with_fallback",
+                                "likely_cause": "job_removed_during_data_refresh"
+                            }
+                        }
+                    }
             else:
                 # No notification data found either
                 logger.info(f"Job and notification data not found for hash {job_hash}. Providing basic fallback response.")
