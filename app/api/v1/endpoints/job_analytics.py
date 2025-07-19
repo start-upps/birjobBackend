@@ -546,3 +546,58 @@ async def get_snapshot_summary():
     except Exception as e:
         logger.error(f"Error getting snapshot summary: {e}")
         raise HTTPException(status_code=500, detail="Failed to get snapshot summary")
+
+@router.post("/event")
+async def track_analytics_event(request: Dict[str, Any]):
+    """
+    Track user analytics events (apply attempts, job views, etc.)
+    Used by iOS app to track user interactions
+    """
+    try:
+        device_id = request.get("device_id")
+        action_type = request.get("action_type")
+        action_data = request.get("action_data", {})
+        
+        if not device_id or not action_type:
+            raise HTTPException(status_code=400, detail="device_id and action_type are required")
+        
+        # Track the event using privacy analytics service
+        from app.services.privacy_analytics_service import privacy_analytics_service
+        
+        # Map action types to analytics actions
+        analytics_action = {
+            "job_apply_from_notification": "job_apply_attempt",
+            "job_view": "job_view",
+            "notification_open": "notification_opened",
+            "search_performed": "job_search",
+            "job_share": "job_shared"
+        }.get(action_type, action_type)
+        
+        # Extract relevant metadata
+        metadata = {
+            "action_type": action_type,
+            "timestamp": datetime.now().isoformat(),
+            **action_data
+        }
+        
+        # Track with consent check
+        await privacy_analytics_service.track_action_with_consent(
+            device_id,
+            analytics_action,
+            metadata
+        )
+        
+        logger.info(f"Tracked analytics event: {action_type} for device {device_id[:8]}...")
+        
+        return {
+            "success": True,
+            "message": "Event tracked successfully",
+            "action_type": action_type,
+            "analytics_action": analytics_action
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error tracking analytics event: {e}")
+        raise HTTPException(status_code=500, detail="Failed to track analytics event")

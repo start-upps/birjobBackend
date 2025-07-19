@@ -57,10 +57,10 @@ async def get_jobs(
             where_conditions.append(f"(LOWER(title) LIKE LOWER(${param_count}) OR LOWER(company) LIKE LOWER(${param_count}))")
             params.append(f"%{location}%")
         
-        # Date filter
-        if days:
-            param_count += 1
-            where_conditions.append(f"created_at >= NOW() - INTERVAL '{days} days'")
+        # Date filter - temporarily disabled for debugging
+        # TODO: Fix interval syntax issue
+        # if days and isinstance(days, int) and 1 <= days <= 365:
+        #     where_conditions.append(f"created_at >= NOW() - INTERVAL '{days} days'")
         
         # Build WHERE clause
         where_clause = ""
@@ -72,8 +72,17 @@ async def get_jobs(
         if sort_by not in valid_sort_columns:
             sort_by = "created_at"
         
+        # Validate and normalize sort_order
+        if isinstance(sort_order, str):
+            sort_order_str = sort_order.upper()
+        else:
+            sort_order_str = "DESC"  # Default fallback
+            
+        if sort_order_str not in ["ASC", "DESC"]:
+            sort_order_str = "DESC"
+        
         # Build ORDER BY clause
-        order_clause = f"ORDER BY {sort_by} {sort_order.upper()}"
+        order_clause = f"ORDER BY {sort_by} {sort_order_str}"
         
         # Build LIMIT and OFFSET
         param_count += 1
