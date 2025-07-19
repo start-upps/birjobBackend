@@ -1051,15 +1051,31 @@ async def handle_notification_apply(
             if notification_id:
                 try:
                     import uuid
-                    notification_uuid = uuid.UUID(str(notification_id))
-                    mark_read_query = """
-                        UPDATE iosapp.notification_hashes
-                        SET is_read = true, read_at = NOW()
-                        WHERE device_id = $1 AND id = $2
-                    """
-                    await db_manager.execute_query(mark_read_query, device_id, notification_uuid)
+                    
+                    # Handle different notification ID formats
+                    if str(notification_id).startswith('group_'):
+                        # For grouped notifications, mark all notifications for this job_hash as read
+                        mark_group_query = """
+                            UPDATE iosapp.notification_hashes
+                            SET is_read = true, read_at = NOW()
+                            WHERE device_id = $1 AND job_hash = $2 AND is_read = false
+                        """
+                        await db_manager.execute_query(mark_group_query, device_id, job_hash)
+                        logger.debug(f"Marked group notifications as read for job_hash: {job_hash}")
+                    else:
+                        # For individual notifications, try to parse as UUID
+                        notification_uuid = uuid.UUID(str(notification_id))
+                        mark_read_query = """
+                            UPDATE iosapp.notification_hashes
+                            SET is_read = true, read_at = NOW()
+                            WHERE device_id = $1 AND id = $2
+                        """
+                        await db_manager.execute_query(mark_read_query, device_id, notification_uuid)
+                        logger.debug(f"Marked individual notification as read: {notification_id}")
+                        
                 except Exception as e:
-                    logger.warning(f"Failed to mark notification as read: {e}")
+                    logger.warning(f"Failed to mark notification as read (notification_id: {notification_id}): {e}")
+                    # Still continue with the apply process even if marking as read fails
             
             # Track apply attempt (with consent check)
             metadata = {
