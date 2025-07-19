@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost/birjob_ios"
     
+    # API Base URL
+    BASE_URL: str = "https://birjobbackend-ir3e.onrender.com"
+    
     # Redis - Support both standard Redis and Upstash REST
     REDIS_URL: str = "redis://localhost:6379/0"
     UPSTASH_REDIS_REST_URL: Optional[str] = None

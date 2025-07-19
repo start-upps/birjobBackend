@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 
 from app.core.database import db_manager
+from app.core.config import settings
 from app.services.privacy_analytics_service import privacy_analytics_service
 # from app.utils.validation import validate_device_token
 
@@ -205,7 +206,7 @@ async def get_notification_inbox(
                             "job_hash": job_hash,
                             "notification_id": str(notification_id),
                             "is_read": is_read,
-                            "apply_link": f"/api/v1/notifications/job-by-hash/{job_hash}",
+                            "apply_link": f"{settings.BASE_URL}/api/v1/notifications/job-by-hash/{job_hash}",
                             "deep_link": f"birjob://job/hash/{job_hash}",
                             "can_apply": True,
                             "apply_method": "hash_lookup"
@@ -271,7 +272,7 @@ async def get_notification_inbox(
                         "job_hash": notification['job_hash'],
                         "notification_id": str(notification['id']),
                         "is_read": notification.get('is_read', False),
-                        "apply_link": f"/api/v1/notifications/job-by-hash/{notification['job_hash']}",
+                        "apply_link": f"{settings.BASE_URL}/api/v1/notifications/job-by-hash/{notification['job_hash']}",
                         "deep_link": f"birjob://job/hash/{notification['job_hash']}",
                         "can_apply": True,
                         "apply_method": "hash_lookup"
