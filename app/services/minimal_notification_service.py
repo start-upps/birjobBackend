@@ -304,21 +304,27 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
-                            # Send summary notification
-                            success = await self.send_summary_notification(
-                                device_token, device_id, len(matching_jobs), list(all_matched_keywords), matching_jobs[:3]
-                            )
+                            # Send individual job notifications instead of summary
+                            success_count = 0
+                            for job in matching_jobs[:5]:  # Limit to 5 jobs to avoid spam
+                                job_success = await self.send_job_notification(
+                                    device_token, device_id, job, list(all_matched_keywords)[:3]
+                                )
+                                if job_success:
+                                    success_count += 1
+                            
+                            success = success_count > 0
                             
                             if success:
                                 stats["notifications_sent"] += 1
-                                logger.info(f"✅ Sent summary notification to device {device_id[:8]}...")
+                                logger.info(f"✅ Sent {success_count} job notifications to device {device_id[:8]}...")
                             else:
                                 stats["errors"] += 1
                                 logger.error(f"❌ Failed to send notification to device {device_id[:8]}...")
                         else:
                             # Dry run - just count
                             stats["notifications_sent"] += 1
-                            logger.info(f"DRY RUN: Would send summary notification to device {device_id[:8]}... for {len(matching_jobs)} jobs")
+                            logger.info(f"DRY RUN: Would send {len(matching_jobs[:5])} job notifications to device {device_id[:8]}...")
                     else:
                         logger.info(f"No new matches for device {device_id[:8]}...")
                 
@@ -334,29 +340,6 @@ class MinimalNotificationService:
             logger.error(f"Error in process_job_notifications: {e}")
             return {"processed_jobs": 0, "matched_devices": 0, "notifications_sent": 0, "errors": 1}
     
-    async def send_summary_notification(self, device_token: str, device_id: str, 
-                                      job_count: int, matched_keywords: List[str], 
-                                      sample_jobs: List[Dict[str, Any]]) -> bool:
-        """Send one summary notification instead of individual job notifications"""
-        try:
-            # Create summary job for notification
-            summary_job = {
-                "id": "summary",
-                "title": f"{job_count} New Job{'s' if job_count != 1 else ''} Found!",
-                "company": f"Matching: {', '.join(matched_keywords[:3])}",
-                "source": "job_summary",
-                "apply_link": "",
-                "posted_at": datetime.now().isoformat()
-            }
-            
-            success = await self.send_job_notification(
-                device_token, device_id, summary_job, matched_keywords[:5]  # Limit keywords
-            )
-            
-            return success
-        except Exception as e:
-            logger.error(f"Error sending summary notification: {e}")
-            return False
     
     async def cleanup_old_notification_hashes(self, days_old: int = 30) -> int:
         """Clean up old notification hashes to prevent table growth"""
