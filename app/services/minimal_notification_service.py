@@ -304,14 +304,20 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
-                            # Send individual job notifications instead of summary
+                            # Send individual job notifications (limited to avoid spam and throttling)
                             success_count = 0
-                            for job in matching_jobs[:5]:  # Limit to 5 jobs to avoid spam
+                            max_notifications = min(3, len(matching_jobs))  # Send max 3 notifications
+                            
+                            for job in matching_jobs[:max_notifications]:
                                 job_success = await self.send_job_notification(
                                     device_token, device_id, job, list(all_matched_keywords)[:3]
                                 )
                                 if job_success:
                                     success_count += 1
+                                else:
+                                    # If throttled, stop trying to send more
+                                    logger.warning(f"Notification failed for device {device_id[:8]}... (likely throttled), stopping batch")
+                                    break
                             
                             success = success_count > 0
                             

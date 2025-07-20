@@ -50,8 +50,8 @@ OvjzFGyZ
     
     # Job Matching
     MATCH_ENGINE_INTERVAL_MINUTES: int = 5
-    MAX_NOTIFICATIONS_PER_HOUR: int = 5
-    MAX_NOTIFICATIONS_PER_DAY: int = 20
+    MAX_NOTIFICATIONS_PER_HOUR: int = 15  # Allow multiple batches of 3 notifications
+    MAX_NOTIFICATIONS_PER_DAY: int = 50   # Reasonable daily limit for job opportunities
     QUIET_HOURS_START: int = 22  # 10 PM
     QUIET_HOURS_END: int = 8     # 8 AM
     
