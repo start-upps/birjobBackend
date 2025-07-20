@@ -577,10 +577,8 @@ class PushNotificationService:
             return False
         
         try:
-            # Store notification in database first
-            await self._store_notification(
-                device_token, notification_id, payload, notification_type, match_id
-            )
+            # NOTE: Notification storage is handled by minimal_notification_service.py
+            # to avoid duplicates with job_source='push_notification'
             
             apns_client = await self._get_apns_client() if APNS_AVAILABLE else None
             if apns_client:
@@ -671,67 +669,6 @@ class PushNotificationService:
             await self._update_notification_status(notification_id, "failed", error_details)
             return False
     
-    async def _store_notification(
-        self,
-        device_token: str,
-        notification_id: str,
-        payload: Dict[str, Any],
-        notification_type: str,
-        match_id: Optional[str] = None
-    ):
-        """Store notification in database"""
-        try:
-            # Get device info from token (updated to use device_users table)
-            device_query = """
-                SELECT id as device_id, id as user_id 
-                FROM iosapp.device_users 
-                WHERE device_token = $1
-            """
-            device_result = await db_manager.execute_query(device_query, device_token)
-            
-            if not device_result:
-                raise Exception(f"Device not found for token: {device_token}")
-            
-            device_data = device_result[0]
-            
-            # Use the existing notification_hashes table for tracking
-            # Extract job info from payload for storage
-            job_title = payload.get('aps', {}).get('alert', {}).get('title', 'Job Match')
-            job_company = payload.get('job_company', 'Unknown Company')
-            
-            # Store in notification_hashes table (which exists in current schema)
-            query = """
-                INSERT INTO iosapp.notification_hashes 
-                (device_id, job_hash, job_title, job_company, job_source, matched_keywords, sent_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ON CONFLICT (device_id, job_hash) DO NOTHING
-            """
-            
-            # Create a hash for this notification using same method as MinimalNotificationService
-            import hashlib
-            # Normalize inputs same way
-            title_normalized = (job_title or "").strip().lower()
-            company_normalized = (job_company or "").strip().lower()
-            
-            hash_input = f"{title_normalized}|{company_normalized}".encode('utf-8')
-            job_hash = hashlib.sha256(hash_input).hexdigest()[:32]
-            
-            # Extract matched keywords from payload
-            matched_keywords = payload.get('matched_keywords', [])
-            
-            await db_manager.execute_command(
-                query,
-                device_data['device_id'],
-                job_hash,
-                job_title,
-                job_company,
-                'push_notification',
-                json.dumps(matched_keywords)
-            )
-            
-        except Exception as e:
-            self.logger.error(f"Error storing notification: {e}")
-            raise e
     
     async def _update_notification_status(
         self,
