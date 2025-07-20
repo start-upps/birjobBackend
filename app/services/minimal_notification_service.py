@@ -304,33 +304,35 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
-                            # Send individual job notifications (limited to avoid spam and throttling)
-                            success_count = 0
-                            max_notifications = min(3, len(matching_jobs))  # Send max 3 notifications
+                            # Send ONE smart notification with the best job match
+                            # Choose the most recent job as the primary notification
+                            primary_job = matching_jobs[0]  # Most recent/relevant job
+                            job_count = len(matching_jobs)
                             
-                            for job in matching_jobs[:max_notifications]:
-                                job_success = await self.send_job_notification(
-                                    device_token, device_id, job, list(all_matched_keywords)[:3]
-                                )
-                                if job_success:
-                                    success_count += 1
-                                else:
-                                    # If throttled, stop trying to send more
-                                    logger.warning(f"Notification failed for device {device_id[:8]}... (likely throttled), stopping batch")
-                                    break
+                            # Create enhanced job notification with batch context
+                            enhanced_job = {
+                                **primary_job,
+                                "batch_context": {
+                                    "total_matches": job_count,
+                                    "additional_jobs": job_count - 1 if job_count > 1 else 0,
+                                    "matched_keywords": list(all_matched_keywords)[:3]
+                                }
+                            }
                             
-                            success = success_count > 0
+                            success = await self.send_job_notification(
+                                device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
+                            )
                             
                             if success:
                                 stats["notifications_sent"] += 1
-                                logger.info(f"✅ Sent {success_count} job notifications to device {device_id[:8]}...")
+                                logger.info(f"✅ Sent 1 smart notification ({job_count} matches) to device {device_id[:8]}...")
                             else:
                                 stats["errors"] += 1
                                 logger.error(f"❌ Failed to send notification to device {device_id[:8]}...")
                         else:
                             # Dry run - just count
                             stats["notifications_sent"] += 1
-                            logger.info(f"DRY RUN: Would send {len(matching_jobs[:5])} job notifications to device {device_id[:8]}...")
+                            logger.info(f"DRY RUN: Would send 1 smart notification ({len(matching_jobs)} matches) to device {device_id[:8]}...")
                     else:
                         logger.info(f"No new matches for device {device_id[:8]}...")
                 

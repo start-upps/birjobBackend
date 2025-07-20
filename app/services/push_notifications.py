@@ -459,17 +459,31 @@ class PushNotificationService:
     ) -> Dict[str, Any]:
         """Create push notification payload for job match"""
         
+        # Handle batch context for smart notifications
+        batch_context = job.get('batch_context', {})
+        total_matches = batch_context.get('total_matches', 1)
+        
         # Truncate title and company for notification
         title = job.get('title', 'New Job')[:50]
         company = job.get('company', 'Unknown Company')[:30]
         keywords_text = ', '.join(matched_keywords[:3])  # Show max 3 keywords
         
+        # Create smart notification text based on match count
+        if total_matches > 1:
+            notification_title = f"🎯 {title}"
+            notification_subtitle = f"🏢 {company}"
+            notification_body = f"💼 {keywords_text} • +{total_matches-1} more jobs"
+        else:
+            notification_title = f"🎯 {title}"
+            notification_subtitle = f"🏢 {company}"
+            notification_body = f"💼 {keywords_text}"
+        
         return {
             "aps": {
                 "alert": {
-                    "title": f"🎯 {title}",
-                    "subtitle": f"🏢 {company}",
-                    "body": f"💼 {keywords_text}"
+                    "title": notification_title,
+                    "subtitle": notification_subtitle,
+                    "body": notification_body
                 },
                 "badge": 1,
                 "sound": "default",
