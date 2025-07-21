@@ -459,9 +459,10 @@ class PushNotificationService:
     ) -> Dict[str, Any]:
         """Create push notification payload for job match"""
         
-        # Handle batch context for smart notifications
-        batch_context = job.get('batch_context', {})
-        total_matches = batch_context.get('total_matches', 1)
+        # Handle session context for smart notifications
+        session_context = job.get('session_context', {})
+        total_matches = session_context.get('total_matches', 1)
+        session_id = session_context.get('session_id')
         
         # Truncate title and company for notification
         title = job.get('title', 'New Job')[:50]
@@ -493,13 +494,15 @@ class PushNotificationService:
             "custom_data": {
                 "type": "job_match",
                 "match_id": match_id,
+                "session_id": session_id,  # Session ID for full job list access
                 "job_id": job.get('id'),
                 "job_hash": match_id,  # Use hash for persistent reference
                 "job_title": job.get('title', ''),
                 "job_company": job.get('company', ''),
                 "apply_link": job.get('apply_link', ''),  # Store direct apply link
                 "matched_keywords": matched_keywords,
-                "deep_link": f"birjob://job/hash/{match_id}"  # Hash-based deep link
+                "total_matches": total_matches,
+                "deep_link": f"birjob://session/{session_id}" if session_id else f"birjob://job/hash/{match_id}"
             }
         }
     

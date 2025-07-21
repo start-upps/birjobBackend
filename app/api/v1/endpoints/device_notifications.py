@@ -1270,3 +1270,153 @@ async def debug_hash_lookup(job_hash: str):
                 "debug_failed": True
             }
         }
+
+@router.get("/job-matches/{device_token}", response_model=Dict[str, Any])
+async def get_job_matches_by_session(
+    device_token: str,
+    session_id: Optional[str] = None,
+    limit: int = Query(default=20, ge=1, le=100, description="Number of jobs to return"),
+    offset: int = Query(default=0, ge=0, description="Number of jobs to skip")
+):
+    """Get paginated job matches from a session or latest session"""
+    try:
+        # Validate device token
+        device_token = validate_device_token(device_token)
+        
+        # Get device info
+        device_query = """
+            SELECT id FROM iosapp.device_users
+            WHERE device_token = $1
+        """
+        device_result = await db_manager.execute_query(device_query, device_token)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        device_id = str(device_result[0]['id'])
+        
+        # If no session_id provided, get the latest session
+        if not session_id:
+            latest_session_query = """
+                SELECT session_id FROM iosapp.job_match_sessions
+                WHERE device_id = $1 AND notification_sent = true
+                ORDER BY created_at DESC
+                LIMIT 1
+            """
+            session_result = await db_manager.execute_query(latest_session_query, device_id)
+            
+            if not session_result:
+                return {
+                    "success": True,
+                    "data": {
+                        "session": None,
+                        "jobs": [],
+                        "pagination": {
+                            "total": 0,
+                            "limit": limit,
+                            "offset": offset,
+                            "has_more": False
+                        }
+                    },
+                    "message": "No job match sessions found"
+                }
+            
+            session_id = session_result[0]['session_id']
+        
+        # Get session details
+        session_query = """
+            SELECT session_id, total_matches, matched_keywords, created_at
+            FROM iosapp.job_match_sessions
+            WHERE session_id = $1 AND device_id = $2
+        """
+        session_result = await db_manager.execute_query(session_query, session_id, device_id)
+        
+        if not session_result:
+            raise HTTPException(status_code=404, detail="Job match session not found")
+        
+        session_data = session_result[0]
+        
+        # Get paginated jobs from session
+        jobs_query = """
+            SELECT job_hash, job_title, job_company, job_source, apply_link, 
+                   job_data, match_score, created_at
+            FROM iosapp.job_match_session_jobs
+            WHERE session_id = $1
+            ORDER BY match_score DESC, created_at DESC
+            LIMIT $2 OFFSET $3
+        """
+        
+        jobs_result = await db_manager.execute_query(jobs_query, session_id, limit, offset)
+        
+        # Get total count
+        count_query = """
+            SELECT COUNT(*) as total
+            FROM iosapp.job_match_session_jobs
+            WHERE session_id = $1
+        """
+        count_result = await db_manager.execute_query(count_query, session_id)
+        total_count = count_result[0]['total'] if count_result else 0
+        
+        # Format jobs data
+        jobs_data = []
+        for job in jobs_result:
+            try:
+                # Parse job_data JSON
+                job_data = json.loads(job['job_data']) if job['job_data'] else {}
+                
+                job_item = {
+                    "hash": job['job_hash'],
+                    "title": job['job_title'],
+                    "company": job['job_company'],
+                    "source": job['job_source'],
+                    "apply_link": job['apply_link'] or job_data.get('apply_link', ''),
+                    "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
+                    "match_score": job['match_score'],
+                    "can_apply": bool(job['apply_link'] or job_data.get('apply_link')),
+                    "deep_link": f"birjob://job/hash/{job['job_hash']}"
+                }
+                
+                # Add additional data from job_data if available
+                if job_data:
+                    job_item.update({
+                        "id": job_data.get('id'),
+                        "description": job_data.get('description', '')[:200] + "..." if job_data.get('description', '') else ""
+                    })
+                
+                jobs_data.append(job_item)
+                
+            except Exception as e:
+                logger.error(f"Error processing job in session {session_id}: {e}")
+                continue
+        
+        # Calculate pagination info
+        has_more = offset + limit < total_count
+        current_page = (offset // limit) + 1
+        total_pages = (total_count + limit - 1) // limit
+        
+        return {
+            "success": True,
+            "data": {
+                "session": {
+                    "session_id": session_data['session_id'],
+                    "total_matches": session_data['total_matches'],
+                    "matched_keywords": json.loads(session_data['matched_keywords']) if session_data['matched_keywords'] else [],
+                    "created_at": session_data['created_at'].isoformat()
+                },
+                "jobs": jobs_data,
+                "pagination": {
+                    "total": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "current_page": current_page,
+                    "total_pages": total_pages,
+                    "has_more": has_more
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job matches for device {device_token[:16]}...: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get job matches")

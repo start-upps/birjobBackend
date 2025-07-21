@@ -8,6 +8,7 @@ import hashlib
 import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+import uuid
 
 from app.core.database import db_manager
 from app.core.redis_client import redis_client
@@ -98,6 +99,72 @@ class MinimalNotificationService:
             )
         except Exception as e:
             logger.error(f"Error tracking notification analytics: {e}")
+    
+    async def create_job_match_session(self, device_id: str, matched_jobs: List[Dict[str, Any]], 
+                                     matched_keywords: List[str]) -> str:
+        """Create a job match session and store all matched jobs"""
+        try:
+            # Generate unique session ID
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            session_id = f"match_{timestamp}_{str(uuid.uuid4())[:8]}"
+            
+            # Create the session record
+            session_query = """
+                INSERT INTO iosapp.job_match_sessions 
+                (session_id, device_id, total_matches, matched_keywords, notification_sent)
+                VALUES ($1, $2, $3, $4, false)
+                RETURNING session_id
+            """
+            
+            session_result = await db_manager.execute_query(
+                session_query, session_id, device_id, len(matched_jobs), 
+                json.dumps(matched_keywords)
+            )
+            
+            if not session_result:
+                raise Exception("Failed to create job match session")
+            
+            # Store all matched jobs in the session
+            for i, job in enumerate(matched_jobs):
+                job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                
+                job_insert_query = """
+                    INSERT INTO iosapp.job_match_session_jobs 
+                    (session_id, job_hash, job_title, job_company, job_source, apply_link, job_data, match_score)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (session_id, job_hash) DO NOTHING
+                """
+                
+                await db_manager.execute_query(
+                    job_insert_query,
+                    session_id,
+                    job_hash,
+                    job.get('title', '')[:500],
+                    job.get('company', '')[:200],
+                    job.get('source', '')[:100],
+                    job.get('apply_link', ''),
+                    json.dumps(job),
+                    1000 - i  # Higher score for earlier jobs (better matches)
+                )
+            
+            logger.info(f"Created job match session {session_id} with {len(matched_jobs)} jobs for device {device_id[:8]}...")
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Error creating job match session: {e}")
+            return None
+    
+    async def mark_session_notification_sent(self, session_id: str):
+        """Mark that notification was sent for this session"""
+        try:
+            update_query = """
+                UPDATE iosapp.job_match_sessions 
+                SET notification_sent = true 
+                WHERE session_id = $1
+            """
+            await db_manager.execute_query(update_query, session_id)
+        except Exception as e:
+            logger.error(f"Error marking session notification sent: {e}")
     
     async def get_active_devices_with_keywords(self) -> List[Dict[str, Any]]:
         """Get all active devices with their keywords for notification matching"""
@@ -304,28 +371,40 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
-                            # Send ONE smart notification with the best job match
-                            # Choose the most recent job as the primary notification
-                            primary_job = matching_jobs[0]  # Most recent/relevant job
-                            job_count = len(matching_jobs)
-                            
-                            # Create enhanced job notification with batch context
-                            enhanced_job = {
-                                **primary_job,
-                                "batch_context": {
-                                    "total_matches": job_count,
-                                    "additional_jobs": job_count - 1 if job_count > 1 else 0,
-                                    "matched_keywords": list(all_matched_keywords)[:3]
-                                }
-                            }
-                            
-                            success = await self.send_job_notification(
-                                device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
+                            # Create job match session to store all matched jobs
+                            session_id = await self.create_job_match_session(
+                                device_id, matching_jobs, list(all_matched_keywords)
                             )
+                            
+                            if session_id:
+                                # Send ONE smart notification with session context
+                                primary_job = matching_jobs[0]  # Most recent/relevant job
+                                job_count = len(matching_jobs)
+                                
+                                # Create enhanced job notification with session context
+                                enhanced_job = {
+                                    **primary_job,
+                                    "session_context": {
+                                        "session_id": session_id,
+                                        "total_matches": job_count,
+                                        "additional_jobs": job_count - 1 if job_count > 1 else 0,
+                                        "matched_keywords": list(all_matched_keywords)[:3]
+                                    }
+                                }
+                                
+                                success = await self.send_job_notification(
+                                    device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
+                                )
+                                
+                                if success:
+                                    # Mark session as notification sent
+                                    await self.mark_session_notification_sent(session_id)
+                            else:
+                                success = False
                             
                             if success:
                                 stats["notifications_sent"] += 1
-                                logger.info(f"✅ Sent 1 smart notification ({job_count} matches) to device {device_id[:8]}...")
+                                logger.info(f"✅ Sent 1 smart notification ({len(matching_jobs)} matches) to device {device_id[:8]}...")
                             else:
                                 stats["errors"] += 1
                                 logger.error(f"❌ Failed to send notification to device {device_id[:8]}...")

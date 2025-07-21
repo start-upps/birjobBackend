@@ -8,7 +8,7 @@
 
 **🌐 Production API**: `https://birjobbackend-ir3e.onrender.com`  
 **📚 Interactive Docs**: `https://birjobbackend-ir3e.onrender.com/docs`  
-**🗄️ Database**: 8 tables total (iosapp schema + scraper schema)  
+**🗄️ Database**: 10 tables total (iosapp schema + scraper schema)  
 **🚀 Status**: **LIVE** with 71 endpoints | **AI-Powered v3.9.0** deployed ✅🤖🔐  
 
 ---
@@ -29,7 +29,7 @@
 - **Enterprise-Ready**: 68 production endpoints with global privacy compliance
 
 
-#### iosapp Schema (8 Tables)
+#### iosapp Schema (10 Tables)
 ```sql
 -- 1. Device Users (Device-based registration + Privacy Controls)
 CREATE TABLE iosapp.device_users (
@@ -96,7 +96,34 @@ CREATE TABLE iosapp.notification_hashes (
     UNIQUE(device_id, job_hash)
 );
 
--- 4. User Analytics (Activity tracking)
+-- 4. Job Match Sessions (Track job matching sessions for full list access)
+CREATE TABLE iosapp.job_match_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id VARCHAR(50) NOT NULL UNIQUE,        -- match_20250720_001
+    device_id UUID NOT NULL REFERENCES device_users(id) ON DELETE CASCADE,
+    total_matches INTEGER NOT NULL DEFAULT 0,
+    matched_keywords JSONB NOT NULL DEFAULT '[]',
+    notification_sent BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '30 days')
+);
+
+-- 5. Job Match Session Jobs (Individual jobs in each session)
+CREATE TABLE iosapp.job_match_session_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id VARCHAR(50) NOT NULL REFERENCES job_match_sessions(session_id) ON DELETE CASCADE,
+    job_hash VARCHAR(32) NOT NULL,
+    job_title VARCHAR(500),
+    job_company VARCHAR(200), 
+    job_source VARCHAR(100),
+    apply_link TEXT,
+    job_data JSONB,                                 -- Full job details
+    match_score INTEGER DEFAULT 0,                  -- For future ranking
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(session_id, job_hash)
+);
+
+-- 6. User Analytics (Activity tracking)
 CREATE TABLE iosapp.user_analytics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     device_id UUID REFERENCES device_users(id) ON DELETE CASCADE,
