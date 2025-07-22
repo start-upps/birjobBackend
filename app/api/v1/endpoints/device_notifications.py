@@ -3,7 +3,7 @@ Device-based notification management endpoints
 Works with minimal schema (device_users, notification_hashes, user_analytics)
 No email dependencies - everything is device-token based
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, timezone
