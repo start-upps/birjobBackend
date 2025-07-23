@@ -212,12 +212,12 @@ async def get_notification_inbox(
                             "apply_method": "hash_lookup"
                         }
                         for title, company, source, job_hash, notification_id, is_read in zip(
-                            group['job_titles'][:5],  # Show first 5 jobs
-                            group['job_companies'][:5],
-                            group['job_sources'][:5],
-                            group['job_hashes'][:5],
-                            group['notification_ids'][:5],
-                            group['read_statuses'][:5]
+                            group['job_titles'],  # Show all matched jobs
+                            group['job_companies'],
+                            group['job_sources'],
+                            group['job_hashes'],
+                            group['notification_ids'],
+                            group['read_statuses']
                         )
                     ]
                 })
