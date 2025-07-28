@@ -3,8 +3,8 @@ Device-based notification management endpoints
 Works with minimal schema (device_users, notification_hashes, user_analytics)
 No email dependencies - everything is device-token based
 """
-from fastapi import APIRouter, HTTPException, status, Query
-from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, HTTPException, Query
+from typing import Dict, Any, Optional
 import logging
 from datetime import datetime, timezone
 import json
@@ -822,7 +822,6 @@ async def process_notifications_compatibility(request: Dict[str, Any]):
     Redirects to the correct minimal-notifications endpoint
     """
     from app.services.minimal_notification_service import MinimalNotificationService
-    from fastapi import BackgroundTasks
     
     try:
         jobs = request.get("jobs", [])
@@ -1234,47 +1233,36 @@ async def get_job_matches_by_session_compat(
         match = re.match(session_pattern, session_id)
         
         if match:
-            # Extract potential device token from session ID
-            device_token_suffix = match.group(1)
+            # Extract potential device token from session ID (for pattern validation)
+            _device_token_suffix = match.group(1)
             
-            # Try to find the session in the database using the session_id
+            # Try to find the session in the database using the session_id (simplified approach like working endpoint)
             session_query = """
-                SELECT 
-                    jms.device_id,
-                    jms.session_id,
-                    jms.total_matches,
-                    jms.matched_keywords,
-                    jms.created_at,
-                    du.device_token
-                FROM iosapp.job_match_sessions jms
-                JOIN iosapp.device_users du ON jms.device_id = du.id::varchar
-                WHERE jms.session_id = $1 AND jms.notification_sent = true
+                SELECT session_id, total_matches, matched_keywords, created_at, device_id
+                FROM iosapp.job_match_sessions
+                WHERE session_id = $1 AND notification_sent = true
                 LIMIT 1
             """
             
             session_result = await db_manager.execute_query(session_query, session_id)
             
-            # If not found, try a broader search
+            # If not found, try without notification_sent filter
             if not session_result:
                 fallback_query = """
-                    SELECT 
-                        jms.device_id,
-                        jms.session_id,
-                        jms.total_matches,
-                        jms.matched_keywords,
-                        jms.created_at,
-                        'unknown' as device_token
-                    FROM iosapp.job_match_sessions jms
-                    WHERE jms.session_id = $1
+                    SELECT session_id, total_matches, matched_keywords, created_at, device_id
+                    FROM iosapp.job_match_sessions
+                    WHERE session_id = $1
                     LIMIT 1
                 """
                 session_result = await db_manager.execute_query(fallback_query, session_id)
-                logger.info(f"Session found in fallback search: {session_id}")
+                if session_result:
+                    logger.info(f"Session found in fallback search (no notification_sent filter): {session_id}")
+                else:
+                    logger.warning(f"Session not found in any search: {session_id}")
             
             if session_result:
                 # Found the session, get the jobs
                 session_data = session_result[0]
-                device_token = session_data['device_token']
                 
                 # Calculate offset from page
                 offset = (page - 1) * limit
