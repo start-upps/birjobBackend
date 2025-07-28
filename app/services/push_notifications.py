@@ -504,8 +504,12 @@ class PushNotificationService:
                 "category": "JOB_MATCH",
                 "thread-id": "job-matches"
             },
+            # iOS App expects notification_id at top level AND in custom_data
+            "notification_id": notification_id,  # Top level for iOS compatibility
+            "session_id": session_id,  # Top level for easy access
+            "type": "job_match",
             "custom_data": {
-                "notification_id": notification_id,  # Use consistent notification_id
+                "notification_id": notification_id,  # Also in custom_data as backup
                 "session_id": session_id,  # Session ID for full job list access
                 "type": "job_match",
                 "match_id": match_id,
