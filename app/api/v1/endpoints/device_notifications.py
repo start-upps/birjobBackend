@@ -1221,25 +1221,133 @@ async def get_job_matches_by_session_compat(
     page: int = Query(default=1, ge=1, description="Page number (1-based)"),
     limit: int = Query(default=20, ge=1, le=100, description="Number of jobs per page")
 ):
-    """Compatibility endpoint for job-matches/session/{session_id} (redirect to proper endpoint)"""
+    """Compatibility endpoint for job-matches/session/{session_id} - handles push notification deep links"""
     try:
-        # Extract device_token from session_id if it follows pattern match_YYYYMMDD_HHMMSS_devicetoken
-        # For now, return helpful error since we need device_token for proper routing
-        return {
-            "success": False,
-            "error": "endpoint_deprecated",
-            "message": "This endpoint requires device authentication. Please use /api/v1/notifications/job-matches/{device_token}?session_id={session_id}",
-            "data": {
-                "session_id": session_id,
-                "suggested_endpoint": f"/api/v1/notifications/job-matches/{{device_token}}?session_id={session_id}&limit={limit}&offset={(page-1)*limit}",
-                "migration_guide": {
-                    "old_format": f"/api/v1/job-matches/session/{session_id}?page={page}&limit={limit}",
-                    "new_format": "/api/v1/notifications/job-matches/{device_token}?session_id={session_id}&limit={limit}&offset={offset}",
-                    "note": "The new endpoint requires device_token for security and proper user context"
-                }
-            }
-        }
+        # Try to extract device info from session_id pattern: match_YYYYMMDD_HHMMSS_devicetoken_suffix
+        import re
         
+        # Pattern: match_20250728_163244_1b04456c or similar
+        session_pattern = r'^match_\d{8}_\d{6}_([a-fA-F0-9]+)$'
+        match = re.match(session_pattern, session_id)
+        
+        if match:
+            # Extract potential device token from session ID
+            device_token_suffix = match.group(1)
+            
+            # Try to find the session in the database using the session_id
+            session_query = """
+                SELECT 
+                    jms.device_id,
+                    jms.session_id,
+                    jms.total_matches,
+                    jms.matched_keywords,
+                    jms.created_at,
+                    du.device_token
+                FROM iosapp.job_match_sessions jms
+                JOIN iosapp.device_users du ON jms.device_id = du.id
+                WHERE jms.session_id = $1
+                LIMIT 1
+            """
+            
+            session_result = await db_manager.execute_query(session_query, session_id)
+            
+            if session_result:
+                # Found the session, get the jobs
+                session_data = session_result[0]
+                device_token = session_data['device_token']
+                
+                # Calculate offset from page
+                offset = (page - 1) * limit
+                
+                # Get jobs for this session
+                jobs_query = """
+                    SELECT job_hash, job_title, job_company, job_source, apply_link, 
+                           job_data, match_score, created_at
+                    FROM iosapp.job_match_session_jobs
+                    WHERE session_id = $1
+                    ORDER BY match_score DESC, created_at DESC
+                    LIMIT $2 OFFSET $3
+                """
+                
+                jobs_result = await db_manager.execute_query(jobs_query, session_id, limit, offset)
+                
+                # Get total count
+                count_query = """
+                    SELECT COUNT(*) as total
+                    FROM iosapp.job_match_session_jobs
+                    WHERE session_id = $1
+                """
+                count_result = await db_manager.execute_query(count_query, session_id)
+                total_count = count_result[0]['total'] if count_result else 0
+                
+                # Format jobs data
+                jobs_data = []
+                for job in jobs_result:
+                    try:
+                        # Parse job_data JSON
+                        job_data = json.loads(job['job_data']) if job['job_data'] else {}
+                        
+                        job_item = {
+                            "hash": job['job_hash'],
+                            "title": job['job_title'],
+                            "company": job['job_company'],
+                            "source": job['job_source'],
+                            "apply_link": job['apply_link'] or job_data.get('apply_link', ''),
+                            "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
+                            "match_score": job['match_score'],
+                            "can_apply": bool(job['apply_link'] or job_data.get('apply_link')),
+                            "deep_link": f"birjob://job/hash/{job['job_hash']}"
+                        }
+                        
+                        # Add additional data from job_data if available
+                        if job_data:
+                            job_item.update({
+                                "id": job_data.get('id'),
+                                "description": job_data.get('description', '')[:200] + "..." if job_data.get('description', '') else ""
+                            })
+                        
+                        jobs_data.append(job_item)
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing job in session {session_id}: {e}")
+                        continue
+                
+                # Calculate pagination info
+                has_more = offset + limit < total_count
+                current_page = page
+                total_pages = (total_count + limit - 1) // limit
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "session": {
+                            "session_id": session_data['session_id'],
+                            "total_matches": session_data['total_matches'],
+                            "matched_keywords": json.loads(session_data['matched_keywords']) if session_data['matched_keywords'] else [],
+                            "created_at": session_data['created_at'].isoformat()
+                        },
+                        "jobs": jobs_data,
+                        "pagination": {
+                            "total": total_count,
+                            "limit": limit,
+                            "page": current_page,
+                            "total_pages": total_pages,
+                            "has_more": has_more
+                        }
+                    },
+                    "compatibility_note": "Using legacy endpoint format. Consider migrating to /api/v1/notifications/job-matches/{device_token}"
+                }
+            else:
+                # Session not found
+                logger.warning(f"Job match session not found: {session_id}")
+                raise HTTPException(status_code=404, detail="Job match session not found")
+        else:
+            # Invalid session ID format
+            logger.warning(f"Invalid session ID format: {session_id}")
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in compatibility endpoint for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to process session request")
