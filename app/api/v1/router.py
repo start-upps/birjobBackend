@@ -16,3 +16,6 @@ api_router.include_router(device_chatbot.router, prefix="/chatbot", tags=["devic
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])
 api_router.include_router(job_analytics.router, prefix="/analytics", tags=["job-analytics"])
+
+# Add compatibility route for job-matches/session endpoint
+api_router.include_router(device_notifications.router, prefix="/job-matches", tags=["job-matches-compat"])

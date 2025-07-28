@@ -72,6 +72,13 @@ async def health_check():
         "message": "Service is running"
     }
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Favicon endpoint to prevent 404 errors"""
+    from fastapi.responses import Response
+    # Return empty response for favicon requests
+    return Response(content="", media_type="image/x-icon", status_code=204)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

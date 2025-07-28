@@ -15,9 +15,31 @@ from app.services.privacy_analytics_service import privacy_analytics_service
 # from app.utils.validation import validate_device_token
 
 def validate_device_token(device_token: str) -> str:
-    """Simple device token validation"""
-    if not device_token or len(device_token) < 16:
-        raise HTTPException(status_code=400, detail="Invalid device token")
+    """Enhanced device token validation with security checks"""
+    if not device_token:
+        raise HTTPException(status_code=400, detail="Device token is required")
+    
+    # Check minimum length
+    if len(device_token) < 16:
+        raise HTTPException(status_code=400, detail="Invalid device token format")
+    
+    # Check maximum length to prevent buffer overflow attempts
+    if len(device_token) > 256:
+        raise HTTPException(status_code=400, detail="Device token too long")
+    
+    # Check for suspicious patterns (repeated characters, potential probing)
+    if len(set(device_token)) < 5:  # Too few unique characters
+        logger.warning(f"Suspicious device token with few unique chars: {device_token[:16]}...")
+        raise HTTPException(status_code=400, detail="Invalid device token format")
+    
+    # Check for potential SQL injection or XSS patterns
+    suspicious_patterns = ["'", '"', "<", ">", "script", "select", "union", "drop", "--", "/*"]
+    token_lower = device_token.lower()
+    for pattern in suspicious_patterns:
+        if pattern in token_lower:
+            logger.warning(f"Suspicious device token with pattern '{pattern}': {device_token[:16]}...")
+            raise HTTPException(status_code=400, detail="Invalid device token format")
+    
     return device_token
 
 router = APIRouter()
@@ -1192,6 +1214,35 @@ async def handle_notification_apply(
     except Exception as e:
         logger.error(f"Error handling notification apply: {e}")
         raise HTTPException(status_code=500, detail="Failed to handle apply action")
+
+@router.get("/session/{session_id}")
+async def get_job_matches_by_session_compat(
+    session_id: str,
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of jobs per page")
+):
+    """Compatibility endpoint for job-matches/session/{session_id} (redirect to proper endpoint)"""
+    try:
+        # Extract device_token from session_id if it follows pattern match_YYYYMMDD_HHMMSS_devicetoken
+        # For now, return helpful error since we need device_token for proper routing
+        return {
+            "success": False,
+            "error": "endpoint_deprecated",
+            "message": "This endpoint requires device authentication. Please use /api/v1/notifications/job-matches/{device_token}?session_id={session_id}",
+            "data": {
+                "session_id": session_id,
+                "suggested_endpoint": f"/api/v1/notifications/job-matches/{{device_token}}?session_id={session_id}&limit={limit}&offset={(page-1)*limit}",
+                "migration_guide": {
+                    "old_format": f"/api/v1/job-matches/session/{session_id}?page={page}&limit={limit}",
+                    "new_format": "/api/v1/notifications/job-matches/{device_token}?session_id={session_id}&limit={limit}&offset={offset}",
+                    "note": "The new endpoint requires device_token for security and proper user context"
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in compatibility endpoint for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process session request")
 
 @router.get("/debug/hash-lookup/{job_hash}", response_model=Dict[str, Any])
 async def debug_hash_lookup(job_hash: str):

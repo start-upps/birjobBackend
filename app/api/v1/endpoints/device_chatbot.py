@@ -16,9 +16,31 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 def validate_device_token(device_token: str) -> str:
-    """Simple device token validation"""
-    if not device_token or len(device_token) < 16:
-        raise HTTPException(status_code=400, detail="Invalid device token")
+    """Enhanced device token validation with security checks"""
+    if not device_token:
+        raise HTTPException(status_code=400, detail="Device token is required")
+    
+    # Check minimum length
+    if len(device_token) < 16:
+        raise HTTPException(status_code=400, detail="Invalid device token format")
+    
+    # Check maximum length to prevent buffer overflow attempts
+    if len(device_token) > 256:
+        raise HTTPException(status_code=400, detail="Device token too long")
+    
+    # Check for suspicious patterns (repeated characters, potential probing)
+    if len(set(device_token)) < 5:  # Too few unique characters
+        logger.warning(f"Suspicious device token with few unique chars: {device_token[:16]}...")
+        raise HTTPException(status_code=400, detail="Invalid device token format")
+    
+    # Check for potential SQL injection or XSS patterns
+    suspicious_patterns = ["'", '"', "<", ">", "script", "select", "union", "drop", "--", "/*"]
+    token_lower = device_token.lower()
+    for pattern in suspicious_patterns:
+        if pattern in token_lower:
+            logger.warning(f"Suspicious device token with pattern '{pattern}': {device_token[:16]}...")
+            raise HTTPException(status_code=400, detail="Invalid device token format")
+    
     return device_token
 
 @router.post("/chat/{device_token}")
