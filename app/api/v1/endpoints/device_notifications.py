@@ -1290,6 +1290,10 @@ async def get_job_matches_by_session_compat(
                 
                 logger.info(f"Session {session_id}: found {len(jobs_result)} jobs (total: {total_count})")
                 
+                # Add iOS debugging info
+                logger.info(f"📱 iOS DEBUG - Session data: session_id={session_id}, total_matches={session_data.get('total_matches')}")
+                logger.info(f"📱 iOS DEBUG - Formatting {len(jobs_result)} jobs for iOS app")
+                
                 # Format jobs data
                 jobs_data = []
                 for job in jobs_result:
@@ -1297,30 +1301,40 @@ async def get_job_matches_by_session_compat(
                         # Parse job_data JSON
                         job_data = json.loads(job['job_data']) if job['job_data'] else {}
                         
-                        job_item = {
-                            "hash": job['job_hash'],
-                            "title": job['job_title'],
-                            "company": job['job_company'],
-                            "source": job['job_source'],
-                            "apply_link": job['apply_link'] or job_data.get('apply_link', ''),
-                            "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
-                            "match_score": job['match_score'],
-                            "can_apply": bool(job['apply_link'] or job_data.get('apply_link')),
-                            "deep_link": f"birjob://job/hash/{job['job_hash']}"
-                        }
+                        # Ensure all required fields are present with safe defaults
+                        apply_link = job['apply_link'] or job_data.get('apply_link', '')
+                        description = job_data.get('description', '') if job_data else ''
                         
-                        # Add additional data from job_data if available
-                        if job_data:
-                            job_item.update({
-                                "id": job_data.get('id'),
-                                "description": job_data.get('description', '')[:200] + "..." if job_data.get('description', '') else ""
-                            })
+                        job_item = {
+                            "id": job_data.get('id') if job_data else job['job_hash'],  # iOS might expect id field
+                            "hash": job['job_hash'],
+                            "title": job['job_title'] or "Job Title",  # Ensure non-empty
+                            "company": job['job_company'] or "Company",  # Ensure non-empty
+                            "source": job['job_source'] or "unknown",  # Ensure non-empty
+                            "apply_link": apply_link,
+                            "description": description[:500] if description else "No description available",  # Longer description, safe default
+                            "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
+                            "match_score": job['match_score'] or 0,  # Ensure non-null
+                            "can_apply": bool(apply_link),  # Based on actual apply_link availability
+                            "deep_link": f"birjob://job/hash/{job['job_hash']}",
+                            # Additional fields iOS might expect
+                            "location": job_data.get('location', '') if job_data else '',
+                            "salary": job_data.get('salary', '') if job_data else '',
+                            "job_type": job_data.get('job_type', '') if job_data else '',
+                            "tags": job_data.get('tags', []) if job_data else []
+                        }
                         
                         jobs_data.append(job_item)
                         
                     except Exception as e:
                         logger.error(f"Error processing job in session {session_id}: {e}")
                         continue
+                
+                # Log final job data for iOS debugging
+                logger.info(f"📱 iOS DEBUG - Successfully formatted {len(jobs_data)} jobs")
+                if jobs_data:
+                    sample_job = jobs_data[0]
+                    logger.info(f"📱 iOS DEBUG - Sample job structure: title='{sample_job.get('title')}', company='{sample_job.get('company')}', id='{sample_job.get('id')}', apply_link='{bool(sample_job.get('apply_link'))}'")
                 
                 # Calculate pagination info (match the working endpoint format exactly)
                 has_more = offset + limit < total_count
@@ -1534,24 +1548,28 @@ async def get_job_matches_by_session(
                 # Parse job_data JSON
                 job_data = json.loads(job['job_data']) if job['job_data'] else {}
                 
-                job_item = {
-                    "hash": job['job_hash'],
-                    "title": job['job_title'],
-                    "company": job['job_company'],
-                    "source": job['job_source'],
-                    "apply_link": job['apply_link'] or job_data.get('apply_link', ''),
-                    "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
-                    "match_score": job['match_score'],
-                    "can_apply": bool(job['apply_link'] or job_data.get('apply_link')),
-                    "deep_link": f"birjob://job/hash/{job['job_hash']}"
-                }
+                # Ensure all required fields are present with safe defaults
+                apply_link = job['apply_link'] or job_data.get('apply_link', '')
+                description = job_data.get('description', '') if job_data else ''
                 
-                # Add additional data from job_data if available
-                if job_data:
-                    job_item.update({
-                        "id": job_data.get('id'),
-                        "description": job_data.get('description', '')[:200] + "..." if job_data.get('description', '') else ""
-                    })
+                job_item = {
+                    "id": job_data.get('id') if job_data else job['job_hash'],  # iOS might expect id field
+                    "hash": job['job_hash'],
+                    "title": job['job_title'] or "Job Title",  # Ensure non-empty
+                    "company": job['job_company'] or "Company",  # Ensure non-empty
+                    "source": job['job_source'] or "unknown",  # Ensure non-empty
+                    "apply_link": apply_link,
+                    "description": description[:500] if description else "No description available",  # Longer description, safe default
+                    "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
+                    "match_score": job['match_score'] or 0,  # Ensure non-null
+                    "can_apply": bool(apply_link),  # Based on actual apply_link availability
+                    "deep_link": f"birjob://job/hash/{job['job_hash']}",
+                    # Additional fields iOS might expect
+                    "location": job_data.get('location', '') if job_data else '',
+                    "salary": job_data.get('salary', '') if job_data else '',
+                    "job_type": job_data.get('job_type', '') if job_data else '',
+                    "tags": job_data.get('tags', []) if job_data else []
+                }
                 
                 jobs_data.append(job_item)
                 
