@@ -31,8 +31,16 @@ async def register_device_minimal(request: Dict[str, Any]):
             raise HTTPException(status_code=400, detail="device_token is required")
         
         # Validate device token (64 hex chars)
-        device_token = validate_device_token(device_token)
-        keywords = validate_keywords(keywords)
+        try:
+            device_token = validate_device_token(device_token)
+            keywords = validate_keywords(keywords)
+        except HTTPException as e:
+            # Log validation failures to distinguish between legitimate errors and security probes
+            if "repeating patterns" in str(e.detail) or len(device_token) > 200:
+                logger.warning(f"Security probe in device registration: token_length={len(device_token)}, unique_chars={len(set(device_token)) if device_token else 0}")
+            else:
+                logger.info(f"Legitimate validation error in device registration: {e.detail}")
+            raise
         
         # Single INSERT - device becomes user
         insert_query = """
