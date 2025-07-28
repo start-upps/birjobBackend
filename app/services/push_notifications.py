@@ -337,7 +337,8 @@ class PushNotificationService:
         device_token: str,
         device_id: str,
         jobs: List[Dict[str, Any]],
-        notification_ids: List[str]
+        notification_ids: List[str],
+        session_id: Optional[str] = None
     ) -> bool:
         """Send bulk job notifications to a user"""
         
@@ -365,7 +366,7 @@ class PushNotificationService:
             return False
         
         # Create bulk notification payload
-        payload = self._create_bulk_job_payload(jobs, notification_ids)
+        payload = self._create_bulk_job_payload(jobs, notification_ids, session_id)
         
         # Validate APNs configuration
         if not self._apns_config:
@@ -390,16 +391,20 @@ class PushNotificationService:
     def _create_bulk_job_payload(
         self,
         jobs: List[Dict[str, Any]],
-        notification_ids: List[str]
+        notification_ids: List[str],
+        session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create push notification payload for bulk job matches"""
         
         job_count = len(jobs)
         
         if job_count == 1:
-            # Single job - use regular format
+            # Single job - use regular format with session context
             job = jobs[0]['job_dict']
             matched_keywords = jobs[0]['matched_keywords']
+            # Add session context to job for deep linking
+            if session_id:
+                job['session_context'] = {'session_id': session_id, 'total_matches': job_count}
             return self._create_job_match_payload(job, matched_keywords, notification_ids[0])
         
         # Multiple jobs - create summary
@@ -433,6 +438,8 @@ class PushNotificationService:
                 "thread-id": "job-matches"
             },
             "custom_data": {
+                "notification_id": str(uuid.uuid4()),  # ADD notification_id
+                "session_id": session_id,  # ADD session_id
                 "type": "bulk_job_match",
                 "match_count": job_count,
                 "notification_ids": notification_ids,
@@ -447,7 +454,7 @@ class PushNotificationService:
                     } for job in jobs[:5]  # Limit to 5 jobs to avoid payload size issues
                 ],
                 "matched_keywords": unique_keywords,
-                "deep_link": "birjob://jobs/matches/bulk"
+                "deep_link": f"birjob://session/{session_id}" if session_id else "birjob://jobs/matches/bulk"
             }
         }
     
@@ -492,9 +499,10 @@ class PushNotificationService:
                 "thread-id": "job-matches"
             },
             "custom_data": {
+                "notification_id": str(uuid.uuid4()),  # ADD notification_id
+                "session_id": session_id,  # Session ID for full job list access
                 "type": "job_match",
                 "match_id": match_id,
-                "session_id": session_id,  # Session ID for full job list access
                 "job_id": job.get('id'),
                 "job_hash": match_id,  # Use hash for persistent reference
                 "job_title": job.get('title', ''),
