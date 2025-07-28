@@ -264,6 +264,15 @@ class MinimalNotificationService:
                 logger.debug(f"Sent notification to device {device_id[:8]}... for job: {job.get('title', '')[:50]}")
                 logger.info(f"🔔 Push notification sent with notification_id: {notification_id}")
                 
+                # Log critical iOS debugging info
+                session_context = job.get('session_context', {})
+                if session_context:
+                    logger.info(f"📱 iOS DEBUG - Session context: session_id={session_context.get('session_id')}, total_matches={session_context.get('total_matches')}")
+                else:
+                    logger.warning(f"📱 iOS DEBUG - No session context found in job payload")
+                
+                logger.info(f"📱 iOS DEBUG - notification_id: {notification_id}, job_hash: {job_hash}")
+                
                 # Store notification with notification_id for iOS app lookup
                 await self.record_notification_sent(
                     device_id, job_hash, 
