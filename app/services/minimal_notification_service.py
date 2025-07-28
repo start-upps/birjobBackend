@@ -55,9 +55,13 @@ class MinimalNotificationService:
     async def record_notification_sent(self, device_id: str, job_hash: str, 
                                      job_title: str, company: str, 
                                      job_source: str, matched_keywords: List[str],
-                                     apply_link: str = None) -> bool:
+                                     apply_link: str = None, notification_id: str = None) -> bool:
         """Record that notification was sent - returns True if this is the first time"""
         try:
+            # Log the notification_id for debugging iOS issues
+            if notification_id:
+                logger.info(f"📝 Recording notification: notification_id={notification_id}, job_hash={job_hash}")
+            
             query = """
                 INSERT INTO iosapp.notification_hashes 
                 (device_id, job_hash, job_title, job_company, job_source, matched_keywords, apply_link)
@@ -248,7 +252,7 @@ class MinimalNotificationService:
                 job.get('company', '')
             )
             
-            success = await self.push_service.send_job_match_notification(
+            success, notification_id = await self.push_service.send_job_match_notification(
                 device_token=device_token,
                 device_id=device_id,
                 job=job,
@@ -258,6 +262,15 @@ class MinimalNotificationService:
             
             if success:
                 logger.debug(f"Sent notification to device {device_id[:8]}... for job: {job.get('title', '')[:50]}")
+                logger.info(f"🔔 Push notification sent with notification_id: {notification_id}")
+                
+                # Store notification with notification_id for iOS app lookup
+                await self.record_notification_sent(
+                    device_id, job_hash, 
+                    job.get('title', ''), job.get('company', ''),
+                    job.get('source', ''), matched_keywords,
+                    job.get('apply_link'), notification_id
+                )
             
             return success
         except Exception as e:

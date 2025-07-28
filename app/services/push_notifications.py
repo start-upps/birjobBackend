@@ -302,23 +302,26 @@ class PushNotificationService:
         job: Dict[str, Any],
         matched_keywords: List[str],
         match_id: str
-    ) -> bool:
+    ) -> tuple[bool, str]:
         """Send job match push notification"""
         
         # Check throttling
         if not await self._check_notification_throttling(device_id):
             self.logger.info(f"Notification throttled for device {device_id}")
-            return False
+            return False, ""
         
         # Check quiet hours
         if await self._is_quiet_hours(device_id):
             self.logger.info(f"Notification suppressed (quiet hours) for device {device_id}")
             # Store notification for later delivery
             await self._store_pending_notification(device_token, device_id, job, matched_keywords, match_id)
-            return False
+            return False, ""
         
         # Create notification payload
         payload = self._create_job_match_payload(job, matched_keywords, match_id)
+        
+        # Extract the notification_id from payload
+        notification_id = payload.pop('_notification_id', str(uuid.uuid4()))
         
         # Send notification
         success = await self._send_notification(device_token, payload, "job_match", match_id)
@@ -330,7 +333,7 @@ class PushNotificationService:
         else:
             logger.warning(f"Failed to send notification to device {device_id}")
         
-        return success
+        return success, notification_id
     
     async def send_bulk_job_notifications(
         self,
@@ -471,6 +474,9 @@ class PushNotificationService:
         total_matches = session_context.get('total_matches', 1)
         session_id = session_context.get('session_id')
         
+        # Generate unique notification_id
+        notification_id = str(uuid.uuid4())
+        
         # Truncate title and company for notification
         title = job.get('title', 'New Job')[:50]
         company = job.get('company', 'Unknown Company')[:30]
@@ -486,7 +492,7 @@ class PushNotificationService:
             notification_subtitle = f"🏢 {company}"
             notification_body = f"💼 {keywords_text}"
         
-        return {
+        payload = {
             "aps": {
                 "alert": {
                     "title": notification_title,
@@ -499,7 +505,7 @@ class PushNotificationService:
                 "thread-id": "job-matches"
             },
             "custom_data": {
-                "notification_id": str(uuid.uuid4()),  # ADD notification_id
+                "notification_id": notification_id,  # Use consistent notification_id
                 "session_id": session_id,  # Session ID for full job list access
                 "type": "job_match",
                 "match_id": match_id,
@@ -513,6 +519,10 @@ class PushNotificationService:
                 "deep_link": f"birjob://session/{session_id}" if session_id else f"birjob://job/hash/{match_id}"
             }
         }
+        
+        # Store notification_id in payload for extraction
+        payload['_notification_id'] = notification_id
+        return payload
     
     async def send_daily_digest(self, device_token: str, device_id: str, matches_count: int) -> bool:
         """Send daily digest notification"""
@@ -583,6 +593,14 @@ class PushNotificationService:
         self.logger.info(f"   Match ID: {match_id}")
         self.logger.info(f"   Payload Size: {len(json.dumps(payload))} bytes")
         self.logger.info(f"   Timestamp: {start_time.isoformat()}")
+        
+        # LOG CRITICAL FIELDS for debugging iOS issue
+        custom_data = payload.get('custom_data', {})
+        self.logger.info(f"   🔍 CRITICAL FIELDS CHECK:")
+        self.logger.info(f"     notification_id: {custom_data.get('notification_id', 'MISSING ❌')}")
+        self.logger.info(f"     session_id: {custom_data.get('session_id', 'MISSING ❌')}")
+        self.logger.info(f"     type: {custom_data.get('type', 'MISSING ❌')}")
+        self.logger.info(f"     deep_link: {custom_data.get('deep_link', 'MISSING ❌')}")
         
         # Validate device token format
         if not self._validate_device_token(device_token):
