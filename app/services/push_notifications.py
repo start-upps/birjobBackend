@@ -447,6 +447,7 @@ class PushNotificationService:
             "notification_id": notification_id,
             "session_id": session_id,
             "type": "bulk_job_match",
+            "jobId": notification_ids[0] if notification_ids else notification_id,  # iOS app also checks for jobId field
             "custom_data": {
                 "notification_id": notification_id,  # Also in custom_data as backup
                 "session_id": session_id,  # Session ID for full job list access
@@ -517,6 +518,7 @@ class PushNotificationService:
             "notification_id": notification_id,  # Top level for iOS compatibility
             "session_id": session_id,  # Top level for easy access
             "type": "job_match",
+            "jobId": match_id,  # iOS app also checks for jobId field
             "custom_data": {
                 "notification_id": notification_id,  # Also in custom_data as backup
                 "session_id": session_id,  # Session ID for full job list access
@@ -614,10 +616,12 @@ class PushNotificationService:
         self.logger.info(f"       userInfo['custom_data']['notification_id']: {custom_data.get('notification_id', 'MISSING ❌')}")
         self.logger.info(f"       userInfo['notification_id']: {payload.get('notification_id', 'MISSING ❌')}")
         self.logger.info(f"       userInfo['session_id']: {payload.get('session_id', 'MISSING ❌')}")
-        self.logger.info(f"     📊 Payload structure for iOS:")
+        self.logger.info(f"     📊 Deep linking info:")
         self.logger.info(f"       session_id: {custom_data.get('session_id', 'MISSING ❌')}")
         self.logger.info(f"       type: {custom_data.get('type', 'MISSING ❌')}")
         self.logger.info(f"       deep_link: {custom_data.get('deep_link', 'MISSING ❌')}")
+        self.logger.info(f"       total_matches: {custom_data.get('total_matches', 'MISSING ❌')}")
+        self.logger.info(f"     🚨 iOS BEHAVIOR: App now opens main page instead of error - notification_id found but deep linking may need adjustment")
         
         # Validate device token format
         if not self._validate_device_token(device_token):
