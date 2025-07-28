@@ -1223,6 +1223,9 @@ async def get_job_matches_by_session_compat(
 ):
     """Compatibility endpoint for job-matches/session/{session_id} - handles push notification deep links"""
     try:
+        # Log the incoming request for debugging
+        logger.info(f"Job-matches session request: session_id={session_id}, page={page}, limit={limit}")
+        
         # Try to extract device info from session_id pattern: match_YYYYMMDD_HHMMSS_devicetoken_suffix
         import re
         
@@ -1244,12 +1247,29 @@ async def get_job_matches_by_session_compat(
                     jms.created_at,
                     du.device_token
                 FROM iosapp.job_match_sessions jms
-                JOIN iosapp.device_users du ON jms.device_id = du.id
-                WHERE jms.session_id = $1
+                JOIN iosapp.device_users du ON jms.device_id = du.id::varchar
+                WHERE jms.session_id = $1 AND jms.notification_sent = true
                 LIMIT 1
             """
             
             session_result = await db_manager.execute_query(session_query, session_id)
+            
+            # If not found, try a broader search
+            if not session_result:
+                fallback_query = """
+                    SELECT 
+                        jms.device_id,
+                        jms.session_id,
+                        jms.total_matches,
+                        jms.matched_keywords,
+                        jms.created_at,
+                        'unknown' as device_token
+                    FROM iosapp.job_match_sessions jms
+                    WHERE jms.session_id = $1
+                    LIMIT 1
+                """
+                session_result = await db_manager.execute_query(fallback_query, session_id)
+                logger.info(f"Session found in fallback search: {session_id}")
             
             if session_result:
                 # Found the session, get the jobs
@@ -1279,6 +1299,8 @@ async def get_job_matches_by_session_compat(
                 """
                 count_result = await db_manager.execute_query(count_query, session_id)
                 total_count = count_result[0]['total'] if count_result else 0
+                
+                logger.info(f"Session {session_id}: found {len(jobs_result)} jobs (total: {total_count})")
                 
                 # Format jobs data
                 jobs_data = []
@@ -1312,11 +1334,12 @@ async def get_job_matches_by_session_compat(
                         logger.error(f"Error processing job in session {session_id}: {e}")
                         continue
                 
-                # Calculate pagination info
+                # Calculate pagination info (match the working endpoint format exactly)
                 has_more = offset + limit < total_count
-                current_page = page
+                current_page = (offset // limit) + 1
                 total_pages = (total_count + limit - 1) // limit
                 
+                # Return exact same format as working endpoint
                 return {
                     "success": True,
                     "data": {
@@ -1330,12 +1353,12 @@ async def get_job_matches_by_session_compat(
                         "pagination": {
                             "total": total_count,
                             "limit": limit,
-                            "page": current_page,
+                            "offset": offset,
+                            "current_page": current_page,
                             "total_pages": total_pages,
                             "has_more": has_more
                         }
-                    },
-                    "compatibility_note": "Using legacy endpoint format. Consider migrating to /api/v1/notifications/job-matches/{device_token}"
+                    }
                 }
             else:
                 # Session not found
