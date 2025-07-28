@@ -428,6 +428,9 @@ class PushNotificationService:
         job_emoji = job_emojis[min(job_count-1, len(job_emojis)-1)]
         company_emoji = company_emojis[min(company_count-1, len(company_emojis)-1)]
         
+        # Generate notification_id for iOS compatibility
+        notification_id = str(uuid.uuid4())
+        
         return {
             "aps": {
                 "alert": {
@@ -440,9 +443,13 @@ class PushNotificationService:
                 "category": "BULK_JOB_MATCH",
                 "thread-id": "job-matches"
             },
+            # iOS App expects notification_id at top level
+            "notification_id": notification_id,
+            "session_id": session_id,
+            "type": "bulk_job_match",
             "custom_data": {
-                "notification_id": str(uuid.uuid4()),  # ADD notification_id
-                "session_id": session_id,  # ADD session_id
+                "notification_id": notification_id,  # Also in custom_data as backup
+                "session_id": session_id,  # Session ID for full job list access
                 "type": "bulk_job_match",
                 "match_count": job_count,
                 "notification_ids": notification_ids,
@@ -458,7 +465,9 @@ class PushNotificationService:
                 ],
                 "matched_keywords": unique_keywords,
                 "deep_link": f"birjob://session/{session_id}" if session_id else "birjob://jobs/matches/bulk"
-            }
+            },
+            # Store notification_id for internal extraction (used by send_job_match_notification)
+            "_notification_id": notification_id
         }
     
     def _create_job_match_payload(
@@ -598,13 +607,17 @@ class PushNotificationService:
         self.logger.info(f"   Payload Size: {len(json.dumps(payload))} bytes")
         self.logger.info(f"   Timestamp: {start_time.isoformat()}")
         
-        # LOG CRITICAL FIELDS for debugging iOS issue
+        # LOG CRITICAL FIELDS for debugging iOS issue  
         custom_data = payload.get('custom_data', {})
         self.logger.info(f"   🔍 CRITICAL FIELDS CHECK:")
-        self.logger.info(f"     notification_id: {custom_data.get('notification_id', 'MISSING ❌')}")
-        self.logger.info(f"     session_id: {custom_data.get('session_id', 'MISSING ❌')}")
-        self.logger.info(f"     type: {custom_data.get('type', 'MISSING ❌')}")
-        self.logger.info(f"     deep_link: {custom_data.get('deep_link', 'MISSING ❌')}")
+        self.logger.info(f"     📱 iOS App checks:")
+        self.logger.info(f"       userInfo['custom_data']['notification_id']: {custom_data.get('notification_id', 'MISSING ❌')}")
+        self.logger.info(f"       userInfo['notification_id']: {payload.get('notification_id', 'MISSING ❌')}")
+        self.logger.info(f"       userInfo['session_id']: {payload.get('session_id', 'MISSING ❌')}")
+        self.logger.info(f"     📊 Payload structure for iOS:")
+        self.logger.info(f"       session_id: {custom_data.get('session_id', 'MISSING ❌')}")
+        self.logger.info(f"       type: {custom_data.get('type', 'MISSING ❌')}")
+        self.logger.info(f"       deep_link: {custom_data.get('deep_link', 'MISSING ❌')}")
         
         # Validate device token format
         if not self._validate_device_token(device_token):
