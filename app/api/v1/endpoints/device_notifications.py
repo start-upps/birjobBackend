@@ -1305,23 +1305,14 @@ async def get_job_matches_by_session_compat(
                         apply_link = job['apply_link'] or job_data.get('apply_link', '')
                         description = job_data.get('description', '') if job_data else ''
                         
+                        # Use EXACT same structure as working jobs endpoint
                         job_item = {
-                            "id": job_data.get('id') if job_data else job['job_hash'],  # iOS might expect id field
-                            "hash": job['job_hash'],
-                            "title": job['job_title'] or "Job Title",  # Ensure non-empty
-                            "company": job['job_company'] or "Company",  # Ensure non-empty
-                            "source": job['job_source'] or "unknown",  # Ensure non-empty
-                            "apply_link": apply_link,
-                            "description": description[:500] if description else "No description available",  # Longer description, safe default
-                            "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
-                            "match_score": job['match_score'] or 0,  # Ensure non-null
-                            "can_apply": bool(apply_link),  # Based on actual apply_link availability
-                            "deep_link": f"birjob://job/hash/{job['job_hash']}",
-                            # Additional fields iOS might expect
-                            "location": job_data.get('location', '') if job_data else '',
-                            "salary": job_data.get('salary', '') if job_data else '',
-                            "job_type": job_data.get('job_type', '') if job_data else '',
-                            "tags": job_data.get('tags', []) if job_data else []
+                            "id": job_data.get('id') if job_data else job['job_hash'],
+                            "title": job['job_title'] or "No Title",
+                            "company": job['job_company'] or "Unknown Company", 
+                            "apply_link": apply_link or "",
+                            "source": job['job_source'] or "Unknown",
+                            "posted_at": job['created_at'].isoformat() if job['created_at'] else None
                         }
                         
                         jobs_data.append(job_item)
@@ -1335,14 +1326,16 @@ async def get_job_matches_by_session_compat(
                 if jobs_data:
                     sample_job = jobs_data[0]
                     logger.info(f"📱 iOS DEBUG - Sample job structure: title='{sample_job.get('title')}', company='{sample_job.get('company')}', id='{sample_job.get('id')}', apply_link='{bool(sample_job.get('apply_link'))}'")
+                    logger.info(f"📱 iOS DEBUG - Complete sample job data: {json.dumps(sample_job, indent=2)}")
+                    logger.info(f"📱 iOS DEBUG - Job data types: {[(k, type(v).__name__) for k, v in sample_job.items()]}")
                 
                 # Calculate pagination info (match the working endpoint format exactly)
                 has_more = offset + limit < total_count
                 current_page = (offset // limit) + 1
                 total_pages = (total_count + limit - 1) // limit
                 
-                # Return exact same format as working endpoint
-                return {
+                # Prepare response data
+                response_data = {
                     "success": True,
                     "data": {
                         "session": {
@@ -1358,10 +1351,19 @@ async def get_job_matches_by_session_compat(
                             "offset": offset,
                             "current_page": current_page,
                             "total_pages": total_pages,
-                            "has_more": has_more
+                            "has_more": has_more,
+                            "has_previous": offset > 0
                         }
-                    }
+                    },
+                    "message": f"Found {len(jobs_data)} jobs in session"
                 }
+                
+                # Log complete response structure for iOS debugging
+                logger.info(f"📱 iOS DEBUG - Response structure: success={response_data['success']}, jobs_count={len(jobs_data)}, total={total_count}")
+                logger.info(f"📱 iOS DEBUG - Response keys: {list(response_data.keys())}")
+                logger.info(f"📱 iOS DEBUG - Data keys: {list(response_data['data'].keys())}")
+                
+                return response_data
             else:
                 # Session not found
                 logger.warning(f"Job match session not found: {session_id}")
@@ -1552,23 +1554,14 @@ async def get_job_matches_by_session(
                 apply_link = job['apply_link'] or job_data.get('apply_link', '')
                 description = job_data.get('description', '') if job_data else ''
                 
+                # Use EXACT same structure as working jobs endpoint
                 job_item = {
-                    "id": job_data.get('id') if job_data else job['job_hash'],  # iOS might expect id field
-                    "hash": job['job_hash'],
-                    "title": job['job_title'] or "Job Title",  # Ensure non-empty
-                    "company": job['job_company'] or "Company",  # Ensure non-empty
-                    "source": job['job_source'] or "unknown",  # Ensure non-empty
-                    "apply_link": apply_link,
-                    "description": description[:500] if description else "No description available",  # Longer description, safe default
-                    "posted_at": job['created_at'].isoformat() if job['created_at'] else None,
-                    "match_score": job['match_score'] or 0,  # Ensure non-null
-                    "can_apply": bool(apply_link),  # Based on actual apply_link availability
-                    "deep_link": f"birjob://job/hash/{job['job_hash']}",
-                    # Additional fields iOS might expect
-                    "location": job_data.get('location', '') if job_data else '',
-                    "salary": job_data.get('salary', '') if job_data else '',
-                    "job_type": job_data.get('job_type', '') if job_data else '',
-                    "tags": job_data.get('tags', []) if job_data else []
+                    "id": job_data.get('id') if job_data else job['job_hash'],
+                    "title": job['job_title'] or "No Title",
+                    "company": job['job_company'] or "Unknown Company", 
+                    "apply_link": apply_link or "",
+                    "source": job['job_source'] or "Unknown",
+                    "posted_at": job['created_at'].isoformat() if job['created_at'] else None
                 }
                 
                 jobs_data.append(job_item)
@@ -1598,7 +1591,8 @@ async def get_job_matches_by_session(
                     "offset": offset,
                     "current_page": current_page,
                     "total_pages": total_pages,
-                    "has_more": has_more
+                    "has_more": has_more,
+                    "has_previous": offset > 0
                 }
             }
         }
