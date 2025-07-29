@@ -2,11 +2,10 @@
 Job Market Analytics Endpoints
 Real-time insights from scraped job data (current snapshot)
 """
-from fastapi import APIRouter, Query, HTTPException, status
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from fastapi import APIRouter, Query, HTTPException
+from typing import Dict, Any
+from datetime import datetime
 import logging
-import json
 
 from app.core.database import db_manager
 

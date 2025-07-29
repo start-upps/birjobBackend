@@ -65,7 +65,7 @@ All endpoints use **device token validation**. Device tokens must be:
 
 ## 🚀 API Endpoints
 
-## Device Registration
+## Device Registration & Management
 
 ### POST `/api/v1/device/register`
 Register a new device for job notifications.
@@ -96,52 +96,17 @@ Register a new device for job notifications.
 ### PUT `/api/v1/device/keywords`
 Update keywords for existing device.
 
-**Request Body:**
-```json
-{
-  "device_token": "bff72bd38158b6a430b4c5feff7befd41aadf4634a715c4d7078be51ef77feff",
-  "keywords": ["Product Manager", "PM", "Strategy"]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Keywords updated successfully",
-  "keywords_count": 3
-}
-```
-
 ### GET `/api/v1/device/status/{device_token}`
 Get device registration status and configuration.
 
-**Response:**
-```json
-{
-  "registered": true,
-  "device_id": "5dde4e2a-4c63-47e1-9126-ffd0869e10fb",
-  "keywords_count": 3,
-  "keywords": ["iOS", "Swift", "Mobile Developer"],
-  "notifications_enabled": true,
-  "has_keywords": true,
-  "setup_complete": true,
-  "requires_onboarding": false,
-  "registered_at": "2025-01-28T22:57:37.123456Z"
-}
-```
-
-### DELETE `/api/v1/device/{device_token}`
+### DELETE `/api/v1/device/device/{device_token}`
 Delete device and all associated data (GDPR compliance).
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Device and all associated data deleted successfully",
-  "deleted_device_id": "5dde4e2a-4c63-47e1-9126-ffd0869e10fb"
-}
-```
+### POST `/api/v1/device/analytics/track`
+Track user actions (respects consent).
+
+### GET `/api/v1/device/analytics/summary`
+Get analytics summary (aggregate data).
 
 ---
 
@@ -159,11 +124,6 @@ Get paginated job listings with filtering and search.
 - `location` (string, optional): Filter by location
 - `sort_by` (string, default="created_at"): Sort field
 - `sort_order` (string, default="desc"): Sort order (asc/desc)
-
-**Example Request:**
-```http
-GET /api/v1/jobs/?limit=20&offset=0&search=iOS&company=Apple
-```
 
 **Response:**
 ```json
@@ -193,26 +153,21 @@ GET /api/v1/jobs/?limit=20&offset=0&search=iOS&company=Apple
 }
 ```
 
+### GET `/api/v1/jobs/{job_id}`
+Get specific job by ID.
+
+### GET `/api/v1/jobs/hash/{job_hash}`
+Get job by hash (for persistent links).
+
+### GET `/api/v1/jobs/sources/list`
+Get list of available job sources.
+
+### GET `/api/v1/jobs/stats/summary`
+Get job statistics summary.
+
 ---
 
-## Push Notifications
-
-### POST `/api/v1/notifications/test/{device_token}`
-Send test notification to device (for debugging).
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Test notification sent!",
-  "device_token_preview": "bff72bd38158b6a4...",
-  "test_job": {
-    "title": "Test Job Notification",
-    "company": "Test Company Inc.",
-    "source": "test"
-  }
-}
-```
+## Push Notifications & Sessions
 
 ### Push Notification Payload Structure
 When your app receives push notifications, expect this payload:
@@ -243,29 +198,15 @@ When your app receives push notifications, expect this payload:
 }
 ```
 
-**iOS App Integration:**
-1. Extract `notification_id` from `userInfo["notification_id"]` or `userInfo["custom_data"]["notification_id"]`
-2. Extract `session_id` for navigation
-3. Navigate to job matches using session endpoint
-
----
-
-## Job Match Sessions (Push Notification Navigation)
-
 ### GET `/api/v1/job-matches/session/{session_id}`
 Get jobs from a specific notification session (used when user taps push notification).
 
 **Path Parameters:**
-- `session_id`: Session ID from push notification (e.g., "match_20250728_225737_a1197970")
+- `session_id`: Session ID from push notification
 
 **Query Parameters:**
 - `page` (int, default=1): Page number (1-based)
 - `limit` (int, default=20): Jobs per page (1-100)
-
-**Example Request:**
-```http
-GET /api/v1/job-matches/session/match_20250728_225737_a1197970?page=1&limit=20
-```
 
 **Response:**
 ```json
@@ -297,8 +238,7 @@ GET /api/v1/job-matches/session/match_20250728_225737_a1197970?page=1&limit=20
       "has_more": true,
       "has_previous": false
     }
-  },
-  "message": "Found 20 jobs in session"
+  }
 }
 ```
 
@@ -309,121 +249,51 @@ GET /api/v1/job-matches/session/match_20250728_225737_a1197970?page=1&limit=20
 ### GET `/api/v1/notifications/inbox/{device_token}`
 Get notification history/inbox for device.
 
-**Query Parameters:**
-- `limit` (int, default=50): Number of notifications
-- `offset` (int, default=0): Skip notifications
-- `group_by_time` (bool, default=true): Group by date
+### GET `/api/v1/notifications/history/{device_token}`
+Get detailed notification history.
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "notifications": [
-      {
-        "notification_date": "2025-01-28",
-        "job_count": 5,
-        "matched_keywords": ["iOS", "Swift"],
-        "latest_sent_at": "2025-01-28T22:57:37.123456Z",
-        "unread_count": 2,
-        "jobs_preview": [
-          {
-            "title": "iOS Developer",
-            "company": "Apple"
-          }
-        ]
-      }
-    ],
-    "pagination": {
-      "total": 10,
-      "limit": 50,
-      "offset": 0,
-      "has_more": false
-    }
-  }
-}
-```
+### POST `/api/v1/notifications/test/{device_token}`
+Send test notification to device (for debugging).
 
-### POST `/api/v1/notifications/mark-read`
+### POST `/api/v1/notifications/mark-read/{device_token}`
 Mark notifications as read.
 
-**Request Body:**
-```json
-{
-  "device_token": "bff72bd38158b6a430b4c5feff7befd41aadf4634a715c4d7078be51ef77feff",
-  "notification_ids": ["123", "456"]
-}
-```
+### DELETE `/api/v1/notifications/clear/{device_token}`
+Clear notification history.
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "2 notifications marked as read"
-}
-```
+### GET `/api/v1/notifications/job-by-hash/{job_hash}`
+Get job details by hash (for notification links).
+
+### POST `/api/v1/notifications/apply/{device_token}`
+Track job application attempts.
+
+### GET `/api/v1/notifications/settings/{device_token}`
+Get notification settings.
+
+### PUT `/api/v1/notifications/settings/{device_token}`
+Update notification settings.
 
 ---
 
-## User Profiles
+## User Profiles & Management
 
 ### GET `/api/v1/users/profile/{device_token}`
 Get user profile and preferences.
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "user_id": "user_123",
-    "device_id": "5dde4e2a-4c63-47e1-9126-ffd0869e10fb",
-    "profile": {
-      "job_matches_enabled": true,
-      "application_reminders_enabled": true,
-      "weekly_digest_enabled": true,
-      "market_insights_enabled": true
-    },
-    "keywords": ["iOS", "Swift", "Mobile Developer"],
-    "notification_preferences": {
-      "push_enabled": true,
-      "quiet_hours": {
-        "enabled": false,
-        "start_time": "22:00",
-        "end_time": "08:00"
-      }
-    },
-    "created_at": "2025-01-28T22:57:37.123456Z",
-    "last_active": "2025-01-28T23:15:42.987654Z"
-  }
-}
-```
+### PUT `/api/v1/users/profile`
+Update user profile.
 
-### PUT `/api/v1/users/profile/{device_token}`
-Update user profile and preferences.
+### PUT `/api/v1/users/preferences`
+Update user preferences.
 
-**Request Body:**
-```json
-{
-  "job_matches_enabled": true,
-  "application_reminders_enabled": false,
-  "weekly_digest_enabled": true,
-  "market_insights_enabled": true,
-  "quiet_hours": {
-    "enabled": true,
-    "start_time": "22:00", 
-    "end_time": "08:00"
-  }
-}
-```
+### GET `/api/v1/users/activity/{device_token}`
+Get user activity statistics.
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Profile updated successfully",
-  "updated_fields": ["application_reminders_enabled", "quiet_hours"]
-}
-```
+### DELETE `/api/v1/users/account`
+Delete user account (GDPR compliance).
+
+### GET `/api/v1/users/stats/{device_token}`
+Get user statistics.
 
 ---
 
@@ -447,157 +317,147 @@ Get privacy consent status.
 }
 ```
 
-### POST `/api/v1/privacy/consent/{device_token}`
+### POST `/api/v1/privacy/consent`
 Update privacy consent preferences.
 
-**Request Body:**
-```json
-{
-  "analytics_consent": true,
-  "marketing_consent": false,
-  "data_sharing_consent": true
-}
-```
+### DELETE `/api/v1/privacy/data/{device_token}`
+Delete user data (GDPR compliance).
 
-### POST `/api/v1/device/analytics/track`
-Track user actions (respects consent).
+### POST `/api/v1/privacy/export`
+Export user data (GDPR compliance).
 
-**Request Body:**
-```json
-{
-  "device_token": "bff72bd38158b6a430b4c5feff7befd41aadf4634a715c4d7078be51ef77feff",
-  "action": "job_viewed",
-  "metadata": {
-    "job_id": "12345",
-    "source": "notification"
-  }
-}
-```
+### GET `/api/v1/privacy/policy`
+Get privacy policy.
+
+### GET `/api/v1/privacy/analytics/anonymous`
+Get anonymous analytics data.
 
 ---
 
-## Analytics Dashboard
+## Market Analytics & Insights
 
-### GET `/api/v1/device/analytics/summary`
-Get analytics summary (aggregate data).
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "summary": {
-      "total_users": 1250,
-      "total_notifications_sent": 45000,
-      "avg_keywords_per_user": 3.2,
-      "top_job_sources": ["linkedin", "indeed", "glassdoor"]
-    },
-    "top_keywords": [
-      {
-        "keyword": "iOS",
-        "usage_count": 450,
-        "percentage": 15.2
-      }
-    ]
-  }
-}
-```
-
-### GET `/api/v1/analytics/job-trends`
-Get job market trends and insights.
-
-**Query Parameters:**
-- `days` (int, default=30): Trend period
-- `limit` (int, default=10): Number of trends
+### GET `/api/v1/analytics/market-overview`
+Get high-level job market overview.
 
 **Response:**
 ```json
 {
   "success": true,
-  "data": {
-    "trending_keywords": [
-      {
-        "keyword": "AI Engineer",
-        "growth_rate": 45.2,
-        "job_count": 1200
-      }
-    ],
-    "top_companies": [
-      {
-        "company": "Google",
-        "job_count": 89,
-        "growth_rate": 12.5
-      }
-    ],
-    "market_insights": {
-      "total_jobs_added": 15000,
-      "most_active_source": "linkedin",
-      "peak_posting_hour": "10:00"
+  "snapshot_time": "2025-01-28T23:15:42.987654Z",
+  "market_overview": {
+    "total_jobs": 3906,
+    "unique_companies": 451,
+    "unique_sources": 8,
+    "data_freshness": {
+      "oldest": "2025-01-28T08:24:12.514262Z",
+      "newest": "2025-01-28T23:15:00.000000Z"
     }
   }
 }
 ```
 
----
+### GET `/api/v1/analytics/keyword-trends`
+Analyze trending keywords and skills in job titles.
 
-## Device Management
+### GET `/api/v1/analytics/company-analytics`
+Analyze company hiring activity and market presence.
 
-### GET `/api/v1/devices/active`
-Get active devices summary (admin endpoint).
+### GET `/api/v1/analytics/title-analytics`
+Analyze job titles and role demand patterns.
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "total_devices": 1250,
-    "notifications_enabled": 1100,
-    "avg_keywords": 3.2,
-    "last_24h_registrations": 25
-  }
-}
-```
+### GET `/api/v1/analytics/source-analytics`
+Analyze job volume and distribution by source.
 
-### POST `/api/v1/devices/cleanup`
-Clean up inactive devices (admin endpoint).
+### GET `/api/v1/analytics/remote-work-analysis`
+Analyze remote work opportunities.
 
-**Request Body:**
-```json
-{
-  "days_inactive": 90
-}
-```
+### GET `/api/v1/analytics/market-competition`
+Analyze market competition and job scarcity.
+
+### GET `/api/v1/analytics/snapshot-summary`
+Get comprehensive market snapshot summary.
+
+### POST `/api/v1/analytics/event`
+Track user analytics events.
 
 ---
 
-## Health & Status
+## AI Chatbot
+
+### POST `/api/v1/chatbot/chat/{device_token}`
+Chat with AI career assistant.
+
+### POST `/api/v1/chatbot/analyze-job/{device_token}`
+Get AI analysis of specific job.
+
+### GET `/api/v1/chatbot/recommendations/{device_token}`
+Get AI career recommendations.
+
+---
+
+## Device Management (Admin)
+
+### GET `/api/v1/devices/status/{device_token}`
+Get detailed device status.
+
+### PUT `/api/v1/devices/update/{device_token}`
+Update device configuration.
+
+### DELETE `/api/v1/devices/delete/{device_token}`
+Delete device (admin).
+
+### GET `/api/v1/devices/analytics/{device_token}`
+Get device analytics.
+
+### POST `/api/v1/devices/refresh-token/{old_device_token}`
+Refresh device token.
+
+### POST `/api/v1/devices/cleanup/test-data`
+Cleanup test data (admin).
+
+### GET `/api/v1/devices/debug/list-all`
+List all devices (debug).
+
+---
+
+## Notification Processing (Internal)
+
+### POST `/api/v1/minimal-notifications/process-all`
+Process all pending notifications (internal).
+
+### POST `/api/v1/minimal-notifications/process-jobs`
+Process specific jobs for notifications.
+
+### POST `/api/v1/minimal-notifications/send-single`
+Send single notification.
+
+### GET `/api/v1/minimal-notifications/stats`
+Get notification processing statistics.
+
+### GET `/api/v1/minimal-notifications/devices/active`
+Get active devices count.
+
+### POST `/api/v1/minimal-notifications/scraper-webhook`
+Webhook for scraper integration.
+
+---
+
+## Health & System
 
 ### GET `/api/v1/health/`
 Basic health check.
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-01-28T23:15:42.987654Z"
-}
-```
+### GET `/api/v1/health/status`
+Detailed health status.
 
-### GET `/api/v1/health/detailed`
-Detailed system health with database connectivity.
+### GET `/api/v1/health/status/scraper`
+Scraper system health.
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "redis": "connected", 
-  "apns": "configured",
-  "uptime": "2 days, 5 hours",
-  "version": "4.0.0",
-  "environment": "production"
-}
-```
+### POST `/api/v1/health/fix-device-token-length`
+Fix device token length issues (admin).
+
+### GET `/api/v1/health/db-debug`
+Database debug information.
 
 ---
 
@@ -625,14 +485,6 @@ All endpoints return consistent error format:
   "detail": "Registration failed: Database connection error"
 }
 ```
-
-### Security Probe Detection
-```json
-{
-  "detail": "Invalid device_token format"
-}
-```
-*Note: Security probes (repeating character patterns) are automatically detected and blocked.*
 
 ---
 
@@ -686,18 +538,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             navigateToJobMatches(sessionId)
         }
     }
-}
-```
-
-2. **API Client:**
-```kotlin
-class ApiClient {
-    companion object {
-        const val BASE_URL = "https://birjobbackend-ir3e.onrender.com/api/v1"
-    }
-    
-    suspend fun registerDevice(deviceToken: String, keywords: List<String>): RegisterResponse
-    suspend fun getJobMatches(sessionId: String, page: Int = 1): JobMatchResponse
 }
 ```
 

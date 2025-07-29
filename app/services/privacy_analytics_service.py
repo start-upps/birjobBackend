@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 class PrivacyAnalyticsService:
     """GDPR/CCPA compliant analytics service with consent management"""
     
-    async def check_analytics_consent(self, device_id: str) -> bool:
+    async def check_analytics_consent(self, device_id) -> bool:
         """
         Check if user has consented to analytics tracking
         
         Args:
-            device_id: UUID of the device user
+            device_id: UUID of the device user (str or UUID object)
             
         Returns:
             bool: True if user has consented, False otherwise
@@ -32,14 +32,20 @@ class PrivacyAnalyticsService:
                 WHERE id = $1
             """
             
-            result = await db_manager.execute_query(query, uuid.UUID(device_id))
+            # Handle both string and UUID inputs
+            if isinstance(device_id, str):
+                device_uuid = uuid.UUID(device_id) 
+            else:
+                device_uuid = device_id  # Already a UUID object
+            
+            result = await db_manager.execute_query(query, device_uuid)
             
             if result and result[0]['analytics_consent']:
                 return True
             return False
             
         except Exception as e:
-            logger.error(f"Error checking analytics consent for device {device_id}: {e}")
+            logger.error(f"Error checking analytics consent for device {str(device_id)}: {e}")
             return False
     
     async def track_action_with_consent(self, device_id: str, action: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
