@@ -65,10 +65,6 @@ jobs:
         echo "🔍 Triggering job notification processing..."
         echo "💡 Backend will process all current jobs and send notifications to matched devices"
         
-        # Wait for backend deployment to complete
-        echo "⏳ Waiting 30 seconds for backend deployment..."
-        sleep 30
-        
         # API call with better error handling
         echo "📡 Making API request..."
         RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-all" \
