@@ -84,12 +84,12 @@ class PrivacyAnalyticsService:
             logger.error(f"Failed to track action {action} for device {device_id}: {e}")
             return False
     
-    async def set_analytics_consent(self, device_id: str, consent: bool, privacy_policy_version: str = "1.0") -> bool:
+    async def set_analytics_consent(self, device_id, consent: bool, privacy_policy_version: str = "1.0") -> bool:
         """
         Set user's analytics consent preference
         
         Args:
-            device_id: UUID of the device user
+            device_id: UUID of the device user (str or UUID object)
             consent: True to consent, False to revoke
             privacy_policy_version: Version of privacy policy user agreed to
             
@@ -97,6 +97,12 @@ class PrivacyAnalyticsService:
             bool: True if updated successfully
         """
         try:
+            # Handle both string and UUID inputs (same as check_analytics_consent)
+            if isinstance(device_id, str):
+                device_uuid = uuid.UUID(device_id) 
+            else:
+                device_uuid = device_id  # Already a UUID object
+            
             if consent:
                 # User is giving consent
                 query = """
@@ -106,11 +112,11 @@ class PrivacyAnalyticsService:
                         privacy_policy_version = $3
                     WHERE id = $1
                 """
-                await db_manager.execute_command(query, device_id, consent, privacy_policy_version)
+                await db_manager.execute_command(query, device_uuid, consent, privacy_policy_version)
                 logger.info(f"Analytics consent granted for device {device_id}")
             else:
                 # User is revoking consent - delete existing analytics data
-                await self.delete_analytics_data(device_id)
+                await self.delete_analytics_data(str(device_uuid))
                 
                 query = """
                     UPDATE iosapp.device_users 
@@ -119,7 +125,7 @@ class PrivacyAnalyticsService:
                         privacy_policy_version = $3
                     WHERE id = $1
                 """
-                await db_manager.execute_command(query, device_id, consent, privacy_policy_version)
+                await db_manager.execute_command(query, device_uuid, consent, privacy_policy_version)
                 logger.info(f"Analytics consent revoked and data deleted for device {device_id}")
             
             return True
@@ -128,23 +134,29 @@ class PrivacyAnalyticsService:
             logger.error(f"Failed to set analytics consent for device {device_id}: {e}")
             return False
     
-    async def delete_analytics_data(self, device_id: str) -> int:
+    async def delete_analytics_data(self, device_id) -> int:
         """
         Delete all analytics data for a user (GDPR right to be forgotten)
         
         Args:
-            device_id: UUID of the device user
+            device_id: UUID of the device user (str or UUID object)
             
         Returns:
             int: Number of records deleted
         """
         try:
+            # Handle both string and UUID inputs
+            if isinstance(device_id, str):
+                device_uuid = uuid.UUID(device_id) 
+            else:
+                device_uuid = device_id  # Already a UUID object
+            
             query = """
                 DELETE FROM iosapp.user_analytics 
                 WHERE device_id = $1
             """
             
-            result = await db_manager.execute_command(query, device_id)
+            result = await db_manager.execute_command(query, device_uuid)
             logger.info(f"Deleted analytics data for device {device_id}")
             
             # Return count would need a different approach with asyncpg
@@ -203,18 +215,24 @@ class PrivacyAnalyticsService:
                 "error": "Failed to retrieve analytics data"
             }
     
-    async def get_user_analytics_with_consent(self, device_id: str) -> Tuple[bool, Dict[str, Any]]:
+    async def get_user_analytics_with_consent(self, device_id) -> Tuple[bool, Dict[str, Any]]:
         """
         Get user-specific analytics only if they have consented
         
         Args:
-            device_id: UUID of the device user
+            device_id: UUID of the device user (str or UUID object)
             
         Returns:
             Tuple[bool, Dict]: (has_consent, analytics_data)
         """
         try:
-            has_consent = await self.check_analytics_consent(device_id)
+            # Handle both string and UUID inputs
+            if isinstance(device_id, str):
+                device_uuid = uuid.UUID(device_id) 
+            else:
+                device_uuid = device_id  # Already a UUID object
+            
+            has_consent = await self.check_analytics_consent(device_uuid)
             
             if not has_consent:
                 return False, {
@@ -234,7 +252,7 @@ class PrivacyAnalyticsService:
                 ORDER BY count DESC
             """
             
-            result = await db_manager.execute_query(query, device_id)
+            result = await db_manager.execute_query(query, device_uuid)
             
             actions = {}
             total_events = 0
@@ -257,19 +275,25 @@ class PrivacyAnalyticsService:
             logger.error(f"Failed to get user analytics for device {device_id}: {e}")
             return False, {"error": "Failed to retrieve analytics data"}
     
-    async def export_user_data(self, device_id: str) -> Optional[Dict[str, Any]]:
+    async def export_user_data(self, device_id) -> Optional[Dict[str, Any]]:
         """
         Export all user data for GDPR data portability requests
         
         Args:
-            device_id: UUID of the device user
+            device_id: UUID of the device user (str or UUID object)
             
         Returns:
             Dict with all user data or None if no consent
         """
         try:
+            # Handle both string and UUID inputs
+            if isinstance(device_id, str):
+                device_uuid = uuid.UUID(device_id) 
+            else:
+                device_uuid = device_id  # Already a UUID object
+            
             # Check consent
-            has_consent = await self.check_analytics_consent(device_id)
+            has_consent = await self.check_analytics_consent(device_uuid)
             
             if not has_consent:
                 return {
@@ -292,8 +316,8 @@ class PrivacyAnalyticsService:
                 WHERE id = $1
             """
             
-            analytics_data = await db_manager.execute_query(analytics_query, device_id)
-            device_data = await db_manager.execute_query(device_query, device_id)
+            analytics_data = await db_manager.execute_query(analytics_query, device_uuid)
+            device_data = await db_manager.execute_query(device_query, device_uuid)
             
             return {
                 "export_date": datetime.now(timezone.utc).isoformat(),
