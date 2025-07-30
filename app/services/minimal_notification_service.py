@@ -286,6 +286,210 @@ class MinimalNotificationService:
             logger.error(f"Error sending job notification: {e}")
             return False
     
+    async def process_job_notifications_parallel(self, jobs: List[Dict[str, Any]], 
+                                               source_filter: Optional[str] = None,
+                                               dry_run: bool = False) -> Dict[str, int]:
+        """
+        OPTIMIZED: Process job notifications in parallel with bulk operations
+        Target: Complete 20+ users in under 2 minutes instead of 28 minutes
+        """
+        try:
+            logger.info(f"🚀 OPTIMIZED: Processing {len(jobs)} jobs for notifications (dry_run={dry_run})")
+            
+            # Get active devices
+            devices = await self.get_active_devices_with_keywords()
+            if not devices:
+                logger.warning("No active devices with keywords found")
+                return {"processed_jobs": 0, "matched_devices": 0, "notifications_sent": 0}
+            
+            logger.info(f"📱 Processing {len(devices)} devices in parallel...")
+            
+            stats = {
+                "processed_jobs": len(jobs),
+                "matched_devices": 0,
+                "notifications_sent": 0,
+                "errors": 0
+            }
+            
+            # Process devices in parallel (batches of 10)
+            batch_size = 10
+            device_batches = [devices[i:i + batch_size] for i in range(0, len(devices), batch_size)]
+            
+            for batch_idx, device_batch in enumerate(device_batches):
+                logger.info(f"⚡ Processing batch {batch_idx + 1}/{len(device_batches)} ({len(device_batch)} devices)")
+                
+                # Process batch in parallel
+                batch_tasks = [
+                    self._process_device_optimized(device, jobs, source_filter, dry_run)
+                    for device in device_batch
+                ]
+                
+                batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                
+                # Aggregate results
+                for result in batch_results:
+                    if isinstance(result, Exception):
+                        logger.error(f"Device processing error: {result}")
+                        stats["errors"] += 1
+                    elif result:
+                        if result.get("matched"):
+                            stats["matched_devices"] += 1
+                        if result.get("notification_sent"):
+                            stats["notifications_sent"] += 1
+            
+            logger.info(f"✅ OPTIMIZED processing complete: {stats}")
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error in parallel processing: {e}")
+            return {"processed_jobs": 0, "matched_devices": 0, "notifications_sent": 0, "errors": 1}
+    
+    async def _process_device_optimized(self, device: Dict, jobs: List[Dict], 
+                                       source_filter: Optional[str], dry_run: bool) -> Dict:
+        """Process a single device with bulk operations for speed"""
+        try:
+            device_id = device['device_id']
+            device_token = device['device_token']
+            user_keywords = device['keywords']
+            
+            # Step 1: Bulk filter jobs by keywords (much faster than individual checks)
+            matching_jobs = []
+            job_hashes = []
+            all_matched_keywords = set()
+            
+            for job in jobs:
+                # Apply source filter
+                if source_filter and job.get('source', '').lower() != source_filter.lower():
+                    continue
+                
+                # Quick keyword matching
+                matched_keywords = self.match_keywords(job, user_keywords)
+                if matched_keywords:
+                    job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                    matching_jobs.append(job)
+                    job_hashes.append(job_hash)
+                    all_matched_keywords.update(matched_keywords)
+            
+            if not matching_jobs:
+                return {"matched": False, "notification_sent": False}
+            
+            # Step 2: Bulk check for already sent notifications (single query)
+            if not dry_run:
+                already_sent_hashes = await self._bulk_check_notifications_sent(device_id, job_hashes)
+                
+                # Filter out already sent jobs
+                new_jobs = []
+                new_hashes = []
+                for job, job_hash in zip(matching_jobs, job_hashes):
+                    if job_hash not in already_sent_hashes:
+                        new_jobs.append(job)
+                        new_hashes.append(job_hash)
+                
+                if not new_jobs:
+                    return {"matched": True, "notification_sent": False}
+                
+                # Step 3: Bulk record notifications (single query)
+                await self._bulk_record_notifications(device_id, new_jobs, new_hashes, user_keywords)
+                
+                matching_jobs = new_jobs
+            
+            # Step 4: Send single notification for all matches
+            if matching_jobs:
+                session_id = await self.create_job_match_session(
+                    device_id, matching_jobs, list(all_matched_keywords)
+                )
+                
+                if session_id:
+                    primary_job = matching_jobs[0]
+                    enhanced_job = {
+                        **primary_job,
+                        "session_context": {
+                            "session_id": session_id,
+                            "total_matches": len(matching_jobs),
+                            "additional_jobs": len(matching_jobs) - 1,
+                            "matched_keywords": list(all_matched_keywords)[:3]
+                        }
+                    }
+                    
+                    success = await self.send_job_notification(
+                        device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
+                    )
+                    
+                    return {"matched": True, "notification_sent": success}
+            
+            return {"matched": True, "notification_sent": False}
+            
+        except Exception as e:
+            logger.error(f"Error processing device {device_id[:8]}...: {e}")
+            return {"matched": False, "notification_sent": False}
+    
+    async def _bulk_check_notifications_sent(self, device_id: str, job_hashes: List[str]) -> set:
+        """Bulk check which notifications were already sent (single DB query)"""
+        try:
+            if not job_hashes:
+                return set()
+            
+            # Use ANY() for efficient bulk check
+            query = """
+                SELECT job_hash FROM iosapp.notification_hashes 
+                WHERE device_id = $1 AND job_hash = ANY($2)
+            """
+            result = await db_manager.execute_query(query, device_id, job_hashes)
+            return {row['job_hash'] for row in result}
+        except Exception as e:
+            logger.error(f"Error in bulk notification check: {e}")
+            return set()
+    
+    async def _bulk_record_notifications(self, device_id: str, jobs: List[Dict], 
+                                        job_hashes: List[str], keywords: List[str]):
+        """TRUE BULK record notifications (single DB query using executemany)"""
+        try:
+            if not jobs:
+                return
+            
+            # Prepare all records for bulk insert
+            records = []
+            keywords_json = json.dumps(keywords[:3])  # Convert once
+            
+            for job, job_hash in zip(jobs, job_hashes):
+                records.append((
+                    device_id,
+                    job_hash,
+                    job.get('title', ''),
+                    job.get('company', ''),
+                    job.get('source', ''),
+                    keywords_json,
+                    job.get('apply_link')
+                ))
+            
+            if records:
+                # True bulk insert using executemany
+                query = """
+                    INSERT INTO iosapp.notification_hashes 
+                    (device_id, job_hash, job_title, company, source, matched_keywords, apply_link, sent_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                    ON CONFLICT (device_id, job_hash) DO NOTHING
+                """
+                
+                try:
+                    # Use asyncpg's executemany for true bulk performance
+                    pool = db_manager.pool
+                    async with pool.acquire() as conn:
+                        await conn.executemany(query, records)
+                    
+                    logger.debug(f"Bulk recorded {len(records)} notifications for device {device_id[:8]}...")
+                except Exception as bulk_error:
+                    # Fallback to individual inserts if bulk fails
+                    logger.warning(f"Bulk insert failed, falling back to individual inserts: {bulk_error}")
+                    for record in records:
+                        try:
+                            await db_manager.execute_command(query, *record)
+                        except Exception as individual_error:
+                            logger.error(f"Failed to record individual notification: {individual_error}")
+                            
+        except Exception as e:
+            logger.error(f"Error in bulk notification recording: {e}")
+
     async def process_job_notifications(self, jobs: List[Dict[str, Any]], 
                                       source_filter: Optional[str] = None,
                                       dry_run: bool = False) -> Dict[str, int]:

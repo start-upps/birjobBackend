@@ -76,9 +76,9 @@ async def process_all_job_notifications(
             logger.warning(f"Processing {jobs_count} jobs - this may take several minutes and use significant memory")
         
         if run_in_background:
-            # Run in background
+            # Run in background with optimized processing
             background_tasks.add_task(
-                minimal_notification_service.process_job_notifications,
+                minimal_notification_service.process_job_notifications_parallel,
                 jobs_data, None, False
             )
             
@@ -93,8 +93,8 @@ async def process_all_job_notifications(
                 }
             }
         else:
-            # Run synchronously for GitHub Actions
-            stats = await minimal_notification_service.process_job_notifications(
+            # Run synchronously for GitHub Actions with optimized processing
+            stats = await minimal_notification_service.process_job_notifications_parallel(
                 jobs_data, None, False
             )
             
