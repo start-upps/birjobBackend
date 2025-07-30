@@ -16,6 +16,16 @@ from app.services.privacy_analytics_service import privacy_analytics_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+async def update_user_activity(device_token: str):
+    """Update last_activity timestamp for a device"""
+    try:
+        await db_manager.execute_command(
+            "UPDATE iosapp.device_users SET last_activity = NOW() WHERE device_token = $1",
+            device_token
+        )
+    except Exception as e:
+        logger.warning(f"Failed to update last activity for device {device_token[:8]}...: {e}")
+
 @router.post("/register")
 async def register_device_minimal(request: Dict[str, Any]):
     """
@@ -42,14 +52,15 @@ async def register_device_minimal(request: Dict[str, Any]):
                 logger.info(f"Legitimate validation error in device registration: {e.detail}")
             raise
         
-        # Single INSERT - device becomes user
+        # Single INSERT - device becomes user with last_activity tracking
         insert_query = """
-            INSERT INTO iosapp.device_users (device_token, keywords, notifications_enabled)
-            VALUES ($1, $2, true)
+            INSERT INTO iosapp.device_users (device_token, keywords, notifications_enabled, last_activity)
+            VALUES ($1, $2, true, NOW())
             ON CONFLICT (device_token) 
             DO UPDATE SET 
                 keywords = EXCLUDED.keywords,
-                notifications_enabled = true
+                notifications_enabled = true,
+                last_activity = NOW()
             RETURNING id, created_at
         """
         
@@ -134,10 +145,10 @@ async def update_keywords(request: Dict[str, Any]):
         device_token = validate_device_token(device_token)
         keywords = validate_keywords(keywords)
         
-        # Update keywords
+        # Update keywords and last_activity
         update_query = """
             UPDATE iosapp.device_users 
-            SET keywords = $1
+            SET keywords = $1, last_activity = NOW()
             WHERE device_token = $2
             RETURNING id
         """
@@ -178,7 +189,7 @@ async def get_device_status(device_token: str):
         device_token = validate_device_token(device_token)
         
         query = """
-            SELECT id, keywords, notifications_enabled, created_at
+            SELECT id, keywords, notifications_enabled, created_at, last_activity
             FROM iosapp.device_users
             WHERE device_token = $1
         """
@@ -203,7 +214,8 @@ async def get_device_status(device_token: str):
             "has_keywords": len(keywords) > 0,
             "setup_complete": len(keywords) > 0,
             "requires_onboarding": len(keywords) == 0,
-            "registered_at": device_data['created_at'].isoformat()
+            "registered_at": device_data['created_at'].isoformat(),
+            "last_activity": device_data['last_activity'].isoformat() if device_data.get('last_activity') else None
         }
         
     except HTTPException:
@@ -300,3 +312,75 @@ async def delete_device(device_token: str):
     except Exception as e:
         logger.error(f"Error deleting device: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete device: {str(e)}")
+
+@router.get("/users-activity")
+async def get_users_activity():
+    """Get all users with their last activity for admin tracking"""
+    try:
+        query = """
+            SELECT 
+                SUBSTRING(device_token, 1, 8) || '...' as device_preview,
+                id as device_id,
+                JSON_ARRAY_LENGTH(keywords::json) as keywords_count,
+                notifications_enabled,
+                created_at,
+                last_activity,
+                CASE 
+                    WHEN last_activity IS NULL THEN 'Never active'
+                    WHEN last_activity > NOW() - INTERVAL '1 day' THEN 'Active today'
+                    WHEN last_activity > NOW() - INTERVAL '7 days' THEN 'Active this week'
+                    WHEN last_activity > NOW() - INTERVAL '30 days' THEN 'Active this month'
+                    ELSE 'Inactive > 30 days'
+                END as activity_status,
+                EXTRACT(EPOCH FROM (NOW() - last_activity))/86400 as days_since_activity
+            FROM iosapp.device_users
+            ORDER BY last_activity DESC NULLS LAST, created_at DESC
+        """
+        
+        result = await db_manager.execute_query(query)
+        
+        # Calculate activity summary
+        activity_summary = {
+            "total_users": len(result),
+            "never_active": 0,
+            "active_today": 0,
+            "active_this_week": 0,
+            "active_this_month": 0,
+            "inactive_30_plus": 0
+        }
+        
+        users_data = []
+        for row in result:
+            activity_status = row['activity_status']
+            if activity_status == 'Never active':
+                activity_summary["never_active"] += 1
+            elif activity_status == 'Active today':
+                activity_summary["active_today"] += 1
+            elif activity_status == 'Active this week':
+                activity_summary["active_this_week"] += 1
+            elif activity_status == 'Active this month':
+                activity_summary["active_this_month"] += 1
+            else:
+                activity_summary["inactive_30_plus"] += 1
+            
+            users_data.append({
+                "device_preview": row['device_preview'],
+                "device_id": str(row['device_id']),
+                "keywords_count": row['keywords_count'] or 0,
+                "notifications_enabled": row['notifications_enabled'],
+                "registered_at": row['created_at'].isoformat(),
+                "last_activity": row['last_activity'].isoformat() if row['last_activity'] else None,
+                "activity_status": activity_status,
+                "days_since_activity": round(row['days_since_activity'], 1) if row['days_since_activity'] else None
+            })
+        
+        return {
+            "success": True,
+            "activity_summary": activity_summary,
+            "users": users_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting users activity: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get users activity: {str(e)}")

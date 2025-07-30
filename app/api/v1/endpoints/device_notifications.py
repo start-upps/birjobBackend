@@ -45,6 +45,16 @@ def validate_device_token(device_token: str) -> str:
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+async def update_user_activity(device_token: str):
+    """Update last_activity timestamp for a device"""
+    try:
+        await db_manager.execute_command(
+            "UPDATE iosapp.device_users SET last_activity = NOW() WHERE device_token = $1",
+            device_token
+        )
+    except Exception as e:
+        logger.warning(f"Failed to update last activity for device {device_token[:8]}...: {e}")
+
 @router.get("/history/{device_token}")
 async def get_notification_history(
     device_token: str, 
@@ -154,6 +164,9 @@ async def get_notification_inbox(
     try:
         # Validate device token
         device_token = validate_device_token(device_token)
+        
+        # Update user activity
+        await update_user_activity(device_token)
         
         # Get device info
         device_query = """
