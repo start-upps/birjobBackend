@@ -390,23 +390,17 @@ class MinimalNotificationService:
                 
                 matching_jobs = new_jobs
             
-            # Step 4: Send single notification for all matches
+            # Step 4: Send enhanced notification representing ALL jobs
             if matching_jobs:
                 session_id = await self.create_job_match_session(
                     device_id, matching_jobs, list(all_matched_keywords)
                 )
                 
                 if session_id:
-                    primary_job = matching_jobs[0]
-                    enhanced_job = {
-                        **primary_job,
-                        "session_context": {
-                            "session_id": session_id,
-                            "total_matches": len(matching_jobs),
-                            "additional_jobs": len(matching_jobs) - 1,
-                            "matched_keywords": list(all_matched_keywords)[:3]
-                        }
-                    }
+                    # Create enhanced notification showing job variety (not just first job)
+                    enhanced_job = self._create_multi_job_notification(
+                        matching_jobs, session_id, list(all_matched_keywords)
+                    )
                     
                     success = await self.send_job_notification(
                         device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
@@ -486,6 +480,76 @@ class MinimalNotificationService:
                             
         except Exception as e:
             logger.error(f"Error in bulk notification recording: {e}")
+
+    def _create_multi_job_notification(self, matching_jobs: List[Dict], session_id: str, 
+                                     matched_keywords: List[str]) -> Dict:
+        """Create notification payload that represents multiple jobs intelligently"""
+        try:
+            total_jobs = len(matching_jobs)
+            
+            if total_jobs == 1:
+                # Single job - use it directly
+                primary_job = matching_jobs[0]
+            else:
+                # Multiple jobs - create smart summary
+                # Prioritize by: 1) More keywords matched, 2) Better company, 3) Newer
+                
+                # Get unique companies and titles for variety
+                companies = list(set(job.get('company', 'Unknown') for job in matching_jobs[:5]))
+                titles = list(set(job.get('title', 'Unknown') for job in matching_jobs[:5]))
+                
+                # Use the first job as base, but enhance the title for variety
+                primary_job = matching_jobs[0].copy()
+                
+                # Create enhanced title showing variety
+                if total_jobs == 2:
+                    enhanced_title = f"{primary_job.get('title', 'Job')} + 1 more position"
+                elif len(companies) > 1:
+                    other_companies = companies[1:3]  # Show up to 2 other companies
+                    companies_text = ", ".join(other_companies)
+                    enhanced_title = f"{primary_job.get('title', 'Job')} + {total_jobs-1} more at {companies_text}..."
+                else:
+                    enhanced_title = f"{primary_job.get('title', 'Job')} + {total_jobs-1} similar positions"
+                
+                # Update the primary job with enhanced info
+                primary_job['title'] = enhanced_title
+                primary_job['enhanced_summary'] = {
+                    "total_companies": len(companies),
+                    "company_variety": companies[:3],
+                    "title_variety": titles[:3],
+                    "top_keywords": matched_keywords[:3]
+                }
+            
+            # Add session context
+            enhanced_job = {
+                **primary_job,
+                "session_context": {
+                    "session_id": session_id,
+                    "total_matches": total_jobs,
+                    "additional_jobs": max(0, total_jobs - 1),
+                    "matched_keywords": matched_keywords[:3],
+                    "job_variety": {
+                        "companies_count": len(set(job.get('company', '') for job in matching_jobs)),
+                        "sources_count": len(set(job.get('source', '') for job in matching_jobs)),
+                        "unique_titles": len(set(job.get('title', '') for job in matching_jobs[:10]))
+                    }
+                }
+            }
+            
+            return enhanced_job
+            
+        except Exception as e:
+            logger.error(f"Error creating multi-job notification: {e}")
+            # Fallback to simple first job
+            return {
+                **matching_jobs[0],
+                "session_context": {
+                    "session_id": session_id,
+                    "total_matches": len(matching_jobs),
+                    "additional_jobs": len(matching_jobs) - 1,
+                    "matched_keywords": matched_keywords[:3]
+                }
+            }
 
     async def process_job_notifications(self, jobs: List[Dict[str, Any]], 
                                       source_filter: Optional[str] = None,
@@ -600,20 +664,10 @@ class MinimalNotificationService:
                             )
                             
                             if session_id:
-                                # Send ONE smart notification with session context
-                                primary_job = matching_jobs[0]  # Most recent/relevant job
-                                job_count = len(matching_jobs)
-                                
-                                # Create enhanced job notification with session context
-                                enhanced_job = {
-                                    **primary_job,
-                                    "session_context": {
-                                        "session_id": session_id,
-                                        "total_matches": job_count,
-                                        "additional_jobs": job_count - 1 if job_count > 1 else 0,
-                                        "matched_keywords": list(all_matched_keywords)[:3]
-                                    }
-                                }
+                                # Send enhanced notification representing ALL jobs (not just first)
+                                enhanced_job = self._create_multi_job_notification(
+                                    matching_jobs, session_id, list(all_matched_keywords)
+                                )
                                 
                                 success = await self.send_job_notification(
                                     device_token, device_id, enhanced_job, list(all_matched_keywords)[:3]
