@@ -311,31 +311,28 @@ class MinimalNotificationService:
                 "errors": 0
             }
             
-            # Process devices in parallel (batches of 10)
-            batch_size = 10
-            device_batches = [devices[i:i + batch_size] for i in range(0, len(devices), batch_size)]
+            # Process ALL devices in parallel (no batching for max speed)
+            logger.info(f"⚡ Processing ALL {len(devices)} devices in parallel...")
             
-            for batch_idx, device_batch in enumerate(device_batches):
-                logger.info(f"⚡ Processing batch {batch_idx + 1}/{len(device_batches)} ({len(device_batch)} devices)")
-                
-                # Process batch in parallel
-                batch_tasks = [
-                    self._process_device_optimized(device, jobs, source_filter, dry_run)
-                    for device in device_batch
-                ]
-                
-                batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-                
-                # Aggregate results
-                for result in batch_results:
-                    if isinstance(result, Exception):
-                        logger.error(f"Device processing error: {result}")
-                        stats["errors"] += 1
-                    elif result:
-                        if result.get("matched"):
-                            stats["matched_devices"] += 1
-                        if result.get("notification_sent"):
-                            stats["notifications_sent"] += 1
+            # Create tasks for all devices at once
+            device_tasks = [
+                self._process_device_optimized(device, jobs, source_filter, dry_run)
+                for device in devices
+            ]
+            
+            # Process all devices simultaneously
+            all_results = await asyncio.gather(*device_tasks, return_exceptions=True)
+            
+            # Aggregate results
+            for result in all_results:
+                if isinstance(result, Exception):
+                    logger.error(f"Device processing error: {result}")
+                    stats["errors"] += 1
+                elif result:
+                    if result.get("matched"):
+                        stats["matched_devices"] += 1
+                    if result.get("notification_sent"):
+                        stats["notifications_sent"] += 1
             
             logger.info(f"✅ OPTIMIZED processing complete: {stats}")
             return stats

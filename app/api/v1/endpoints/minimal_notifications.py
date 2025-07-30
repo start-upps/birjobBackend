@@ -77,10 +77,15 @@ async def process_all_job_notifications(
         
         if run_in_background:
             # Run in background with optimized processing
-            background_tasks.add_task(
-                minimal_notification_service.process_job_notifications_parallel,
-                jobs_data, None, False
+            # Use optimized parallel processing by default
+            use_optimized = request.get("use_optimized", True)
+            processing_func = (
+                minimal_notification_service.process_job_notifications_parallel 
+                if use_optimized 
+                else minimal_notification_service.process_job_notifications
             )
+            
+            background_tasks.add_task(processing_func, jobs_data, None, False)
             
             return {
                 "success": True,
@@ -94,9 +99,18 @@ async def process_all_job_notifications(
             }
         else:
             # Run synchronously for GitHub Actions with optimized processing
-            stats = await minimal_notification_service.process_job_notifications_parallel(
-                jobs_data, None, False
-            )
+            use_optimized = request.get("use_optimized", True)
+            
+            if use_optimized:
+                logger.info("🚀 Using OPTIMIZED parallel processing for GitHub Actions")
+                stats = await minimal_notification_service.process_job_notifications_parallel(
+                    jobs_data, None, False
+                )
+            else:
+                logger.info("🐌 Using legacy sequential processing")
+                stats = await minimal_notification_service.process_job_notifications(
+                    jobs_data, None, False
+                )
             
             return {
                 "success": True,
