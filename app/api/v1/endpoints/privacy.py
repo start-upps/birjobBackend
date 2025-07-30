@@ -20,6 +20,10 @@ class AnalyticsConsentRequest(BaseModel):
     device_token: str
     consent: bool
     privacy_policy_version: str = "1.0"
+    
+    class Config:
+        # Allow extra fields to be ignored instead of causing validation errors
+        extra = "ignore"
 
 class DataExportRequest(BaseModel):
     device_token: str
@@ -91,6 +95,9 @@ async def get_privacy_status(device_token: str):
 async def set_analytics_consent(request: AnalyticsConsentRequest):
     """Set or update user's analytics consent (GDPR compliance)"""
     try:
+        # Log the request for debugging
+        logger.info(f"Privacy consent request: device_token={request.device_token[:8]}..., consent={request.consent}")
+        
         device_token = validate_device_token(request.device_token)
         
         # Get device ID
@@ -132,8 +139,81 @@ async def set_analytics_consent(request: AnalyticsConsentRequest):
         
     except HTTPException:
         raise
+    except ValueError as ve:
+        logger.error(f"Validation error in privacy consent: {ve}")
+        raise HTTPException(status_code=422, detail=f"Invalid request: {str(ve)}")
     except Exception as e:
         logger.error(f"Error setting analytics consent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set analytics consent")
+
+@router.post("/consent-flexible")
+async def set_analytics_consent_flexible(request: Dict[str, Any]):
+    """
+    Alternative consent endpoint that handles various request formats
+    More forgiving than the strict Pydantic validation
+    """
+    try:
+        # Extract required fields with validation
+        device_token = request.get("device_token")
+        consent = request.get("consent")
+        privacy_policy_version = request.get("privacy_policy_version", "1.0")
+        
+        # Validate required fields
+        if not device_token:
+            raise HTTPException(status_code=422, detail="device_token is required")
+        
+        if consent is None:
+            raise HTTPException(status_code=422, detail="consent field is required (true/false)")
+        
+        # Convert consent to boolean if it's a string
+        if isinstance(consent, str):
+            consent = consent.lower() in ('true', '1', 'yes')
+        elif not isinstance(consent, bool):
+            raise HTTPException(status_code=422, detail="consent must be boolean or string")
+        
+        logger.info(f"Flexible privacy consent: device_token={device_token[:8]}..., consent={consent}")
+        
+        # Use the same logic as the main endpoint
+        device_token = validate_device_token(device_token)
+        
+        # Get device ID
+        device_query = """
+            SELECT id FROM iosapp.device_users 
+            WHERE device_token = $1
+        """
+        device_result = await db_manager.execute_query(device_query, device_token)
+        
+        if not device_result:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        device_id = device_result[0]['id']
+        
+        # Set consent using privacy service
+        success = await privacy_analytics_service.set_analytics_consent(
+            device_id, consent, privacy_policy_version
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update consent")
+        
+        action = "granted" if consent else "revoked"
+        data_action = "" if consent else " and existing data deleted"
+        
+        return {
+            "success": True,
+            "message": f"Analytics consent {action} successfully{data_action}",
+            "data": {
+                "analytics_consent": consent,
+                "privacy_policy_version": privacy_policy_version,
+                "consent_date": datetime.now(timezone.utc).isoformat(),
+                "data_retention": "Data will be collected and stored" if consent else "No data will be collected"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in flexible consent endpoint: {e}")
         raise HTTPException(status_code=500, detail="Failed to set analytics consent")
 
 @router.delete("/data/{device_token}")
