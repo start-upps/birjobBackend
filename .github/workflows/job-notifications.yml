@@ -65,37 +65,62 @@ jobs:
         echo "🔍 Triggering job notification processing..."
         echo "💡 Backend will process all current jobs and send notifications to matched devices"
         
-        # Simple API call to trigger backend processing
-        RESPONSE=$(curl -s -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-all" \
+        # Wait for backend deployment to complete
+        echo "⏳ Waiting 30 seconds for backend deployment..."
+        sleep 30
+        
+        # API call with better error handling
+        echo "📡 Making API request..."
+        RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${{ secrets.BACKEND_URL || 'https://birjobbackend-ir3e.onrender.com' }}/api/v1/minimal-notifications/process-all" \
           -H "Content-Type: application/json" \
           -d '{"trigger_source": "github_actions", "background": false}')
         
-        # Parse results
-        SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
-        JOBS_PROCESSED=$(echo "$RESPONSE" | jq -r '.stats.processed_jobs // 0')
-        DEVICES_MATCHED=$(echo "$RESPONSE" | jq -r '.stats.matched_devices // 0')
-        NOTIFICATIONS_SENT=$(echo "$RESPONSE" | jq -r '.stats.notifications_sent // 0')
-        ERRORS=$(echo "$RESPONSE" | jq -r '.stats.errors // 0')
-        MESSAGE=$(echo "$RESPONSE" | jq -r '.message // "No message"')
+        # Extract HTTP status code
+        HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+        RESPONSE_BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE:/d')
         
-        echo "📊 Notification Results:"
-        echo "- Jobs processed: $JOBS_PROCESSED"
-        echo "- Devices matched: $DEVICES_MATCHED" 
-        echo "- Notifications sent: $NOTIFICATIONS_SENT"
-        echo "- Errors: $ERRORS"
-        echo "- Success: $SUCCESS"
+        echo "📡 HTTP Status: $HTTP_CODE"
+        echo "📄 Response: $RESPONSE_BODY"
         
-        # Show success/failure
-        if [ "$NOTIFICATIONS_SENT" -gt 0 ]; then
-          echo "✅ SUCCESS: $NOTIFICATIONS_SENT notifications sent!"
-        elif [ "$DEVICES_MATCHED" -gt 0 ]; then
-          echo "⚠️ Devices matched but no notifications sent (check APNs configuration)"
+        # Check if response is valid JSON
+        if echo "$RESPONSE_BODY" | jq empty 2>/dev/null; then
+          echo "✅ Valid JSON response received"
+          
+          # Parse results
+          SUCCESS=$(echo "$RESPONSE_BODY" | jq -r '.success // false')
+          JOBS_PROCESSED=$(echo "$RESPONSE_BODY" | jq -r '.stats.processed_jobs // 0')
+          DEVICES_MATCHED=$(echo "$RESPONSE_BODY" | jq -r '.stats.matched_devices // 0')
+          NOTIFICATIONS_SENT=$(echo "$RESPONSE_BODY" | jq -r '.stats.notifications_sent // 0')
+          ERRORS=$(echo "$RESPONSE_BODY" | jq -r '.stats.errors // 0')
+          
+          echo "📊 Notification Results:"
+          echo "- Jobs processed: $JOBS_PROCESSED"
+          echo "- Devices matched: $DEVICES_MATCHED" 
+          echo "- Notifications sent: $NOTIFICATIONS_SENT"
+          echo "- Errors: $ERRORS"
+          echo "- Success: $SUCCESS"
+          
+          # Show success/failure
+          if [ "$NOTIFICATIONS_SENT" -gt 0 ]; then
+            echo "✅ SUCCESS: $NOTIFICATIONS_SENT notifications sent!"
+          elif [ "$DEVICES_MATCHED" -gt 0 ]; then
+            echo "⚠️ Devices matched but no notifications sent (check APNs configuration)"
+          else
+            echo "ℹ️ No matching jobs found for current user keywords"
+          fi
         else
-          echo "ℹ️ No matching jobs found for current user keywords"
+          echo "❌ Invalid JSON response or error occurred"
+          echo "📄 Raw response: $RESPONSE_BODY"
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "⚠️ Backend returned 200 but invalid JSON - likely processing issue"
+          else
+            echo "❌ HTTP Error $HTTP_CODE - Backend may be unavailable"
+          fi
         fi
         
         # Log timestamp for monitoring
         echo "🕐 Completed at: $(date)"
         
-        # Force exit to ensure GitHub Action terminates
+        # Always exit successfully to avoid blocking deployment
         exit 0
