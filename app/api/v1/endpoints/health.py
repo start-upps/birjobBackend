@@ -54,9 +54,17 @@ async def health_check():
         # Get metrics
         metrics = await get_system_metrics()
         
-        # Overall health status
-        overall_healthy = all([db_healthy, redis_healthy, apns_healthy, scraper_healthy])
-        status_text = "healthy" if overall_healthy else "unhealthy"
+        # Overall health status - Core services only (scraper is external dependency)
+        core_services_healthy = all([db_healthy, redis_healthy, apns_healthy])
+        overall_healthy = core_services_healthy
+        
+        # Determine status text
+        if overall_healthy:
+            status_text = "healthy"
+        elif core_services_healthy and not scraper_healthy:
+            status_text = "healthy"  # Core services working, scraper issue doesn't affect backend
+        else:
+            status_text = "unhealthy"
         
         return {
             "status": status_text,
