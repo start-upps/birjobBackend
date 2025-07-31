@@ -22,15 +22,18 @@ class MinimalNotificationService:
         self.push_service = PushNotificationService()
     
     @staticmethod
-    def generate_job_hash(job_title: str, company: str) -> str:
+    def generate_job_hash(job_title: str, company: str, source: str = "", job_id: str = "") -> str:
         """Generate SHA-256 hash for job deduplication (truncated to 32 chars)"""
         try:
             # Normalize inputs
             title = (job_title or "").strip().lower()
             comp = (company or "").strip().lower()
+            src = (source or "").strip().lower()
+            jid = (str(job_id) or "").strip()
             
-            # Create hash input
-            hash_input = f"{title}|{comp}".encode('utf-8')
+            # Create hash input with more unique fields to prevent over-deduplication
+            # Include source and job_id to ensure jobs with same title+company are unique
+            hash_input = f"{title}|{comp}|{src}|{jid}".encode('utf-8')
             
             # Generate SHA-256 hash and truncate to 32 chars to fit DB column
             return hashlib.sha256(hash_input).hexdigest()[:32]
@@ -132,7 +135,12 @@ class MinimalNotificationService:
             for i, job in enumerate(matched_jobs):
                 # CRITICAL FIX: Use original title for consistent session storage
                 original_title = job.get('original_title') or job.get('title', '')
-                job_hash = self.generate_job_hash(original_title, job.get('company', ''))
+                job_hash = self.generate_job_hash(
+                    original_title, 
+                    job.get('company', ''), 
+                    job.get('source', ''), 
+                    job.get('id', '')
+                )
                 
                 job_insert_query = """
                     INSERT INTO iosapp.job_match_session_jobs 
@@ -253,7 +261,9 @@ class MinimalNotificationService:
             original_title = job.get('original_title') or job.get('title', '')
             job_hash = self.generate_job_hash(
                 original_title, 
-                job.get('company', '')
+                job.get('company', ''),
+                job.get('source', ''),
+                job.get('id', '')
             )
             
             success, notification_id = await self.push_service.send_job_match_notification(
@@ -371,7 +381,12 @@ class MinimalNotificationService:
                     # CRITICAL FIX: Use consistent original title for hashing and preserve it
                     job_copy = job.copy()  # Preserve original job data
                     job_copy['original_title'] = job.get('title', '')  # Store original title
-                    job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                    job_hash = self.generate_job_hash(
+                        job.get('title', ''), 
+                        job.get('company', ''),
+                        job.get('source', ''),
+                        job.get('id', '')
+                    )
                     matching_jobs.append(job_copy)
                     job_hashes.append(job_hash)
                     all_matched_keywords.update(matched_keywords)
@@ -401,32 +416,30 @@ class MinimalNotificationService:
             
             # Step 4: Send enhanced notification representing ALL jobs
             if matching_jobs:
-                # CRITICAL FIX: Check if session already exists for this job set
-                # Use primary job hash to prevent duplicate session notifications
-                primary_original_title = matching_jobs[0].get('original_title') or matching_jobs[0].get('title', '')
-                primary_job_hash = self.generate_job_hash(
-                    primary_original_title, 
-                    matching_jobs[0].get('company', '')
-                )
+                # CRITICAL FIX: Check for significant job overlap with recent sessions
                 
-                # Check for existing session notification with same primary job
-                session_check_query = """
-                    SELECT session_id FROM iosapp.job_match_sessions 
-                    WHERE device_id = $1 AND notification_sent = true
-                    AND session_id IN (
-                        SELECT session_id FROM iosapp.job_match_session_jobs 
-                        WHERE job_hash = $2
-                    )
-                    AND created_at > NOW() - INTERVAL '1 hour'
-                    LIMIT 1
+                # FIXED: Check for significant job overlap instead of just primary job
+                # Only skip if there are many overlapping jobs, not just the primary job
+                overlap_check_query = """
+                    SELECT COUNT(*) as overlap_count
+                    FROM iosapp.job_match_session_jobs jmsj
+                    JOIN iosapp.job_match_sessions jms ON jmsj.session_id = jms.session_id
+                    WHERE jms.device_id = $1 
+                    AND jms.notification_sent = true
+                    AND jms.created_at > NOW() - INTERVAL '1 hour'
+                    AND jmsj.job_hash = ANY($2)
                 """
                 
-                existing_sessions = await db_manager.execute_query(
-                    session_check_query, device_id, primary_job_hash
+                # Check how many jobs overlap with recent sessions
+                existing_overlap = await db_manager.execute_query(
+                    overlap_check_query, device_id, job_hashes
                 )
                 
-                if existing_sessions:
-                    logger.info(f"🔄 Skipping - session notification already sent for primary job {primary_job_hash[:8]}...")
+                overlap_count = existing_overlap[0]['overlap_count'] if existing_overlap else 0
+                overlap_threshold = max(2, len(matching_jobs) * 0.7)  # 70% overlap or minimum 2 jobs
+                
+                if overlap_count >= overlap_threshold:
+                    logger.info(f"🔄 Skipping - {overlap_count}/{len(matching_jobs)} jobs already sent recently (threshold: {overlap_threshold})")
                     return {"matched": True, "notification_sent": False}
                 
                 session_id = await self.create_job_match_session(
@@ -649,7 +662,12 @@ class MinimalNotificationService:
                             
                             if matched_keywords:
                                 # CRITICAL FIX: Use consistent original title for hashing
-                                job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                                job_hash = self.generate_job_hash(
+                                    job.get('title', ''), 
+                                    job.get('company', ''),
+                                    job.get('source', ''),
+                                    job.get('id', '')
+                                )
                                 
                                 # Use distributed lock to prevent race conditions
                                 lock_key = f"notification_lock:{device_id}:{job_hash}"
@@ -708,31 +726,40 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
-                            # CRITICAL FIX: Check for duplicate session notifications  
-                            primary_original_title = matching_jobs[0].get('original_title') or matching_jobs[0].get('title', '')
-                            primary_job_hash = self.generate_job_hash(
-                                primary_original_title, 
-                                matching_jobs[0].get('company', '')
-                            )
+                            # CRITICAL FIX: Check for duplicate session notifications by job overlap
                             
-                            # Check for existing session notification with same primary job
-                            session_check_query = """
-                                SELECT session_id FROM iosapp.job_match_sessions 
-                                WHERE device_id = $1 AND notification_sent = true
-                                AND session_id IN (
-                                    SELECT session_id FROM iosapp.job_match_session_jobs 
-                                    WHERE job_hash = $2
+                            # FIXED: Check for significant job overlap instead of just primary job  
+                            # Get all job hashes for this device's matches
+                            device_job_hashes = []
+                            for matched_job in matching_jobs:
+                                job_hash = self.generate_job_hash(
+                                    matched_job.get('title', ''),
+                                    matched_job.get('company', ''),
+                                    matched_job.get('source', ''),
+                                    matched_job.get('id', '')
                                 )
-                                AND created_at > NOW() - INTERVAL '1 hour'
-                                LIMIT 1
+                                device_job_hashes.append(job_hash)
+                            
+                            # Check for significant overlap with recent sessions
+                            overlap_check_query = """
+                                SELECT COUNT(*) as overlap_count
+                                FROM iosapp.job_match_session_jobs jmsj
+                                JOIN iosapp.job_match_sessions jms ON jmsj.session_id = jms.session_id
+                                WHERE jms.device_id = $1 
+                                AND jms.notification_sent = true
+                                AND jms.created_at > NOW() - INTERVAL '1 hour'
+                                AND jmsj.job_hash = ANY($2)
                             """
                             
-                            existing_sessions = await db_manager.execute_query(
-                                session_check_query, device_id, primary_job_hash
+                            existing_overlap = await db_manager.execute_query(
+                                overlap_check_query, device_id, device_job_hashes
                             )
                             
-                            if existing_sessions:
-                                logger.info(f"🔄 Skipping - session notification already sent for primary job {primary_job_hash[:8]}...")
+                            overlap_count = existing_overlap[0]['overlap_count'] if existing_overlap else 0
+                            overlap_threshold = max(2, len(matching_jobs) * 0.7)  # 70% overlap or minimum 2 jobs
+                            
+                            if overlap_count >= overlap_threshold:
+                                logger.info(f"🔄 Skipping - {overlap_count}/{len(matching_jobs)} jobs already sent recently (threshold: {overlap_threshold})")
                                 continue  # Skip to next device
                             
                             # Create job match session to store all matched jobs
