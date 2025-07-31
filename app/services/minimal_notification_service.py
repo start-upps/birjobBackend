@@ -130,7 +130,9 @@ class MinimalNotificationService:
             
             # Store all matched jobs in the session
             for i, job in enumerate(matched_jobs):
-                job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
+                # CRITICAL FIX: Use original title for consistent session storage
+                original_title = job.get('original_title') or job.get('title', '')
+                job_hash = self.generate_job_hash(original_title, job.get('company', ''))
                 
                 job_insert_query = """
                     INSERT INTO iosapp.job_match_session_jobs 
@@ -143,7 +145,7 @@ class MinimalNotificationService:
                     job_insert_query,
                     session_id,
                     job_hash,
-                    job.get('title', '')[:500],
+                    original_title[:500],  # Use original title for database consistency
                     job.get('company', '')[:200],
                     job.get('source', '')[:100],
                     job.get('apply_link', ''),
@@ -246,9 +248,11 @@ class MinimalNotificationService:
                                   job: Dict[str, Any], matched_keywords: List[str]) -> bool:
         """Send job notification to device"""
         try:
-            # Generate unique match ID for this notification
+            # Generate unique match ID for this notification using ORIGINAL title
+            # CRITICAL FIX: Always use original title for consistent hashing
+            original_title = job.get('original_title') or job.get('title', '')
             job_hash = self.generate_job_hash(
-                job.get('title', ''), 
+                original_title, 
                 job.get('company', '')
             )
             
@@ -274,9 +278,11 @@ class MinimalNotificationService:
                 logger.info(f"📱 iOS DEBUG - notification_id: {notification_id}, job_hash: {job_hash}")
                 
                 # Store notification with notification_id for iOS app lookup
+                # CRITICAL FIX: Always use original title for database storage, not enhanced title
+                original_title = job.get('original_title') or job.get('title', '')
                 await self.record_notification_sent(
                     device_id, job_hash, 
-                    job.get('title', ''), job.get('company', ''),
+                    original_title, job.get('company', ''),
                     job.get('source', ''), matched_keywords,
                     job.get('apply_link'), notification_id
                 )
@@ -362,8 +368,11 @@ class MinimalNotificationService:
                 # Quick keyword matching
                 matched_keywords = self.match_keywords(job, user_keywords)
                 if matched_keywords:
+                    # CRITICAL FIX: Use consistent original title for hashing and preserve it
+                    job_copy = job.copy()  # Preserve original job data
+                    job_copy['original_title'] = job.get('title', '')  # Store original title
                     job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
-                    matching_jobs.append(job)
+                    matching_jobs.append(job_copy)
                     job_hashes.append(job_hash)
                     all_matched_keywords.update(matched_keywords)
             
@@ -392,6 +401,34 @@ class MinimalNotificationService:
             
             # Step 4: Send enhanced notification representing ALL jobs
             if matching_jobs:
+                # CRITICAL FIX: Check if session already exists for this job set
+                # Use primary job hash to prevent duplicate session notifications
+                primary_original_title = matching_jobs[0].get('original_title') or matching_jobs[0].get('title', '')
+                primary_job_hash = self.generate_job_hash(
+                    primary_original_title, 
+                    matching_jobs[0].get('company', '')
+                )
+                
+                # Check for existing session notification with same primary job
+                session_check_query = """
+                    SELECT session_id FROM iosapp.job_match_sessions 
+                    WHERE device_id = $1 AND notification_sent = true
+                    AND session_id IN (
+                        SELECT session_id FROM iosapp.job_match_session_jobs 
+                        WHERE job_hash = $2
+                    )
+                    AND created_at > NOW() - INTERVAL '1 hour'
+                    LIMIT 1
+                """
+                
+                existing_sessions = await db_manager.execute_query(
+                    session_check_query, device_id, primary_job_hash
+                )
+                
+                if existing_sessions:
+                    logger.info(f"🔄 Skipping - session notification already sent for primary job {primary_job_hash[:8]}...")
+                    return {"matched": True, "notification_sent": False}
+                
                 session_id = await self.create_job_match_session(
                     device_id, matching_jobs, list(all_matched_keywords)
                 )
@@ -488,8 +525,10 @@ class MinimalNotificationService:
             total_jobs = len(matching_jobs)
             
             if total_jobs == 1:
-                # Single job - use it directly
-                primary_job = matching_jobs[0]
+                # Single job - use it directly with original title preserved
+                import copy
+                primary_job = copy.deepcopy(matching_jobs[0])
+                primary_job['original_title'] = primary_job.get('title', '')
             else:
                 # Multiple jobs - create smart summary
                 # Prioritize by: 1) More keywords matched, 2) Better company, 3) Newer
@@ -513,7 +552,8 @@ class MinimalNotificationService:
                 else:
                     enhanced_title = f"{original_title} + {total_jobs-1} similar positions"
                 
-                # Add enhanced info WITHOUT modifying original job data
+                # CRITICAL FIX: Store original title separately for database consistency
+                primary_job['original_title'] = original_title  # Always preserve original
                 primary_job['notification_title'] = enhanced_title  # For push notification display
                 primary_job['enhanced_summary'] = {
                     "total_companies": len(companies),
@@ -608,6 +648,7 @@ class MinimalNotificationService:
                             matched_keywords = self.match_keywords(job, user_keywords)
                             
                             if matched_keywords:
+                                # CRITICAL FIX: Use consistent original title for hashing
                                 job_hash = self.generate_job_hash(job.get('title', ''), job.get('company', ''))
                                 
                                 # Use distributed lock to prevent race conditions
@@ -629,7 +670,9 @@ class MinimalNotificationService:
                                                 )
                                                 
                                                 if notification_recorded:
-                                                    matching_jobs.append(job)
+                                                    job_copy = job.copy()
+                                                    job_copy['original_title'] = job.get('title', '')
+                                                    matching_jobs.append(job_copy)
                                                     all_matched_keywords.update(matched_keywords)
                                     except Exception as lock_error:
                                         logger.warning(f"Failed to acquire lock for {device_id}:{job_hash}: {lock_error}")
@@ -642,13 +685,17 @@ class MinimalNotificationService:
                                         )
                                         
                                         if notification_recorded:
-                                            matching_jobs.append(job)
+                                            job_copy = job.copy()
+                                            job_copy['original_title'] = job.get('title', '')
+                                            matching_jobs.append(job_copy)
                                             all_matched_keywords.update(matched_keywords)
                                 else:
                                     # In dry run mode, still check if already sent
                                     already_sent = await self.is_notification_already_sent(device_id, job_hash)
                                     if not already_sent:
-                                        matching_jobs.append(job)
+                                        job_copy = job.copy()
+                                        job_copy['original_title'] = job.get('title', '')
+                                        matching_jobs.append(job_copy)
                                         all_matched_keywords.update(matched_keywords)
                         except Exception as e:
                             logger.error(f"Error processing job {job.get('id', 'unknown')} for device {device_id}: {e}")
@@ -661,6 +708,33 @@ class MinimalNotificationService:
                         logger.info(f"Device {device_id[:8]}... has {len(matching_jobs)} new job matches")
                         
                         if not dry_run:
+                            # CRITICAL FIX: Check for duplicate session notifications  
+                            primary_original_title = matching_jobs[0].get('original_title') or matching_jobs[0].get('title', '')
+                            primary_job_hash = self.generate_job_hash(
+                                primary_original_title, 
+                                matching_jobs[0].get('company', '')
+                            )
+                            
+                            # Check for existing session notification with same primary job
+                            session_check_query = """
+                                SELECT session_id FROM iosapp.job_match_sessions 
+                                WHERE device_id = $1 AND notification_sent = true
+                                AND session_id IN (
+                                    SELECT session_id FROM iosapp.job_match_session_jobs 
+                                    WHERE job_hash = $2
+                                )
+                                AND created_at > NOW() - INTERVAL '1 hour'
+                                LIMIT 1
+                            """
+                            
+                            existing_sessions = await db_manager.execute_query(
+                                session_check_query, device_id, primary_job_hash
+                            )
+                            
+                            if existing_sessions:
+                                logger.info(f"🔄 Skipping - session notification already sent for primary job {primary_job_hash[:8]}...")
+                                continue  # Skip to next device
+                            
                             # Create job match session to store all matched jobs
                             session_id = await self.create_job_match_session(
                                 device_id, matching_jobs, list(all_matched_keywords)
