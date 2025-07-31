@@ -498,27 +498,30 @@ class MinimalNotificationService:
                 companies = list(set(job.get('company', 'Unknown') for job in matching_jobs[:5]))
                 titles = list(set(job.get('title', 'Unknown') for job in matching_jobs[:5]))
                 
-                # Use the first job as base, but enhance the title for variety
-                primary_job = matching_jobs[0].copy()
+                # Use the first job as base - DEEP COPY to prevent corruption of original data
+                import copy
+                primary_job = copy.deepcopy(matching_jobs[0])
                 
-                # Create enhanced title showing variety
+                # Create enhanced title for NOTIFICATION ONLY (don't modify original)
+                original_title = primary_job.get('title', 'Job')
                 if total_jobs == 2:
-                    enhanced_title = f"{primary_job.get('title', 'Job')} + 1 more position"
+                    enhanced_title = f"{original_title} + 1 more position"
                 elif len(companies) > 1:
                     other_companies = companies[1:3]  # Show up to 2 other companies
                     companies_text = ", ".join(other_companies)
-                    enhanced_title = f"{primary_job.get('title', 'Job')} + {total_jobs-1} more at {companies_text}..."
+                    enhanced_title = f"{original_title} + {total_jobs-1} more at {companies_text}..."
                 else:
-                    enhanced_title = f"{primary_job.get('title', 'Job')} + {total_jobs-1} similar positions"
+                    enhanced_title = f"{original_title} + {total_jobs-1} similar positions"
                 
-                # Update the primary job with enhanced info
-                primary_job['title'] = enhanced_title
+                # Add enhanced info WITHOUT modifying original job data
+                primary_job['notification_title'] = enhanced_title  # For push notification display
                 primary_job['enhanced_summary'] = {
                     "total_companies": len(companies),
                     "company_variety": companies[:3],
                     "title_variety": titles[:3],
                     "top_keywords": matched_keywords[:3]
                 }
+                # Keep original title intact: primary_job['title'] stays unchanged
             
             # Add session context
             enhanced_job = {

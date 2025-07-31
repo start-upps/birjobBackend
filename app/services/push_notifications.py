@@ -487,20 +487,15 @@ class PushNotificationService:
         # Generate unique notification_id
         notification_id = str(uuid.uuid4())
         
-        # Truncate title and company for notification
-        title = job.get('title', 'New Job')[:50]
+        # Use notification_title if available (for multi-job notifications), otherwise use original title
+        display_title = job.get('notification_title', job.get('title', 'New Job'))[:50]
         company = job.get('company', 'Unknown Company')[:30]
         keywords_text = ', '.join(matched_keywords[:3])  # Show max 3 keywords
         
-        # Create smart notification text based on match count
-        if total_matches > 1:
-            notification_title = f"🎯 {title}"
-            notification_subtitle = f"🏢 {company}"
-            notification_body = f"💼 {keywords_text} • +{total_matches-1} more jobs"
-        else:
-            notification_title = f"🎯 {title}"
-            notification_subtitle = f"🏢 {company}"
-            notification_body = f"💼 {keywords_text}"
+        # Create notification text (simplified since display_title already contains job count info)
+        notification_title = f"🎯 {display_title}"
+        notification_subtitle = f"🏢 {company}"
+        notification_body = f"💼 {keywords_text}"
         
         payload = {
             "aps": {
