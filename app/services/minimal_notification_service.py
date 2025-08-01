@@ -507,7 +507,7 @@ class MinimalNotificationService:
                 # True bulk insert using executemany
                 query = """
                     INSERT INTO iosapp.notification_hashes 
-                    (device_id, job_hash, job_title, company, source, matched_keywords, apply_link, sent_at)
+                    (device_id, job_hash, job_title, job_company, job_source, matched_keywords, apply_link, sent_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                     ON CONFLICT (device_id, job_hash) DO NOTHING
                 """
